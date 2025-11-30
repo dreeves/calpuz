@@ -1,52 +1,72 @@
 <!DOCTYPE html>
 <html>
-    <head>
-        <meta http-equiv="content-type" content="text/html; charset=utf-8">
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Calendar Puzzle</title>
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/caiuss/1.0.2/caiuss.min.css" type="text/css" media="screen" charset="utf-8">
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/sweetalert/1.1.3/sweetalert.css" type="text/css" media="screen" charset="utf-8">
-        <link rel="stylesheet" href="css/style.css" type="text/css" media="screen" charset="utf-8">
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/octicons/3.5.0/octicons.min.css" type="text/css" media="screen" charset="utf-8">
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/svg.js/2.0.2/svg.min.js"></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/sweetalert/1.1.3/sweetalert.min.js"></script>
-        <script src="js/svg.select.min.js"></script>
-        <script src="js/svg.draggy.js"></script>
-        <script src="js/css.rotate.js"></script>
-        <script src="js/crossy.js"></script>
-        <script src="js/index.js"></script>
-    </head>
-    <body>
-        <div class="title">
-            <h1 class="text-center">Calendar Puzzle</h1>
-        </div>
-        <div class="gridpaper">
-          
-        </div>
-        <div class="graph"></div> 
-        <div class="sidebar">
-            <div class="sidebar-item" onclick="showTutorial()">
-                <span class="octicon octicon-question"></span>
-            </div>
-            <div class="sidebar-item">
-                <a href="https://github.com/bsoule" target="blank">
-                    <span class="octicon octicon-octoface"></span>
-                </a>
-            </div>
-            <div class="sidebar-item">
-                <a href="https://www.etsy.com/listing/1223897009/similar?ref=internal_similar_listing_bot" target="blank">
-                    <span class="octicon octicon-light-bulb"></span>
-                </a>
-            </div>
-            <div class="sidebar-item">
-                <a href="https://github.com/IonicaBizau/tangram" target="blank">
-                    <span class="octicon octicon-heart"></span>
-                </a>
-            </div>
-          <div class="sidebar-item colorChange" onclick="colorChangeButton()">
-                <span class="octicon octicon-squirrel"></span>
-          </div>
-        </div>
-    </body>
+<head>
+
+<meta http-equiv="content-type" content="text/html; charset=utf-8">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/png" sizes="32x32" href="/images/calendar@0.5x.png">
+<title>Calendar Puzzle</title>
+<link rel="stylesheet" type="text/css" media="screen" charset="utf-8"
+  href="https://cdnjs.cloudflare.com/ajax/libs/caiuss/1.0.2/caiuss.min.css">
+<link rel="stylesheet" type="text/css" media="screen" charset="utf-8" 
+  href="css/style.css">
+<link rel="stylesheet" type="text/css" media="screen" charset="utf-8"
+  href="https://cdnjs.cloudflare.com/ajax/libs/octicons/3.5.0/octicons.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/svg.js/2.0.2/svg.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sweetalert/1.1.3/sweetalert.min.js"></script>
+<script src="js/svg.select.min.js"></script>
+<script src="js/svg.draggy.js"></script>
+<script src="js/css.rotate.js"></script>
+<script src="js/crossy.js"></script>
+<script src="js/index.js"></script>
+
+</head>
+<body>
+  
+<div class="title">
+  <h1>Calendar Puzzle (inspired by Nicky)</h1>
+</div>
+
+<div class="gridpaper">
+    
+</div>
+<div class="graph"></div> 
+<div class="sidebar"
+  title="Halp?">
+  <div class="sidebar-item" onclick="showTutorial()">
+    <span class="octicon octicon-question"></span>
+  </div>
+  <div class="sidebar-item"
+    title="Bee's GitHub">
+    <a href="https://github.com/bsoule" target="blank">
+      <span class="octicon octicon-octoface"></span>
+    </a>
+  </div>
+  <div class="sidebar-item"
+    title="Physical versions of things like this on Etsy">
+    <a href="https://www.etsy.com/listing/1223897009/similar?ref=internal_similar_listing_bot" target="blank">
+      <span class="octicon octicon-light-bulb"></span>
+    </a>
+  </div>
+  <div class="sidebar-item"
+    title="Tangram project on GitHub that this was adapted from">
+    <a href="https://github.com/IonicaBizau/tangram" target="blank">
+      <span class="octicon octicon-heart"></span>
+    </a>
+  </div>
+  <div class="sidebar-item colorChange" 
+    title="Change up the colors"
+    onclick="colorChangeButton()">
+    <span class="octicon octicon-squirrel"></span>
+  </div>
+  <div class="sidebar-item solvePuzzle" 
+    title="Solve it? Doesn't work yet."
+    onclick="solvePuzzle()">
+    <span class="octicon octicon-check"></span>
+  </div>
+</div>
+
+</body>
 </html>

@@ -1,221 +1,212 @@
-window.showTutorial = function () {
-    swal({
-        title: "Tutorial"
-      , html: true
-      , confirmButtonText: "Got it!"
-      , text: "<ul>" +
-             "    <li><strong>Left click</strong>: rotate left</li>" +
-             "    <li><strong>Right click</strong>: rotate right</li>" +
-             "    <li><strong>CTRL + left click</strong>: flip</li>" +
-             "    <li><strong>Drag</strong>: move</li>" +
-             "</ul>"
-    })
-};
+const TAU = 2*Math.PI;
+const w = window.innerWidth;
+const h = window.innerHeight;
+const boxel = w/20;           // size in pixels of a calendar cell
+const calw = boxel*7;         // width of the calendar
+const calh = boxel*7;         // height of the calendar
+const headh = 63;             // height of the header
+const sbarw = 68.5;           // width of the sidebar on the right
+const x0 = (w-calw-sbarw)/2;  // (x0, y0) = left top corner of the calendar grid
+const y0 = (h-calh+headh)/2;
+let svg;                      // this gets initialized when the page loads
+let shapes = [                // array of 8 shapes aka puzzle pieces
+  // 1. red corner (4 orientations, non-chiral)
+  ["corner", "#e74c3c", [[0,0],[0,3],[3,3],[3,2],[1,2],[1,0]]],
+  // 2. orange stair (8 orientations, chiral)
+  ["stair", "#e67e22", [[0,0],[0,2],[1,2],[1,4],[2,4],[2,1],[1,1],[1,0]]],
+  // 3. yellow z-shape (4 orientations, chiral)
+  ["z-shape", "#f1c40f", [[0,1],[0,3],[1,3],[1,2],[3,2],[3,0],[2,0],[2,1]]],
+  // 4. green rectangle (2 orientations, non-chiral)
+  ["rectangle", "#2ecc71", [[0,0],[2,0],[2,3],[0,3]]],
+  // 5. cyan c-shape (4 orientations, non-chiral) (was #3498db for blue)
+  ["c-shape", "#77FFFF", [[0,0],[2,0],[2,3],[0,3],[0,2],[1,2],[1,1],[0,1]]],
+  // 6. purple chair (8 orientations, chiral)
+  ["chair", "#9966cc", [[1,0],[2,0],[2,3],[0,3],[0,1],[1,1]]],
+  // 7. pink stilt (8 orientations, chiral) (was #34495e for gray)
+  ["stilt", "#ff99ab", [[0,0],[1,0],[1,1],[2,1],[2,2],[1,2],[1,4],[0,4]]],
+  // 8. blue l-shape (8 orientations, chiral) (was #6400ff for dark purple)
+  ["l-shape", "#3498db", [[0,0],[0,1],[3,1],[3,2],[4,2],[4,0]]],
+]; 
 
-// Set up a click event listener on the button
-window.colorChangeButton = function() {
-  // Get all the SVG polygons
-  const polygons = document.querySelectorAll('.graph #elements g polygon');
-  // Loop through the polygons and change their color
-  polygons.forEach(function(polygon) {
-      polygon.style.fill = getRandomColor();
-  });
-}
-
-function drawGrid1(svg, boxSize, numCols, numRows, ltc) {
-  const gridGroup = svg.group().id('grid');
-  gridGroup.addClass('grid-lines');
-  const labels = [
-    ["JAN","FEB","MAR","APR","MAY","JUNE",""],
-    ["JUL","AUG","SEP","OCT","NOV","DEC",""],
-    ["1","2","3","4","5","6","7"],
-    ["8","9","10","11","12","13","14"],
-    ["15","16","17","18","19","20","21"],
-    ["22","23","24","25","26","27","28"],
-    ["29","30","31","","CALENDAR PUZZLE","",""]
-  ]
-  
-  // translate x, y values by ltc to place grid in right part of page
-  const trX = (n) => n + ltc.x;
-  const trY = (n) => n + ltc.y;
-  
-  labels.forEach((row, rowIndex) => {
-    row.forEach((col, colIndex) => {
-      const centerX = trX((colIndex * boxSize) + (boxSize / 2));
-      const centerY = trY((rowIndex * boxSize) + (boxSize / 2));
-      const label = gridGroup.text(labels[rowIndex][colIndex])
-        .x(centerX)
-        .y(centerY)
-        .font({
-          family: 'Arial',
-          size: (boxSize / 4), // Adjust font size based on the box size
-          anchor: 'middle' // Ensures that the text is centered
-        })
-    })
-  });
-  
-  // We make vertical lines (columns)
-  for (let i = 0; i <= numCols; i++) {
-    let x = i * boxSize;
-    let line = gridGroup.line(trX(x), trY(0), trX(x), trY(numRows * boxSize)).stroke({ width: 1, color: '#ccc' });
-  }
-
-  // Then make horizontal lines (rows)
-  for (let i = 0; i <= numRows; i++) {
-    let y = i * boxSize;
-    let line = gridGroup.line(trX(0), trY(y), trX(numCols * boxSize), trY(y)).stroke({ width: 1, color: '#ccc' });
-  }
-  return gridGroup;
-}
+// -----------------------------------------------------------------------------
 
 function getRandomColor() {
-    const letters = '0123456789ABCDEF';
-    let color = '#';
-    for (let i = 0; i < 6; i++) {
-        color += letters[Math.floor(Math.random() * 16)];
-    }
-    return color;
+  const hexdigs = '0123456789ABCDEF';
+  let color = '#';
+  for (let i = 0; i < 6; i++) { color += hexdigs[Math.floor(Math.random()*16)] }
+  return color
 }
 
-window.addEventListener("load", function () { 
-  const polygen = (tuples,x) => {
-    return tuples.map(([a,b])=> [x*a, x*b].join(',')).join(' ');
-  }
-  var t = new SVG(document.querySelector(".graph")).size("100%", "100%"), 
-    winSize = {
-      w: window.innerWidth, 
-      h: window.innerHeight
-    },
-    size = winSize.w / 2.5, 
-    unit = size / 8, 
-    leftTopCorner = {
-      x: winSize.w / 2 - size / 2, 
-      y: winSize.h / 2 - size / 2
-    },
-    grid = drawGrid1(t,unit,7,7, leftTopCorner),
-    elements = t.group().id("elements"), 
-    shapes = [
-      elements.group(), 
-      elements.group(),
-      elements.group(),
-      elements.group(),
-      elements.group(),
-      elements.group(), 
-      elements.group(), 
-      elements.group(),
-    ] 
-    ;
+window.showTutorial = function () {
+  Swal.fire({ // "sweet alert"
+    title: "Mini Tutorial",
+    confirmButtonText: "Got it!",
+    html: "<ul>" +
+      "<li><strong>Left click</strong>: rotate left</li>" +
+      "<li><strong>Right click</strong>: rotate right</li>" +
+      "<li><strong>CTRL + left click</strong>: flip</li>" +
+      "<li><strong>Drag</strong>: move</li>" +
+      "</ul>"
+  })
+};
 
-    //var grid = drawGrid1(t, u, 7, 7, leftTopCorner)
+window.colorChangeButton = function () {
+  const polygons = document.querySelectorAll('.graph #elements g polygon');
+  polygons.forEach(polygon => polygon.style.fill = getRandomColor())
+};
+
+window.solvePuzzle = function () {
+
+/*
+  movePoly("corner",     4,  2,  TAU/4)
+  movePoly("stair",      3, -1,  TAU/4)
+  movePoly("z-shape",    2,  3,  TAU/4)
+  movePoly("rectangle",  5,  3)
+  movePoly("c-shape",    .5,  4.5,  TAU/4)
+  movePoly("chair",      0,  3,  TAU/2, true)
+  movePoly("stilt",      1,  -1, -TAU/4, true)
+  movePoly("l-shape",    0,  1,  TAU/2)
+*/
+/* this version works if we rotate around the corner instead of the center */
+  movePoly("corner",     7,  2,  TAU/4)
+  movePoly("stair",      6,  0,  TAU/4)
+  movePoly("z-shape",    5,  3,  TAU/4)
+  movePoly("rectangle",  5,  3)
+  movePoly("c-shape",    3,  5,  TAU/4)
+  movePoly("chair",      0,  6,  TAU/2, true)
+  movePoly("stilt",      0,  0, -TAU/4, true)
+  movePoly("l-shape",    4,  3,  TAU/2)
+
+}
+
+// This function moves a polygon to the specified position, rotated a certain
+// amount, and flipped or not. It also sets up the mouse events. It's probably
+// dumb to do this every time we move a shape but without doing all this from
+// scratch like this, the dragging was ending up fubar.
+function movePoly(polyId, x, y, angle = 0, flip = false) {
+  // hmm, the shapes array would be nicer as a dictionary
+  const [nom, hue, fig] = shapes.find(shape => shape[0] === polyId);
+  const targetGroup = SVG.get(polyId);
+  if (targetGroup) { targetGroup.remove() } // remove it, set it up from scratch
+  const newGroup = svg.group().id("elements").group().id(nom);
+  const pol = newGroup.polygon(polygen(fig, boxel)).fill(hue).opacity('0.8')
+  newGroup.translate(x0 + x * boxel, y0 + y * boxel);
+
+  Crossy(pol.node, "transform", 
+        `rotate(${(angle * 180 / Math.PI) % 360}deg) scaleX(${flip ? -1 : 1})`);
+/*
+  const bbox = pol.node.getBBox();
+  const centerX = bbox.x + bbox.width / 2;
+  const centerY = bbox.y + bbox.height / 2;
+  pol.node.setAttribute("style", `transform-origin: ${centerX}px ${centerY}px;`)
+*/
+// the stuff above works to make the shapes rotate nicely around their centers, 
+// but for solvePuzzle i don't think we want that. and the stuff below seems to 
+// fail to undo the stuff above :(
+/*
+  //pol.node.removeAttribute("style");
+  //pol.node.setAttribute("style", "transform-origin: 0 0;");
+  const currentTransformOrigin = window.getComputedStyle(pol.node).transformOrigin;
+  console.log(currentTransformOrigin); // this claims it starts as 0px 0px
+*/
+
   
-    // 1. Corner shape
-    shapes[0].polygon(
-      polygen([[0,0],[0,3],[3,3],[3,2],[1,2],[1,0]],unit)
-    ).fill("#e74c3c").opacity('0.8');
-
-    // 2. Stair step
-    shapes[1].polygon(
-      polygen([[0,0],[0,2],[1,2],[1,4],[2,4],[2,1],[1,1],[1,0]],unit)
-    ).fill("#e67e22").opacity('0.8');
-
-    // 3. Z shape
-    shapes[2].polygon(
-      polygen([[0,1],[0,3],[1,3],[1,2],[3,2],[3,0],[2,0],[2,1]],unit)
-    ).fill("#f1c40f").opacity('0.8');
-
-    // 4. rectangle
-    shapes[3].polygon(
-      polygen([[0,0],[2,0],[2,3],[0,3]],unit)
-    ).fill("#2ecc71").opacity('0.8');
-
-    // 5. C shape
-    shapes[4].polygon(
-      polygen([[0,0],[2,0],[2,3],[0,3],[0,2],[1,2],[1,1],[0,1]],unit)
-    ).fill("#3498db").opacity('0.8');
-
-    // 6. chair
-    // is there value in closing up the shape, like this one? 
-    shapes[5].polygon(
-      polygen([[1,0],[2,0],[2,3],[0,3],[0,1],[1,1],[1,0]], unit)
-    ).fill("#9966cc").opacity('0.8');
-
-    // 7. stilt
-    shapes[6].polygon(
-      polygen([[0,0],[1,0],[1,1],[2,1],[2,2],[1,2],[1,4],[0,4]],unit)
-    ).fill("#34495e").opacity('0.8');
-
-    // 8. L-shape
-    shapes[7].polygon(
-      polygen([[0,0],[0,1],[3,1],[3,2],[4,2],[4,0]],unit)
-      //`0,0 0,${u} ${3*u},${u} ${3*u},${2*u} ${4*u},${2*u} ${4*u},0`
-    ).fill('#6f00ff').opacity('0.8');
-  
-    Crossy("polygon", "transformOrigin", "center");
-    Crossy("polygon", "transformBox", "fill-box");
-    Crossy("polygon", "transition", "all 500 ease");
-
-
-    function createCorner(corner,n) {
-      let count = 0
-      return () => {
-        let radius = 4*unit
-        let angle = (count++/8) * Math.PI * 2
-        console.log("count", count, "angle", angle)
-        var dx = radius * Math.cos(angle)
-        var dy = radius * Math.sin(angle)
-        
-        return [corner.x+dx+size/4, corner.y+dy+size/4]
+  let moved = false;
+  let ang = 0;
+  const cPol = newGroup.children()[0];
+  newGroup.draggy();
+  newGroup.on("dragmove", () => { moved = true  });
+  cPol.on("mousedown",    () => { moved = false });
+  cPol.on("contextmenu",  e => { e.preventDefault() });
+  cPol.on("mouseup",      e => {
+    if (!moved) {
+      const targetNode = e.currentTarget; // or e.target, depending, I guess?
+      if (e.ctrlKey) {
+        targetNode._scale = (targetNode._scale || 1) === 1 ? -1 : 1;
+      } else {
+        ang += 90 * (e.button === 2 ? 1 : -1);
       }
+      Crossy(targetNode, "transform", 
+                     `rotate(${ang}deg) scaleX(${targetNode._scale || 1})`);
     }
-    var cornerRadius = (corner) => {
-      // Generate a random angle in radians
-      var radius = 3*unit
-      var angle = Math.random() * Math.PI * 2; // Random angle from 0 to 360 degrees (in radians)
+    moved = false;
+    e.preventDefault()
+  })
+}
 
-      // Generate a random distance from the center (randomize radius to spread shapes within the circle)
-      var randomRadius = Math.random() * radius;
+function drawCalendar() {
+  const numRows = 7;
+  const numCols = 7;
+  const labels = [ ["JAN", "FEB", "MAR", "APR", "MAY", "JUN",   ""],
+                   ["JUL", "AUG", "SEP", "OCT", "NOV", "DEC",   ""],
+                   [  "1",   "2",   "3",   "4",   "5",   "6",  "7"],
+                   [  "8",   "9",  "10",  "11",  "12",  "13", "14"],
+                   [ "15",  "16",  "17",  "18",  "19",  "20", "21"],
+                   [ "22",  "23",  "24",  "25",  "26",  "27", "28"],
+                   [ "29",  "30",  "31",    "",    "",    "",   ""] ];
 
-      // Convert polar coordinates (angle, randomRadius) to Cartesian coordinates (dx, dy)
-      var dx = randomRadius * Math.cos(angle);
-      var dy = randomRadius * Math.sin(angle);
-      return [(corner.x+size/4)+dx,(corner.y+size/4)+dy]
-    }
+  const gridGroup = svg.group().id('grid');
+  gridGroup.addClass('grid-lines');
 
-    const cornerErr = createCorner(leftTopCorner);
-    shapes.forEach(function (c) {
-        var moved = false;
-        var angle = 0;
-        var cPol = c.children()[0];
-        //c.translate(...cornerRadius(leftTopCorner));
-        c.translate(...cornerErr())
-        c.draggy();
-        c.on("dragmove", function () {
-            moved = true;
-        });
+  const trX = x => x + x0;   // Translate x and y values to calendar coordinates
+  const trY = y => y + y0;
 
-        cPol.on("mousedown", function () {
-            moved = false;
-        });
+  // Draw one of the thin lines of the calendar grid
+  const gline = (x1, y1, x2, y2) =>
+    gridGroup.line(trX(x1), trY(y1), trX(x2), trY(y2))
+             .stroke({ width: 1, color: '#ccc' });
 
-        cPol.on("contextmenu", function (e) {
-            e.preventDefault();
-        });
+  labels.forEach((row, i) => {
+    row.forEach((col, j) => {
+      gridGroup.text(labels[i][j]).x(trX(j * boxel + boxel / 2))
+                                  .y(trY(i * boxel + boxel / 2))
+        .font({ family: 'Arial', size: boxel / 4, anchor: 'middle' })
+    })
+  });
 
-        cPol.on("mouseup", function (e) {
-            if (!moved) {
-                var t = this.node.style.transform;
+  for (let i = 0; i <= numCols; i++) {                // draw the vertical lines
+    if      (i < 4) gline(i*boxel, 0,       i*boxel,     numRows*boxel)
+    else if (i < 7) gline(i*boxel, 0,       i*boxel, (numRows-1)*boxel)
+    else if (i===7) gline(i*boxel, 2*boxel, i*boxel, (numRows-1)*boxel)
+  } 
+  for (let i = 0; i <= numRows; i++) {              // draw the horizontal lines
+    if      (i < 2) gline(0, i*boxel, (numCols-1)*boxel, i*boxel)
+    else if (i < 7) gline(0, i*boxel,     numCols*boxel, i*boxel)
+    else if (i===7) gline(0, i*boxel,           3*boxel, i*boxel)
+  }
+}
 
-                if (e.ctrlKey) {
-                    this.node._scale = (this.node._scale || 1) === 1 ? -1 : 1;
-                } else {
-                    angle += (e.button === 2 ? 1 : -1) * 90;
-                }
+// Turn a list of coordinates outlining the shape of a puzzle piece into an svg
+// path string or whatever.
+function polygen(tuples, x) {
+  return tuples.map(([a,b]) => [x*a, x*b].join(',')).join(' ')
+}
 
-                Crossy(this.node, "transform", "rotate(" + angle + "deg) scaleX(" + (this.node._scale || 1) + ")");
-            }
-            moved = false;
-            e.preventDefault();
-        });
-    });
-  
+// Not currently used but tested and works fine. See scatterShapes().
+function spreadAround(angle) {
+  return [x0 + 2*boxel + 4.5*boxel * Math.cos(angle),
+          y0 + 2*boxel + 4.5*boxel * Math.sin(angle)]
+}
+
+// We can do this scattering programmatically with
+// shape.translate(...spreadAround(i / shapes.length * TAU))
+// where i is the index of the shape in the shapes array.
+// But right now movePoly is also where various initialization happens and we
+// need to call movePoly on each shape to initialize it, so, here we are.
+function scatterShapes() {
+  movePoly("corner",      6.5, 1.8)
+  movePoly("stair",       5.3, 5.3)
+  movePoly("z-shape",       2, 6.3)
+  movePoly("rectangle",  -1.2, 5.6)
+  movePoly("c-shape",    -2.2, 2)
+  movePoly("chair",      -1.3, -1.3)
+  movePoly("stilt",       2.2, -2.5)
+  movePoly("l-shape",     5.2, -1.3)
+}
+
+window.addEventListener("load", function () {
+  svg = new SVG(document.querySelector(".graph")).size("100%", "100%");
+  drawCalendar();
+  scatterShapes();
+  //window.solvePuzzle(); // handy for debugging to do this on page load
 });
