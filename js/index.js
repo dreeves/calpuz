@@ -65,7 +65,16 @@ window.solvePuzzle = function () {
   movePoly("chair",      0,  3,  TAU/2, true)
   movePoly("stilt",      1,  -1, -TAU/4, true)
   movePoly("l-shape",    0,  1,  TAU/2)
-
+  /* this version works if we rotate around the corner instead of the center:
+  movePoly("corner",     7,  2,  TAU/4)
+  movePoly("stair",      6,  0,  TAU/4)
+  movePoly("z-shape",    5,  3,  TAU/4)
+  movePoly("rectangle",  5,  3)
+  movePoly("c-shape",    3,  5,  TAU/4)
+  movePoly("chair",      0,  6,  TAU/2, true)
+  movePoly("stilt",      0,  0, -TAU/4, true)
+  movePoly("l-shape",    4,  3,  TAU/2)
+  */
 }
 
 // This function moves a polygon to the specified position, rotated a certain
@@ -87,6 +96,15 @@ function movePoly(polyId, x, y, angle = 0, flip = false) {
   const centerX = bbox.x + bbox.width / 2;
   const centerY = bbox.y + bbox.height / 2;
   pol.node.setAttribute("style", `transform-origin: ${centerX}px ${centerY}px;`)
+  // the stuff above works to make the shapes rotate nicely around their centers, 
+  // but for solvePuzzle i don't think we want that. and the stuff below seems to 
+  // fail to undo the stuff above :(
+  /*
+    //pol.node.removeAttribute("style");
+    //pol.node.setAttribute("style", "transform-origin: 0 0;");
+    const currentTransformOrigin = window.getComputedStyle(pol.node).transformOrigin;
+    console.log(currentTransformOrigin); // this claims it starts as 0px 0px
+  */
 
   
   let moved = false;
