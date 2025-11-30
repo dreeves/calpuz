@@ -9,6 +9,256 @@ const sbarw = 68.5;           // width of the sidebar on the right
 const x0 = (w-calw-sbarw)/2;  // (x0, y0) = left top corner of the calendar grid
 const y0 = (h-calh+headh)/2;
 let svg;                      // this gets initialized when the page loads
+let solving = false;          // flag to prevent multiple solves at once
+
+// The puzzle grid: 1 = valid cell, 0 = out of bounds
+// Row 0-1: months (6 cells each, last column empty)
+// Row 2-6: days 1-31
+// Row 6: only first 3 cells are valid (days 29-31)
+const gridTemplate = [
+  [1,1,1,1,1,1,0],  // JAN-JUN, empty
+  [1,1,1,1,1,1,0],  // JUL-DEC, empty  
+  [1,1,1,1,1,1,1],  // 1-7
+  [1,1,1,1,1,1,1],  // 8-14
+  [1,1,1,1,1,1,1],  // 15-21
+  [1,1,1,1,1,1,1],  // 22-28
+  [1,1,1,0,0,0,0],  // 29-31, empty
+];
+
+// Get grid cell for a given month (0-11) and day (1-31)
+function getDateCells(month, day) {
+  const monthRow = Math.floor(month / 6);
+  const monthCol = month % 6;
+  const dayRow = Math.floor((day - 1) / 7) + 2;
+  const dayCol = (day - 1) % 7;
+  return [[monthRow, monthCol], [dayRow, dayCol]];
+}
+
+// Piece definitions as cells they cover (relative to origin)
+// Each piece has multiple orientations from rotations (0, 90, 180, 270) and flips
+const pieceCells = {
+  // corner: L-shape covering 6 cells
+  "corner": [[0,0],[0,1],[0,2],[1,2],[2,2],[2,1]],
+  // stair: 6 cells in stair pattern  
+  "stair": [[0,0],[1,0],[1,1],[2,1],[2,2],[2,3]],
+  // z-shape: 6 cells
+  "z-shape": [[0,1],[0,2],[1,0],[1,1],[2,0],[2,1]],
+  // rectangle: 2x3 = 6 cells
+  "rectangle": [[0,0],[0,1],[0,2],[1,0],[1,1],[1,2]],
+  // c-shape: 6 cells
+  "c-shape": [[0,0],[0,1],[0,2],[1,0],[1,2],[2,0]],
+  // chair: 6 cells
+  "chair": [[0,0],[0,1],[0,2],[1,2],[2,1],[2,2]],
+  // stilt: 6 cells
+  "stilt": [[0,0],[0,1],[1,1],[2,1],[2,2],[3,1]],
+  // l-shape: 6 cells
+  "l-shape": [[0,0],[0,1],[1,0],[2,0],[3,0],[3,1]],
+};
+
+// Rotate a piece 90 degrees clockwise
+function rotateCells(cells) {
+  return cells.map(([r, c]) => [c, -r]);
+}
+
+// Flip a piece horizontally
+function flipCells(cells) {
+  return cells.map(([r, c]) => [-r, c]);
+}
+
+// Normalize cells so minimum row and col are 0
+function normalizeCells(cells) {
+  const minR = Math.min(...cells.map(([r, c]) => r));
+  const minC = Math.min(...cells.map(([r, c]) => c));
+  return cells.map(([r, c]) => [r - minR, c - minC]).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+}
+
+// Generate all unique orientations for a piece
+function getAllOrientations(cells, isChiral) {
+  const orientations = new Set();
+  let current = cells;
+  
+  // 4 rotations
+  for (let i = 0; i < 4; i++) {
+    orientations.add(JSON.stringify(normalizeCells(current)));
+    current = rotateCells(current);
+  }
+  
+  // If chiral, also do flipped versions
+  if (isChiral) {
+    current = flipCells(cells);
+    for (let i = 0; i < 4; i++) {
+      orientations.add(JSON.stringify(normalizeCells(current)));
+      current = rotateCells(current);
+    }
+  }
+  
+  return [...orientations].map(s => JSON.parse(s));
+}
+
+// Precompute all orientations for all pieces
+const pieceOrientations = {
+  "corner": getAllOrientations(pieceCells["corner"], false),
+  "stair": getAllOrientations(pieceCells["stair"], true),
+  "z-shape": getAllOrientations(pieceCells["z-shape"], true),
+  "rectangle": getAllOrientations(pieceCells["rectangle"], false),
+  "c-shape": getAllOrientations(pieceCells["c-shape"], false),
+  "chair": getAllOrientations(pieceCells["chair"], true),
+  "stilt": getAllOrientations(pieceCells["stilt"], true),
+  "l-shape": getAllOrientations(pieceCells["l-shape"], true),
+};
+
+// Check if a piece placement is valid
+function canPlace(grid, cells, row, col) {
+  for (const [dr, dc] of cells) {
+    const r = row + dr;
+    const c = col + dc;
+    if (r < 0 || r >= 7 || c < 0 || c >= 7) return false;
+    if (grid[r][c] !== 1) return false;
+  }
+  return true;
+}
+
+// Place a piece on the grid (mutates grid)
+function placePiece(grid, cells, row, col, value) {
+  for (const [dr, dc] of cells) {
+    grid[row + dr][col + dc] = value;
+  }
+}
+
+// Copy grid
+function copyGrid(grid) {
+  return grid.map(row => [...row]);
+}
+
+// Solver state for visualization
+let solverState = {
+  placements: [],
+  attempts: 0,
+};
+
+// Async delay for animation
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Visualize current solver state
+function visualizePlacements(placements) {
+  const pieceNames = ["corner", "stair", "z-shape", "rectangle", "c-shape", "chair", "stilt", "l-shape"];
+  
+  // Clear all pieces first by scattering them off-screen
+  pieceNames.forEach((name, i) => {
+    const group = SVG.get(name);
+    if (group) group.remove();
+  });
+  
+  // Place pieces according to current placements
+  placements.forEach(p => {
+    if (p) {
+      placePolyForSolver(p.name, p.col, p.row, p.orientation, p.orientationIndex);
+    }
+  });
+}
+
+// Simplified piece placement for solver (no drag events, just visual)
+function placePolyForSolver(polyId, x, y, cells, orientationIndex) {
+  const [nom, hue, fig] = shapes.find(shape => shape[0] === polyId);
+  const targetGroup = SVG.get(polyId);
+  if (targetGroup) { targetGroup.remove() }
+  
+  const newGroup = svg.group().id("elements").group().id(nom);
+  const pol = newGroup.polygon(polygen(fig, boxel)).fill(hue).opacity('0.8');
+  
+  // Calculate rotation and flip from orientation index
+  const numRotations = orientationIndex % 4;
+  const isFlipped = orientationIndex >= 4;
+  const angle = numRotations * TAU / 4;
+  
+  newGroup.translate(x0 + x * boxel, y0 + y * boxel);
+  
+  const bbox = pol.node.getBBox();
+  const centerX = bbox.x + bbox.width / 2;
+  const centerY = bbox.y + bbox.height / 2;
+  pol.node.style.transformOrigin = `${centerX}px ${centerY}px`;
+  Crossy(pol.node, "transform", 
+        `rotate(${(angle * 180 / Math.PI) % 360}deg) scaleX(${isFlipped ? -1 : 1})`);
+}
+
+// Main solver function (async for visualization)
+async function solve(targetCells, animationDelay = 50) {
+  const pieceNames = ["corner", "stair", "z-shape", "rectangle", "c-shape", "chair", "stilt", "l-shape"];
+  
+  // Initialize grid - mark target cells as 2 (to leave uncovered)
+  const grid = copyGrid(gridTemplate);
+  for (const [r, c] of targetCells) {
+    grid[r][c] = 2;
+  }
+  
+  solverState = { placements: new Array(8).fill(null), attempts: 0 };
+  
+  async function backtrack(pieceIndex) {
+    if (!solving) return false; // Allow cancellation
+    
+    if (pieceIndex === 8) {
+      // All pieces placed successfully!
+      return true;
+    }
+    
+    const pieceName = pieceNames[pieceIndex];
+    const orientations = pieceOrientations[pieceName];
+    
+    // Try each orientation
+    for (let oi = 0; oi < orientations.length; oi++) {
+      const cells = orientations[oi];
+      
+      // Try each position
+      for (let row = 0; row < 7; row++) {
+        for (let col = 0; col < 7; col++) {
+          if (canPlace(grid, cells, row, col)) {
+            // Place the piece
+            placePiece(grid, cells, row, col, 3 + pieceIndex);
+            solverState.placements[pieceIndex] = {
+              name: pieceName,
+              row: row,
+              col: col,
+              orientation: cells,
+              orientationIndex: oi
+            };
+            solverState.attempts++;
+            
+            // Visualize
+            if (animationDelay > 0 && solverState.attempts % 10 === 0) {
+              visualizePlacements(solverState.placements);
+              await delay(animationDelay);
+            }
+            
+            // Recurse
+            if (await backtrack(pieceIndex + 1)) {
+              return true;
+            }
+            
+            // Backtrack
+            placePiece(grid, cells, row, col, 1);
+            solverState.placements[pieceIndex] = null;
+          }
+        }
+      }
+    }
+    
+    return false;
+  }
+  
+  const success = await backtrack(0);
+  
+  if (success) {
+    visualizePlacements(solverState.placements);
+    console.log(`Solution found after ${solverState.attempts} attempts!`);
+  } else {
+    console.log(`No solution found after ${solverState.attempts} attempts.`);
+  }
+  
+  return success;
+}
+
 let shapes = [                // array of 8 shapes aka puzzle pieces
   // 1. red corner (4 orientations, non-chiral)
   ["corner", "#e74c3c", [[0,0],[0,3],[3,3],[3,2],[1,2],[1,0]]],
@@ -55,26 +305,44 @@ window.colorChangeButton = function () {
   polygons.forEach(polygon => polygon.style.fill = getRandomColor())
 };
 
-window.solvePuzzle = function () {
-
-  movePoly("corner",     4,  2,  TAU/4)
-  movePoly("stair",      3, -1,  TAU/4)
-  movePoly("z-shape",    2,  3,  TAU/4)
-  movePoly("rectangle",  5,  3)
-  movePoly("c-shape",    .5,  4.5,  TAU/4)
-  movePoly("chair",      0,  3,  TAU/2, true)
-  movePoly("stilt",      1,  -1, -TAU/4, true)
-  movePoly("l-shape",    0,  1,  TAU/2)
-  /* this version works if we rotate around the corner instead of the center:
-  movePoly("corner",     7,  2,  TAU/4)
-  movePoly("stair",      6,  0,  TAU/4)
-  movePoly("z-shape",    5,  3,  TAU/4)
-  movePoly("rectangle",  5,  3)
-  movePoly("c-shape",    3,  5,  TAU/4)
-  movePoly("chair",      0,  6,  TAU/2, true)
-  movePoly("stilt",      0,  0, -TAU/4, true)
-  movePoly("l-shape",    4,  3,  TAU/2)
-  */
+window.solvePuzzle = async function () {
+  if (solving) {
+    solving = false;
+    return;
+  }
+  
+  solving = true;
+  
+  // Get today's date
+  const today = new Date();
+  const month = today.getMonth(); // 0-11
+  const day = today.getDate();    // 1-31
+  
+  console.log(`Solving for ${today.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}...`);
+  
+  // Get the cells to leave uncovered
+  const targetCells = getDateCells(month, day);
+  console.log(`Target cells: month at [${targetCells[0]}], day at [${targetCells[1]}]`);
+  
+  // Start the solver with animation
+  const success = await solve(targetCells, 30);
+  
+  if (success) {
+    Swal.fire({
+      title: "Solved!",
+      text: `Found a solution for ${today.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })} after ${solverState.attempts} attempts!`,
+      icon: "success",
+      confirmButtonText: "Nice!"
+    });
+  } else {
+    Swal.fire({
+      title: "No solution",
+      text: "Could not find a solution. This shouldn't happen!",
+      icon: "error"
+    });
+  }
+  
+  solving = false;
 }
 
 // This function moves a polygon to the specified position, rotated a certain
