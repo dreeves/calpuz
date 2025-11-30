@@ -90,12 +90,12 @@ function movePoly(polyId, x, y, angle = 0, flip = false) {
   const pol = newGroup.polygon(polygen(fig, boxel)).fill(hue).opacity('0.8')
   newGroup.translate(x0 + x * boxel, y0 + y * boxel);
 
-  Crossy(pol.node, "transform", 
-        `rotate(${(angle * 180 / Math.PI) % 360}deg) scaleX(${flip ? -1 : 1})`);
   const bbox = pol.node.getBBox();
   const centerX = bbox.x + bbox.width / 2;
   const centerY = bbox.y + bbox.height / 2;
-  pol.node.setAttribute("style", `transform-origin: ${centerX}px ${centerY}px;`)
+  pol.node.style.transformOrigin = `${centerX}px ${centerY}px`;
+  Crossy(pol.node, "transform", 
+        `rotate(${(angle * 180 / Math.PI) % 360}deg) scaleX(${flip ? -1 : 1})`);
   // the stuff above works to make the shapes rotate nicely around their centers, 
   // but for solvePuzzle i don't think we want that. and the stuff below seems to 
   // fail to undo the stuff above :(
