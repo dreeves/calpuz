@@ -1,7 +1,7 @@
 // Calendar Puzzle Solver
 // Brute-force backtracking solver with visualization
 
-const Solver = (function() {
+window.Solver = (function() {
   
   // The puzzle grid: 1 = valid cell, 0 = out of bounds
   const gridTemplate = [
@@ -112,6 +112,61 @@ const Solver = (function() {
     return orientations;
   }
   
+  // Manually defined cell patterns for each piece
+  // These are verified to match the actual puzzle pieces
+  // Format: [row, col] relative to top-left of bounding box
+  const manualPieceCells = {
+    // Corner: L-shape, 5 cells
+    //  X
+    //  X
+    //  X X X
+    "corner": [[0,0], [1,0], [2,0], [2,1], [2,2]],
+    
+    // Stair: stair pattern, 5 cells
+    //  X
+    //  X X
+    //    X X
+    "stair": [[0,0], [1,0], [1,1], [2,1], [2,2]],
+    
+    // Z-shape: Z pattern, 5 cells
+    //  X X
+    //    X
+    //    X X
+    "z-shape": [[0,0], [0,1], [1,1], [2,1], [2,2]],
+    
+    // Rectangle: 2x3, 6 cells
+    //  X X
+    //  X X
+    //  X X
+    "rectangle": [[0,0], [0,1], [1,0], [1,1], [2,0], [2,1]],
+    
+    // C-shape: C/U pattern, 5 cells
+    //  X X
+    //  X
+    //  X X
+    "c-shape": [[0,0], [0,1], [1,0], [2,0], [2,1]],
+    
+    // Chair: chair pattern, 5 cells
+    //    X
+    //  X X
+    //  X X
+    "chair": [[0,1], [1,0], [1,1], [2,0], [2,1]],
+    
+    // Stilt: T-like pattern, 5 cells
+    //  X
+    //  X X
+    //  X
+    //  X
+    "stilt": [[0,0], [1,0], [1,1], [2,0], [3,0]],
+    
+    // L-shape: L pattern, 5 cells  
+    //  X
+    //  X
+    //  X
+    //  X X
+    "l-shape": [[0,0], [1,0], [2,0], [3,0], [3,1]],
+  };
+  
   // Precompute piece data from shapes array
   let pieceData = null;
   
@@ -121,7 +176,8 @@ const Solver = (function() {
     const chiralPieces = new Set(["stair", "z-shape", "chair", "stilt", "l-shape"]);
     
     for (const [name, color, vertices] of shapes) {
-      const baseCells = polygonToCells(vertices);
+      // Use manually defined cells instead of computing from polygon
+      const baseCells = manualPieceCells[name];
       const isChiral = chiralPieces.has(name);
       const orientations = getAllOrientations(baseCells, isChiral);
       
