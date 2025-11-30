@@ -1,8 +1,10 @@
-## This is a calendar puzzle. Arrange the puzzle pieces to reveal the current date.
+# Calendar Puzzle
 
-This code is due in large part to 
-[IonicaBizau](https://github.com/IonicaBizau/tangram)'s tangram repo. Thanks!
+Arrange the puzzle pieces to reveal the current date.
 
+Forked from <https://github.com/bsoule/CalendarPuzzle>
+
+Hosted at <https://calpuz.replit.app>
 
 
 
