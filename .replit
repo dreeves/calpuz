@@ -38,13 +38,13 @@ args = "Calendar Puzzle"
 name = "Calendar Puzzle"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python -m http.server 5000"
-waitForPort = 5000
-
 [workflows.workflow.metadata]
 outputType = "webview"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python server.py"
+waitForPort = 5000
 
 [[ports]]
 localPort = 80
