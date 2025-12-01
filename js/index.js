@@ -268,23 +268,9 @@ function updateProgressPanel(attempts, allPiecesProgress) {
       posEl.textContent = '-';
     } else {
       orientEl.textContent = `${piece.orientation}/${piece.totalOrientations}`;
-      // Compute valid anchor position (1-33) from row,col
-      // All pieces are ≥2x2, so anchors must have room down AND right
-      // Rows 0-1: cols 0-5 (6 each) = positions 1-12
-      // Rows 2-4: cols 0-5 (6 each, skip col 6) = positions 13-30
-      // Row 5: cols 0-2 only (3) = positions 31-33
-      // Row 5 cols 3-6 and row 6: impossible (no valid cells below)
-      let posIndex;
-      if (piece.row <= 1) {
-        posIndex = piece.row * 6 + Math.min(piece.col, 5) + 1;
-      } else if (piece.row <= 4) {
-        posIndex = 12 + (piece.row - 2) * 6 + Math.min(piece.col, 5) + 1;
-      } else if (piece.row === 5 && piece.col <= 2) {
-        posIndex = 30 + piece.col + 1;
-      } else {
-        // Invalid anchor position, show raw index
-        posIndex = 33;
-      }
+      // Valid anchors: rows 0-4 cols 0-5 (30), row 5 cols 0-2 (3) = 33 total
+      const r = piece.row, c = Math.min(piece.col, 5);
+      const posIndex = r <= 4 ? r * 6 + c + 1 : (c <= 2 ? 31 + c : 33);
       posEl.textContent = `${posIndex}/33`;
     }
   }
