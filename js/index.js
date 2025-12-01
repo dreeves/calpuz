@@ -54,13 +54,15 @@ window.colorChangeButton = function () {
   polygons.forEach(polygon => polygon.style.fill = getRandomColor())
 };
 
+// Cached elements container to prevent DOM leak
+let elementsContainer = null;
+
 // Get or create the elements container (reuse to prevent DOM leak)
 function getElementsContainer() {
-  let container = svg.findOne('#elements');
-  if (!container) {
-    container = svg.group().id('elements');
+  if (!elementsContainer) {
+    elementsContainer = svg.group().id('elements');
   }
-  return container;
+  return elementsContainer;
 }
 
 // Visualize a placement from the solver using actual cell positions
