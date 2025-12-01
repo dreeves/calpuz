@@ -54,7 +54,7 @@ window.colorChangeButton = function () {
   polygons.forEach(polygon => polygon.style.fill = getRandomColor())
 };
 
-// Visualize a placement from the solver
+// Visualize a placement from the solver using actual cell positions
 function visualizePlacement(placement) {
   if (!placement) return;
   
@@ -63,20 +63,15 @@ function visualizePlacement(placement) {
   if (targetGroup) targetGroup.remove();
   
   const newGroup = svg.group().id("elements").group().id(nom);
-  const pol = newGroup.polygon(polygen(fig, boxel)).fill(hue).opacity('0.8');
   
-  // Position at grid cell
-  newGroup.translate(x0 + placement.col * boxel, y0 + placement.row * boxel);
-  
-  // Apply rotation and flip
-  const angle = placement.rotation * 90;
-  const flip = placement.flipped ? -1 : 1;
-  
-  const bbox = pol.node.getBBox();
-  const centerX = bbox.x + bbox.width / 2;
-  const centerY = bbox.y + bbox.height / 2;
-  pol.node.style.transformOrigin = `${centerX}px ${centerY}px`;
-  Crossy(pol.node, "transform", `rotate(${angle}deg) scaleX(${flip})`);
+  // Draw each cell as a square, based on the solver's actual cell placement
+  for (const [dr, dc] of placement.cells) {
+    const cellRow = placement.row + dr;
+    const cellCol = placement.col + dc;
+    const cellX = x0 + cellCol * boxel;
+    const cellY = y0 + cellRow * boxel;
+    newGroup.rect(boxel, boxel).move(cellX, cellY).fill(hue).opacity('0.8').stroke({ width: 1, color: '#fff' });
+  }
 }
 
 // Visualize all placements (callback for solver)
