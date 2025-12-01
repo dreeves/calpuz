@@ -236,8 +236,8 @@ window.solvePuzzle = async function () {
   
   // Get today's date
   const today = new Date();
-  const month = today.getMonth();
-  const day = today.getDate();
+  const month = today.getMonth(); // zero-based so Jan = 0, Dec = 11
+  const day = today.getDate(); // one-based so the 1st = 1 etc
   
   const dateStr = today.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
   
