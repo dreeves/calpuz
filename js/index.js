@@ -159,8 +159,10 @@ function restoreInteractivePieces(placements) {
     const [nom, hue, fig] = shapes.find(shape => shape[0] === p.name);
     
     // Create new interactive group (reuse container)
+    // Outer group handles drag, inner group handles rotation (to avoid conflicts)
     const container = getElementsContainer();
     const newGroup = container.group().id(nom);
+    const innerGroup = newGroup.group();
     
     // Draw each cell as a rectangle (same as visualization but interactive)
     for (const [dr, dc] of p.cells) {
@@ -168,50 +170,50 @@ function restoreInteractivePieces(placements) {
       const cellCol = p.col + dc;
       const cellX = x0 + cellCol * boxel;
       const cellY = y0 + cellRow * boxel;
-      newGroup.rect(boxel, boxel).move(cellX, cellY).fill(hue).opacity('0.8');
+      innerGroup.rect(boxel, boxel).move(cellX, cellY).fill(hue).opacity('0.8');
     }
     
-    // Add interactivity to the group
+    // Add interactivity: drag on outer group, rotation on inner group
     let moved = false;
     let ang = 0;
     newGroup.draggy();
     newGroup.on("dragmove", () => { moved = true });
-    newGroup.on("mousedown", () => { moved = false });
-    newGroup.on("contextmenu", e => { e.preventDefault() });
-    newGroup.on("mouseup", e => {
+    innerGroup.on("mousedown", () => { moved = false });
+    innerGroup.on("contextmenu", e => { e.preventDefault() });
+    innerGroup.on("mouseup", e => {
       if (!moved) {
         if (e.ctrlKey) {
-          newGroup.node._scale = (newGroup.node._scale || 1) === 1 ? -1 : 1;
+          innerGroup.node._scale = (innerGroup.node._scale || 1) === 1 ? -1 : 1;
         } else {
           ang += 90 * (e.button === 2 ? 1 : -1);
         }
-        const bbox = newGroup.node.getBBox();
+        const bbox = innerGroup.node.getBBox();
         const centerX = bbox.x + bbox.width / 2;
         const centerY = bbox.y + bbox.height / 2;
-        newGroup.node.style.transformOrigin = `${centerX}px ${centerY}px`;
-        Crossy(newGroup.node, "transform", `rotate(${ang}deg) scaleX(${newGroup.node._scale || 1})`);
+        innerGroup.node.style.transformOrigin = `${centerX}px ${centerY}px`;
+        Crossy(innerGroup.node, "transform", `rotate(${ang}deg) scaleX(${innerGroup.node._scale || 1})`);
       }
       moved = false;
       e.preventDefault();
     });
     
     // Touch support: tap to rotate, long press to flip
-    addTouchGestures(newGroup.node, 
+    addTouchGestures(innerGroup.node, 
       () => {
         ang += 90;
-        const bbox = newGroup.node.getBBox();
+        const bbox = innerGroup.node.getBBox();
         const centerX = bbox.x + bbox.width / 2;
         const centerY = bbox.y + bbox.height / 2;
-        newGroup.node.style.transformOrigin = `${centerX}px ${centerY}px`;
-        Crossy(newGroup.node, "transform", `rotate(${ang}deg) scaleX(${newGroup.node._scale || 1})`);
+        innerGroup.node.style.transformOrigin = `${centerX}px ${centerY}px`;
+        Crossy(innerGroup.node, "transform", `rotate(${ang}deg) scaleX(${innerGroup.node._scale || 1})`);
       },
       () => {
-        newGroup.node._scale = (newGroup.node._scale || 1) === 1 ? -1 : 1;
-        const bbox = newGroup.node.getBBox();
+        innerGroup.node._scale = (innerGroup.node._scale || 1) === 1 ? -1 : 1;
+        const bbox = innerGroup.node.getBBox();
         const centerX = bbox.x + bbox.width / 2;
         const centerY = bbox.y + bbox.height / 2;
-        newGroup.node.style.transformOrigin = `${centerX}px ${centerY}px`;
-        Crossy(newGroup.node, "transform", `rotate(${ang}deg) scaleX(${newGroup.node._scale || 1})`);
+        innerGroup.node.style.transformOrigin = `${centerX}px ${centerY}px`;
+        Crossy(innerGroup.node, "transform", `rotate(${ang}deg) scaleX(${innerGroup.node._scale || 1})`);
       }
     );
   }
