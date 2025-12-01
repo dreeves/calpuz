@@ -74,6 +74,21 @@ function visualizePlacement(placement) {
   }
 }
 
+// Restore interactive pieces after solving
+function restoreInteractivePieces(placements) {
+  for (const p of placements) {
+    if (!p) continue;
+    
+    // Remove the solver's cell-based visualization
+    const group = SVG.get(p.name);
+    if (group) group.remove();
+    
+    // Recreate with full interactivity using movePoly
+    const angle = (p.rotation * 90) * Math.PI / 180;
+    movePoly(p.name, p.col, p.row, angle, p.flipped);
+  }
+}
+
 // Visualize all placements (callback for solver)
 function visualizeAllPlacements(placements, attempts) {
   // Clear all pieces
@@ -127,6 +142,9 @@ window.solvePuzzle = async function () {
   const result = await Solver.solve(shapes, targetCells, visualizeAllPlacements, 20);
   
   if (result.success) {
+    // Restore interactive pieces at solved positions
+    restoreInteractivePieces(result.placements);
+    
     Swal.fire({
       title: "Solved!",
       text: `Found a solution for ${dateStr} after ${result.attempts} attempts`,
