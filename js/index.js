@@ -74,7 +74,7 @@ function visualizePlacement(placement) {
   }
 }
 
-// Restore interactive pieces after solving - build from solver's cell positions
+// Restore interactive pieces after solving - use simple rectangles like visualization
 function restoreInteractivePieces(placements) {
   for (const p of placements) {
     if (!p) continue;
@@ -86,131 +86,42 @@ function restoreInteractivePieces(placements) {
     // Get the piece color
     const [nom, hue, fig] = shapes.find(shape => shape[0] === p.name);
     
-    // Create new interactive group from solver's actual cells
+    // Create new interactive group
     const newGroup = svg.group().id("elements").group().id(nom);
     
-    // Build polygon from solver's cell positions
-    const cellPolygon = cellsToPolygon(p.cells, p.row, p.col);
-    const pol = newGroup.polygon(cellPolygon).fill(hue).opacity('0.8');
+    // Draw each cell as a rectangle (same as visualization but interactive)
+    for (const [dr, dc] of p.cells) {
+      const cellRow = p.row + dr;
+      const cellCol = p.col + dc;
+      const cellX = x0 + cellCol * boxel;
+      const cellY = y0 + cellRow * boxel;
+      newGroup.rect(boxel, boxel).move(cellX, cellY).fill(hue).opacity('0.8');
+    }
     
-    // Add interactivity
+    // Add interactivity to the group
     let moved = false;
     let ang = 0;
     newGroup.draggy();
     newGroup.on("dragmove", () => { moved = true });
-    pol.on("mousedown", () => { moved = false });
-    pol.on("contextmenu", e => { e.preventDefault() });
-    pol.on("mouseup", e => {
+    newGroup.on("mousedown", () => { moved = false });
+    newGroup.on("contextmenu", e => { e.preventDefault() });
+    newGroup.on("mouseup", e => {
       if (!moved) {
-        const targetNode = e.currentTarget;
         if (e.ctrlKey) {
-          targetNode._scale = (targetNode._scale || 1) === 1 ? -1 : 1;
+          newGroup.node._scale = (newGroup.node._scale || 1) === 1 ? -1 : 1;
         } else {
           ang += 90 * (e.button === 2 ? 1 : -1);
         }
-        const bbox = targetNode.getBBox();
+        const bbox = newGroup.node.getBBox();
         const centerX = bbox.x + bbox.width / 2;
         const centerY = bbox.y + bbox.height / 2;
-        targetNode.style.transformOrigin = `${centerX}px ${centerY}px`;
-        Crossy(targetNode, "transform", `rotate(${ang}deg) scaleX(${targetNode._scale || 1})`);
+        newGroup.node.style.transformOrigin = `${centerX}px ${centerY}px`;
+        Crossy(newGroup.node, "transform", `rotate(${ang}deg) scaleX(${newGroup.node._scale || 1})`);
       }
       moved = false;
       e.preventDefault();
     });
   }
-}
-
-// Convert solver cells to SVG polygon points
-function cellsToPolygon(cells, baseRow, baseCol) {
-  // Create a grid to mark which cells are filled
-  const minR = Math.min(...cells.map(([r, c]) => r));
-  const maxR = Math.max(...cells.map(([r, c]) => r));
-  const minC = Math.min(...cells.map(([r, c]) => c));
-  const maxC = Math.max(...cells.map(([r, c]) => c));
-  
-  const height = maxR - minR + 1;
-  const width = maxC - minC + 1;
-  const grid = Array(height).fill(null).map(() => Array(width).fill(false));
-  
-  for (const [r, c] of cells) {
-    grid[r - minR][c - minC] = true;
-  }
-  
-  // Use marching squares to trace the outline
-  const points = traceOutline(grid, baseRow + minR, baseCol + minC);
-  return points.map(([x, y]) => `${x},${y}`).join(' ');
-}
-
-// Trace outline of cells using simple edge following
-function traceOutline(grid, baseRow, baseCol) {
-  const height = grid.length;
-  const width = grid[0].length;
-  
-  // Find all edges and trace them
-  const edges = [];
-  
-  for (let r = 0; r < height; r++) {
-    for (let c = 0; c < width; c++) {
-      if (!grid[r][c]) continue;
-      
-      const x = x0 + (baseCol + c) * boxel;
-      const y = y0 + (baseRow + r) * boxel;
-      
-      // Check each edge of this cell
-      // Top edge
-      if (r === 0 || !grid[r-1][c]) {
-        edges.push([[x, y], [x + boxel, y]]);
-      }
-      // Bottom edge
-      if (r === height - 1 || !grid[r+1][c]) {
-        edges.push([[x + boxel, y + boxel], [x, y + boxel]]);
-      }
-      // Left edge
-      if (c === 0 || !grid[r][c-1]) {
-        edges.push([[x, y + boxel], [x, y]]);
-      }
-      // Right edge
-      if (c === width - 1 || !grid[r][c+1]) {
-        edges.push([[x + boxel, y], [x + boxel, y + boxel]]);
-      }
-    }
-  }
-  
-  // Connect edges into a polygon
-  if (edges.length === 0) return [];
-  
-  const polygon = [edges[0][0], edges[0][1]];
-  const used = new Set([0]);
-  
-  while (used.size < edges.length) {
-    const lastPoint = polygon[polygon.length - 1];
-    let found = false;
-    
-    for (let i = 0; i < edges.length; i++) {
-      if (used.has(i)) continue;
-      
-      const [start, end] = edges[i];
-      if (start[0] === lastPoint[0] && start[1] === lastPoint[1]) {
-        polygon.push(end);
-        used.add(i);
-        found = true;
-        break;
-      }
-    }
-    
-    if (!found) break;
-  }
-  
-  // Remove the last point if it matches the first (closes the polygon)
-  if (polygon.length > 1) {
-    const first = polygon[0];
-    const last = polygon[polygon.length - 1];
-    if (first[0] === last[0] && first[1] === last[1]) {
-      polygon.pop();
-    }
-  }
-  
-  return polygon;
 }
 
 // Visualize all placements (callback for solver)
