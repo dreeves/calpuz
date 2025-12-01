@@ -48,7 +48,8 @@ Clicking or tapping rotates 90 degrees.
 Control-click or long-press to flip a piece over.
 </p>
 <p>
-Made by Bethany, Danny, and Claude
+Made by Bethany, Danny, and Claude.
+With original inspiration from Nicky.
 </p>
 <p>
 Thanks also to Christopher for 3D-printing one of these!
