@@ -1,25 +1,58 @@
 <!DOCTYPE html>
-<html>
-
+<html lang="en">
 <head>
+<meta charset="utf-8">
+<!-- -------------------- HTML Boilerplate Instructions -------------------- -->
+<!-- 1. Note unDRY title, description, URL, and imgURL -->
+<!-- 2. Use realfavicongenerator.net to generate the ICONS section -->
+<!-- 3. Replace style.css and client.js filenames as needed -->
+<!-- 4. It's fine to throw out lines containing "$OPT" -->
+<!-- 5. Site name displays as additional line in link preview above title -->
+<title>Calendar Puzzle</title>
+<meta name="description"        content="Calendar Puzzle with brute-force solver">
+<meta property="og:description" content="Calendar Puzzle with brute-force solver">
+<meta property="og:title" content="Calendar Puzzle">
+<meta property="og:site_name" content="CalPuz">
+<meta property="og:type" content="website">
+<link rel="canonical"       href="https://calpuz.replit.app">
+<meta property="og:url"  content="https://calpuz.replit.app">
+<meta property="og:image" content="$IMGURL">
+<meta property="og:image:alt" content="$IMGALT">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@bmndr">
+<meta name="twitter:creator" content="@dreev">
+<!-- BEGIN ICONS -->
+<link rel="icon" type="image/png" sizes="32x32" href="/images/calendar@0.5x.png">
+<!-- <link rel="icon" href="favicon.ico">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="site.webmanifest"> -->
+<!-- END ICONS -->
+<script type="application/ld+json"> {
+"@context": "https://schema.org",
+"@type": "WebSite",
+"name": "Calendar Puzzle",
+"alternateName": ["CalPuz"],
+"url": "$URL",
+"image": "$IMGURL" }
+</script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" type="text/css" media="screen" charset="utf-8" href="css/style.css">
+<link rel="stylesheet" type="text/css" media="screen" charset="utf-8"
+  href="https://cdnjs.cloudflare.com/ajax/libs/octicons/3.5.0/octicons.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/svg.js/2.0.2/svg.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sweetalert/1.1.3/sweetalert.min.js"></script>
+<script src="js/svg.select.min.js"></script>
+<script src="js/svg.draggy.js"></script>
+<script src="js/css.rotate.js"></script>
+<script src="js/crossy.js"></script>
+<script src="js/solver.js"></script>
+<script src="js/index.js"></script>
+<!-- optional preconnect / prefetch go here, eg to load Google fonts faster -->
+</head>
+<body>
 
-  <meta http-equiv="content-type" content="text/html; charset=utf-8">
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="icon" type="image/png" sizes="32x32" href="/images/calendar@0.5x.png">
-  <title>Calendar Puzzle</title>
-  <link rel="stylesheet" type="text/css" media="screen" charset="utf-8" href="css/style.css">
-  <link rel="stylesheet" type="text/css" media="screen" charset="utf-8"
-    href="https://cdnjs.cloudflare.com/ajax/libs/octicons/3.5.0/octicons.min.css">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/svg.js/2.0.2/svg.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/sweetalert/1.1.3/sweetalert.min.js"></script>
-  <script src="js/svg.select.min.js"></script>
-  <script src="js/svg.draggy.js"></script>
-  <script src="js/css.rotate.js"></script>
-  <script src="js/crossy.js"></script>
-  <script src="js/solver.js"></script>
-  <script src="js/index.js"></script>
 
 </head>
 
@@ -37,8 +70,8 @@
     <div class="sidebar-item" onclick="showTutorial()">
       <span class="octicon octicon-question"></span>
     </div>
-    <div class="sidebar-item" title="Bee's GitHub">
-      <a href="https://github.com/bsoule" target="blank">
+    <div class="sidebar-item" title="Source code on GitHub">
+      <a href="https://github.com/dreeves/calpuz" target="blank">
         <span class="octicon octicon-octoface"></span>
       </a>
     </div>
@@ -47,7 +80,7 @@
         <span class="octicon octicon-light-bulb"></span>
       </a>
     </div>
-    <div class="sidebar-item" title="Tangram project on GitHub that this was adapted from">
+    <div class="sidebar-item" title="Tangram project on GitHub that Bee adapted this from">
       <a href="https://github.com/IonicaBizau/tangram" target="blank">
         <span class="octicon octicon-heart"></span>
       </a>
@@ -56,11 +89,11 @@
       <span class="octicon octicon-squirrel"></span>
     </div>
     <div class="sidebar-item solvePuzzle" title="Solve the puzzle" onclick="solvePuzzle()">
-      <span class="octicon octicon-check"></span>
+      <span class="octicon octicon-key"></span>
     </div>
   </div>
 
-  <div style="position: fixed; bottom: 10px; right: 80px; color: #999; font-size: 12px; z-index: 10;">v2025.11.30-z</div>
+  <div style="position: fixed; bottom: 10px; right: 80px; color: #999; font-size: 12px; z-index: 10;">v2025.12.01-d</div>
 
   <div id="solver-progress" class="solver-progress">
     <button class="close-btn" onclick="showProgressPanel(false)">&times;</button>

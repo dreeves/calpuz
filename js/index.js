@@ -38,23 +38,22 @@ function getRandomColor() {
 
 window.showTutorial = function () {
   Swal.fire({
-    title: "Mini Tutorial",
-    confirmButtonText: "Got it!",
-    html: "<div style='text-align:left'>" +
-      "<p><strong>Desktop:</strong></p>" +
-      "<ul>" +
-      "<li><strong>Left click</strong>: rotate left</li>" +
-      "<li><strong>Right click</strong>: rotate right</li>" +
-      "<li><strong>CTRL + click</strong>: flip</li>" +
-      "<li><strong>Drag</strong>: move</li>" +
-      "</ul>" +
-      "<p><strong>Mobile/Touch:</strong></p>" +
-      "<ul>" +
-      "<li><strong>Tap</strong>: rotate</li>" +
-      "<li><strong>Long press</strong>: flip</li>" +
-      "<li><strong>Drag</strong>: move</li>" +
-      "</ul>" +
-      "</div>"
+    title: "Instructions",
+    confirmButtonText: "Roger",
+    html: `
+<p>Drag / rotate / flip the pentominoes (and one hexomino) to fit them all in the grid, covering everything except today's date.</p>
+<p>
+Clicking or tapping rotates 90 degrees. 
+(Right-clicking, or of course just clicking three times, rotates the other way.)
+Control-click or long-press to flip a piece over.
+</p>
+<p>
+Made by Bethany, Danny, and Claude
+</p>
+<p>
+Thanks also to Christopher for 3D-printing one of these!
+</p>
+`
   })
 };
 
@@ -314,8 +313,8 @@ window.solvePuzzle = async function () {
   
   // Get today's date
   const today = new Date();
-  const month = today.getMonth(); // zero-based so Jan = 0, Dec = 11
-  const day = today.getDate(); // one-based so the 1st = 1 etc
+  const month = 1; //today.getMonth(); // zero-based so Jan = 0, Dec = 11
+  const day = 30; //today.getDate(); // one-based so the 1st = 1 etc
   
   const dateStr = today.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
   

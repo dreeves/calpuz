@@ -1,11 +1,13 @@
+# This isn't necessary for a static site; the AI put it here.
+
 import http.server
 import socketserver
 
 class Handler(http.server.SimpleHTTPRequestHandler):
-    def end_headers(self):
-        self.send_header('Cache-Control', 'no-cache')
-        super().end_headers()
+  def end_headers(self):
+    self.send_header('Cache-Control', 'no-cache')
+    super().end_headers()
 
 socketserver.TCPServer.allow_reuse_address = True
 with socketserver.TCPServer(("0.0.0.0", 5000), Handler) as httpd:
-    httpd.serve_forever()
+  httpd.serve_forever()
