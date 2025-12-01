@@ -367,8 +367,61 @@ window.Solver = (function() {
     return pieceData;
   }
   
+  // Debug function: solve for all dates and log attempts
+  async function solveAll(shapes) {
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const results = [];
+    let totalAttempts = 0;
+    let solved = 0;
+    let failed = 0;
+    
+    console.log('=== SOLVING ALL DATES ===');
+    console.log('This may take a while...\n');
+    
+    for (let month = 0; month < 12; month++) {
+      for (let day = 1; day <= 31; day++) {
+        const targetCells = getDateCells(month, day);
+        
+        // Solve without visualization (animationDelay = 0, no callback)
+        const result = await solve(shapes, targetCells, () => {}, 0);
+        
+        const dateStr = `${monthNames[month]} ${day}`;
+        results.push({ month, day, dateStr, ...result });
+        totalAttempts += result.attempts;
+        
+        if (result.success) {
+          solved++;
+          console.log(`${dateStr.padEnd(7)}: ${result.attempts.toLocaleString().padStart(10)} attempts`);
+        } else {
+          failed++;
+          console.log(`${dateStr.padEnd(7)}: FAILED after ${result.attempts.toLocaleString()} attempts`);
+        }
+      }
+    }
+    
+    console.log('\n=== SUMMARY ===');
+    console.log(`Total dates: ${results.length}`);
+    console.log(`Solved: ${solved}`);
+    console.log(`Failed: ${failed}`);
+    console.log(`Total attempts: ${totalAttempts.toLocaleString()}`);
+    console.log(`Average attempts: ${Math.round(totalAttempts / results.length).toLocaleString()}`);
+    
+    // Find hardest and easiest dates
+    const successfulResults = results.filter(r => r.success);
+    if (successfulResults.length > 0) {
+      const hardest = successfulResults.reduce((a, b) => a.attempts > b.attempts ? a : b);
+      const easiest = successfulResults.reduce((a, b) => a.attempts < b.attempts ? a : b);
+      console.log(`Hardest: ${hardest.dateStr} (${hardest.attempts.toLocaleString()} attempts)`);
+      console.log(`Easiest: ${easiest.dateStr} (${easiest.attempts.toLocaleString()} attempts)`);
+    }
+    
+    return results;
+  }
+  
   return {
     solve,
+    solveAll,
     stop,
     isSolving,
     getDateCells,

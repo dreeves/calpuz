@@ -279,6 +279,14 @@ window.showProgressPanel = function(show) {
   }
 }
 
+// Debug: solve all dates and log attempts (call from browser console)
+window.solveAll = async function() {
+  console.log('Starting solveAll - this will solve 372 dates (12 months x 31 days)');
+  const results = await Solver.solveAll(shapes);
+  console.log('Done! Results returned as array.');
+  return results;
+}
+
 // Visualize all placements (callback for solver)
 function visualizeAllPlacements(placements, attempts, progress) {
   // Clear all pieces
