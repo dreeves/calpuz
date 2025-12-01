@@ -7,7 +7,7 @@ const calh = boxel*7;         // height of the calendar
 const headh = 63;             // height of the header
 const sbarw = 68.5;           // width of the sidebar on the right
 const x0 = (w-calw-sbarw)/2;  // (x0, y0) = left top corner of the calendar grid
-const y0 = (h-calh+headh)/2;
+const y0 = headh + 40;        // position near top with comfortable spacing
 let svg;                      // this gets initialized when the page loads
 
 let shapes = [                // array of 8 shapes aka puzzle pieces
