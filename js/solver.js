@@ -122,11 +122,12 @@ window.Solver = (function() {
     //  X X X
     "corner": [[0,0], [1,0], [2,0], [2,1], [2,2]],
     
-    // Stair: stair pattern, 5 cells
-    //  X
+    // Stair: N-pentomino pattern, 5 cells (truly chiral)
+    //    X
+    //    X
     //  X X
-    //    X X
-    "stair": [[0,0], [1,0], [1,1], [2,1], [2,2]],
+    //  X
+    "stair": [[0,1], [1,1], [2,0], [2,1], [3,0]],
     
     // Z-shape: Z pattern, 5 cells
     //  X X
