@@ -76,7 +76,7 @@ ul {
   font-family: 'Monaco', 'Consolas', monospace;
   font-size: 12px;
   z-index: 1000;
-  min-width: 340px;
+  min-width: 260px;
   box-shadow: 0 4px 20px rgba(0,0,0,0.3);
   display: none;
 }
@@ -130,7 +130,7 @@ ul {
 
 .solver-progress .piece-row {
   display: grid;
-  grid-template-columns: 20px 70px 60px 80px;
+  grid-template-columns: 20px 70px 50px 50px;
   gap: 8px;
   align-items: center;
   padding: 6px 8px;
@@ -172,7 +172,7 @@ ul {
 
 .solver-progress .header-row {
   display: grid;
-  grid-template-columns: 20px 70px 60px 80px;
+  grid-template-columns: 20px 70px 50px 50px;
   gap: 8px;
   padding: 4px 8px;
   font-size: 10px;
