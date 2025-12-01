@@ -376,8 +376,7 @@ window.Solver = (function() {
     let solved = 0;
     let failed = 0;
     
-    console.log('=== SOLVING ALL DATES ===');
-    console.log('This may take a while...\n');
+    console.log('=== SOLVING ALL DATES ===\n');
     
     for (let month = 0; month < 12; month++) {
       for (let day = 1; day <= 31; day++) {
