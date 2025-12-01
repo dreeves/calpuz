@@ -266,8 +266,17 @@ function updateProgressPanel(attempts, allPiecesProgress) {
       posEl.textContent = '-';
     } else {
       orientEl.textContent = `${piece.orientation}/${piece.totalOrientations}`;
-      const posIndex = piece.row * 7 + piece.col + 1;
-      posEl.textContent = `${posIndex}/49`;
+      // Compute valid cell index (1-43) from row,col
+      // Grid: rows 0-1 have 6 cols, rows 2-5 have 7 cols, row 6 has 3 cols
+      let posIndex;
+      if (piece.row <= 1) {
+        posIndex = piece.row * 6 + piece.col + 1;
+      } else if (piece.row <= 5) {
+        posIndex = 12 + (piece.row - 2) * 7 + piece.col + 1;
+      } else {
+        posIndex = 40 + piece.col + 1;
+      }
+      posEl.textContent = `${posIndex}/43`;
     }
   }
 }
