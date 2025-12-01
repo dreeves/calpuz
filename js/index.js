@@ -124,54 +124,57 @@ function restoreInteractivePieces(placements) {
   }
 }
 
-// Initialize progress panel with piece indicators
+// Initialize progress panel with table rows for each piece
 function initProgressPanel() {
-  const container = document.getElementById('pieces-indicators');
+  const container = document.getElementById('pieces-table');
   container.innerHTML = '';
   
+  // Header row
+  const header = document.createElement('div');
+  header.className = 'header-row';
+  header.innerHTML = '<span></span><span>Piece</span><span>Orient</span><span>Position</span>';
+  container.appendChild(header);
+  
+  // Row for each piece
   for (const [name, color] of shapes) {
-    const indicator = document.createElement('div');
-    indicator.className = 'piece-indicator';
-    indicator.id = `indicator-${name}`;
-    indicator.style.backgroundColor = color;
-    indicator.title = name;
-    container.appendChild(indicator);
+    const row = document.createElement('div');
+    row.className = 'piece-row pending';
+    row.id = `row-${name}`;
+    row.innerHTML = `
+      <div class="piece-color" style="background-color: ${color}"></div>
+      <div class="piece-name">${name}</div>
+      <div class="piece-orient">-</div>
+      <div class="piece-pos">-</div>
+    `;
+    container.appendChild(row);
   }
 }
 
-// Update progress panel
-function updateProgressPanel(attempts, progress) {
-  const panel = document.getElementById('solver-progress');
+// Update progress panel with all pieces' state
+function updateProgressPanel(attempts, allPiecesProgress) {
+  document.querySelector('.solver-progress .attempts').textContent = 
+    `${attempts.toLocaleString()} attempts`;
   
-  // Update attempts
-  panel.querySelector('.attempts').textContent = `${attempts.toLocaleString()} attempts`;
+  if (!allPiecesProgress) return;
   
-  if (progress) {
-    // Update piece indicators
-    for (let i = 0; i < shapes.length; i++) {
-      const indicator = document.getElementById(`indicator-${shapes[i][0]}`);
-      indicator.classList.remove('placed', 'current');
-      if (i < progress.pieceIndex) {
-        indicator.classList.add('placed');
-      } else if (i === progress.pieceIndex) {
-        indicator.classList.add('current');
-      }
+  // Update each piece row
+  for (const piece of allPiecesProgress) {
+    const row = document.getElementById(`row-${piece.name}`);
+    if (!row) continue;
+    
+    row.classList.remove('placed', 'current', 'pending');
+    row.classList.add(piece.status);
+    
+    const orientEl = row.querySelector('.piece-orient');
+    const posEl = row.querySelector('.piece-pos');
+    
+    if (piece.status === 'pending') {
+      orientEl.textContent = '-';
+      posEl.textContent = '-';
+    } else {
+      orientEl.textContent = `${piece.orientation}/${piece.totalOrientations}`;
+      posEl.textContent = `(${piece.row}, ${piece.col})`;
     }
-    
-    // Update current piece name
-    document.getElementById('current-piece-name').textContent = progress.pieceName;
-    
-    // Update orientation
-    document.getElementById('current-orientation').textContent = progress.orientationIndex + 1;
-    document.getElementById('total-orientations').textContent = progress.totalOrientations;
-    const orientPct = ((progress.orientationIndex + 1) / progress.totalOrientations) * 100;
-    document.getElementById('orientation-progress').style.width = `${orientPct}%`;
-    
-    // Update position
-    document.getElementById('current-row').textContent = progress.row;
-    document.getElementById('current-col').textContent = progress.col;
-    const posPct = ((progress.row * 7 + progress.col + 1) / progress.totalPositions) * 100;
-    document.getElementById('position-progress').style.width = `${posPct}%`;
   }
 }
 

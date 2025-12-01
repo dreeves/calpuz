@@ -285,18 +285,45 @@ window.Solver = (function() {
               };
               attempts++;
               
-              // Visualize periodically with progress info
+              // Visualize periodically with progress info for ALL pieces
               if (animationDelay > 0 && attempts % 5 === 0) {
-                const progress = {
-                  pieceIndex,
-                  pieceName,
-                  orientationIndex: orientIdx,
-                  totalOrientations,
-                  row,
-                  col,
-                  totalPositions: 49
-                };
-                visualizeCallback(placements, attempts, progress);
+                // Build progress state for all pieces
+                const allPiecesProgress = pieceNames.map((name, idx) => {
+                  const piece = pieceData[name];
+                  if (idx < pieceIndex) {
+                    // Already placed
+                    const p = placements[idx];
+                    return {
+                      name,
+                      status: 'placed',
+                      orientation: p ? `${p.rotation + 1}` : '-',
+                      totalOrientations: piece.orientations.length,
+                      row: p ? p.row : 0,
+                      col: p ? p.col : 0
+                    };
+                  } else if (idx === pieceIndex) {
+                    // Currently being placed
+                    return {
+                      name,
+                      status: 'current',
+                      orientation: orientIdx + 1,
+                      totalOrientations,
+                      row,
+                      col
+                    };
+                  } else {
+                    // Not yet attempted
+                    return {
+                      name,
+                      status: 'pending',
+                      orientation: 0,
+                      totalOrientations: piece.orientations.length,
+                      row: 0,
+                      col: 0
+                    };
+                  }
+                });
+                visualizeCallback(placements, attempts, allPiecesProgress);
                 await delay(animationDelay);
               }
               
