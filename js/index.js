@@ -40,12 +40,21 @@ window.showTutorial = function () {
   Swal.fire({
     title: "Mini Tutorial",
     confirmButtonText: "Got it!",
-    html: "<ul>" +
+    html: "<div style='text-align:left'>" +
+      "<p><strong>Desktop:</strong></p>" +
+      "<ul>" +
       "<li><strong>Left click</strong>: rotate left</li>" +
       "<li><strong>Right click</strong>: rotate right</li>" +
-      "<li><strong>CTRL + left click</strong>: flip</li>" +
+      "<li><strong>CTRL + click</strong>: flip</li>" +
       "<li><strong>Drag</strong>: move</li>" +
-      "</ul>"
+      "</ul>" +
+      "<p><strong>Mobile/Touch:</strong></p>" +
+      "<ul>" +
+      "<li><strong>Tap</strong>: rotate</li>" +
+      "<li><strong>Long press</strong>: flip</li>" +
+      "<li><strong>Drag</strong>: move</li>" +
+      "</ul>" +
+      "</div>"
   })
 };
 
@@ -56,6 +65,55 @@ window.colorChangeButton = function () {
 
 // Cached elements container to prevent DOM leak
 let elementsContainer = null;
+
+// Add touch support for rotate (tap) and flip (long press)
+function addTouchGestures(element, onRotate, onFlip) {
+  let touchStartTime = 0;
+  let touchStartPos = { x: 0, y: 0 };
+  let longPressTimer = null;
+  let didLongPress = false;
+  const LONG_PRESS_DURATION = 500;
+  const MOVE_THRESHOLD = 10;
+  
+  element.addEventListener('touchstart', (e) => {
+    if (e.touches.length !== 1) return;
+    touchStartTime = Date.now();
+    touchStartPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    didLongPress = false;
+    
+    longPressTimer = setTimeout(() => {
+      didLongPress = true;
+      onFlip();
+      // Haptic feedback if available
+      if (navigator.vibrate) navigator.vibrate(50);
+    }, LONG_PRESS_DURATION);
+  }, { passive: true });
+  
+  element.addEventListener('touchmove', (e) => {
+    if (e.touches.length !== 1) return;
+    const dx = e.touches[0].clientX - touchStartPos.x;
+    const dy = e.touches[0].clientY - touchStartPos.y;
+    if (Math.abs(dx) > MOVE_THRESHOLD || Math.abs(dy) > MOVE_THRESHOLD) {
+      // User is dragging, cancel long press
+      clearTimeout(longPressTimer);
+    }
+  }, { passive: true });
+  
+  element.addEventListener('touchend', (e) => {
+    clearTimeout(longPressTimer);
+    const elapsed = Date.now() - touchStartTime;
+    
+    // If it was a quick tap (not a long press or drag), rotate
+    if (!didLongPress && elapsed < LONG_PRESS_DURATION) {
+      const touch = e.changedTouches[0];
+      const dx = touch.clientX - touchStartPos.x;
+      const dy = touch.clientY - touchStartPos.y;
+      if (Math.abs(dx) < MOVE_THRESHOLD && Math.abs(dy) < MOVE_THRESHOLD) {
+        onRotate();
+      }
+    }
+  }, { passive: true });
+}
 
 // Get or create the elements container (reuse to prevent DOM leak)
 function getElementsContainer() {
@@ -134,6 +192,26 @@ function restoreInteractivePieces(placements) {
       moved = false;
       e.preventDefault();
     });
+    
+    // Touch support: tap to rotate, long press to flip
+    addTouchGestures(newGroup.node, 
+      () => {
+        ang += 90;
+        const bbox = newGroup.node.getBBox();
+        const centerX = bbox.x + bbox.width / 2;
+        const centerY = bbox.y + bbox.height / 2;
+        newGroup.node.style.transformOrigin = `${centerX}px ${centerY}px`;
+        Crossy(newGroup.node, "transform", `rotate(${ang}deg) scaleX(${newGroup.node._scale || 1})`);
+      },
+      () => {
+        newGroup.node._scale = (newGroup.node._scale || 1) === 1 ? -1 : 1;
+        const bbox = newGroup.node.getBBox();
+        const centerX = bbox.x + bbox.width / 2;
+        const centerY = bbox.y + bbox.height / 2;
+        newGroup.node.style.transformOrigin = `${centerX}px ${centerY}px`;
+        Crossy(newGroup.node, "transform", `rotate(${ang}deg) scaleX(${newGroup.node._scale || 1})`);
+      }
+    );
   }
 }
 
@@ -313,7 +391,19 @@ function movePoly(polyId, x, y, angle = 0, flip = false) {
     }
     moved = false;
     e.preventDefault()
-  })
+  });
+  
+  // Touch support: tap to rotate, long press to flip
+  addTouchGestures(cPol.node, 
+    () => {
+      ang += 90;
+      Crossy(cPol.node, "transform", `rotate(${ang}deg) scaleX(${cPol.node._scale || 1})`);
+    },
+    () => {
+      cPol.node._scale = (cPol.node._scale || 1) === 1 ? -1 : 1;
+      Crossy(cPol.node, "transform", `rotate(${ang}deg) scaleX(${cPol.node._scale || 1})`);
+    }
+  );
 }
 
 function drawCalendar() {
