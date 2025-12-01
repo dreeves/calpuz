@@ -115,7 +115,7 @@ window.solvePuzzle = async function () {
   
   Swal.fire({
     title: `Solving for ${dateStr}`,
-    text: "Watch the pieces try different positions...",
+    text: "Wheeee!",
     icon: "info",
     timer: 2000,
     showConfirmButton: false
@@ -129,14 +129,14 @@ window.solvePuzzle = async function () {
   if (result.success) {
     Swal.fire({
       title: "Solved!",
-      text: `Found a solution for ${dateStr} after ${result.attempts} attempts!`,
+      text: `Found a solution for ${dateStr} after ${result.attempts} attempts`,
       icon: "success",
-      confirmButtonText: "Nice!"
+      confirmButtonText: "Phew"
     });
   } else {
     Swal.fire({
       title: "No solution found",
-      text: `Tried ${result.attempts} positions. This might be a bug!`,
+      text: `Tried ${result.attempts} positions. This may be a bug.`,
       icon: "error"
     });
     scatterShapes();
