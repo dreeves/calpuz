@@ -85,6 +85,26 @@ ul {
   display: block;
 }
 
+.solver-progress .close-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(255,255,255,0.1);
+  border: none;
+  color: #aaa;
+  font-size: 18px;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.solver-progress .close-btn:hover {
+  background: rgba(255,255,255,0.2);
+  color: #fff;
+}
+
 .solver-progress h3 {
   margin: 0 0 8px 0;
   font-size: 11px;

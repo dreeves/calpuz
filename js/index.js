@@ -178,8 +178,8 @@ function updateProgressPanel(attempts, allPiecesProgress) {
   }
 }
 
-// Show/hide progress panel
-function showProgressPanel(show) {
+// Show/hide progress panel (global for close button)
+window.showProgressPanel = function(show) {
   const panel = document.getElementById('solver-progress');
   if (show) {
     initProgressPanel();
@@ -223,8 +223,8 @@ window.solvePuzzle = async function () {
   
   // Get today's date
   const today = new Date();
-  const month = today.getMonth();
-  const day = today.getDate();
+  const month = 0; //today.getMonth();
+  const day = 1; //today.getDate();
   
   const dateStr = today.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
   
@@ -243,8 +243,7 @@ window.solvePuzzle = async function () {
   
   const result = await Solver.solve(shapes, targetCells, visualizeAllPlacements, 20);
   
-  // Hide progress panel
-  showProgressPanel(false);
+  // Panel stays visible - user can dismiss with X button
   
   if (result.success) {
     // Restore interactive pieces at solved positions
