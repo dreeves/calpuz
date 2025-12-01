@@ -64,3 +64,103 @@ ul {
   background: #586984;
 }
 
+/* Solver Progress Panel */
+.solver-progress {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  background: rgba(59, 73, 94, 0.95);
+  border-radius: 12px;
+  padding: 16px;
+  color: white;
+  font-family: Arial, sans-serif;
+  z-index: 1000;
+  min-width: 280px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  display: none;
+}
+
+.solver-progress.active {
+  display: block;
+}
+
+.solver-progress h3 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  color: #a0b0c0;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.solver-progress .attempts {
+  font-size: 24px;
+  font-weight: bold;
+  color: #4ecdc4;
+  margin-bottom: 16px;
+}
+
+.solver-progress .pieces-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.solver-progress .piece-indicator {
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  opacity: 0.3;
+  transition: all 0.2s;
+  position: relative;
+}
+
+.solver-progress .piece-indicator.placed {
+  opacity: 1;
+  box-shadow: 0 0 8px rgba(255,255,255,0.5);
+}
+
+.solver-progress .piece-indicator.current {
+  opacity: 1;
+  animation: pulse 0.5s infinite alternate;
+  box-shadow: 0 0 12px rgba(255,255,255,0.8);
+}
+
+@keyframes pulse {
+  from { transform: scale(1); }
+  to { transform: scale(1.1); }
+}
+
+.solver-progress .current-piece {
+  background: rgba(255,255,255,0.1);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.solver-progress .current-piece .label {
+  font-size: 11px;
+  color: #a0b0c0;
+  margin-bottom: 4px;
+}
+
+.solver-progress .current-piece .value {
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.solver-progress .progress-bar {
+  height: 6px;
+  background: rgba(255,255,255,0.2);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 8px;
+}
+
+.solver-progress .progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #4ecdc4, #44a08d);
+  border-radius: 3px;
+  transition: width 0.1s;
+}
+

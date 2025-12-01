@@ -264,8 +264,11 @@ window.Solver = (function() {
       const pieceName = pieceNames[pieceIndex];
       const piece = pieceData[pieceName];
       
+      const totalOrientations = piece.orientations.length;
+      
       // Try each orientation
-      for (const orientation of piece.orientations) {
+      for (let orientIdx = 0; orientIdx < totalOrientations; orientIdx++) {
+        const orientation = piece.orientations[orientIdx];
         // Try each position
         for (let row = 0; row < 7; row++) {
           for (let col = 0; col < 7; col++) {
@@ -282,9 +285,18 @@ window.Solver = (function() {
               };
               attempts++;
               
-              // Visualize periodically
+              // Visualize periodically with progress info
               if (animationDelay > 0 && attempts % 5 === 0) {
-                visualizeCallback(placements, attempts);
+                const progress = {
+                  pieceIndex,
+                  pieceName,
+                  orientationIndex: orientIdx,
+                  totalOrientations,
+                  row,
+                  col,
+                  totalPositions: 49
+                };
+                visualizeCallback(placements, attempts, progress);
                 await delay(animationDelay);
               }
               
@@ -321,11 +333,16 @@ window.Solver = (function() {
     return solving;
   }
   
+  function getPieceData() {
+    return pieceData;
+  }
+  
   return {
     solve,
     stop,
     isSolving,
     getDateCells,
-    initPieceData
+    initPieceData,
+    getPieceData
   };
 })();

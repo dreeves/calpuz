@@ -124,8 +124,70 @@ function restoreInteractivePieces(placements) {
   }
 }
 
+// Initialize progress panel with piece indicators
+function initProgressPanel() {
+  const container = document.getElementById('pieces-indicators');
+  container.innerHTML = '';
+  
+  for (const [name, color] of shapes) {
+    const indicator = document.createElement('div');
+    indicator.className = 'piece-indicator';
+    indicator.id = `indicator-${name}`;
+    indicator.style.backgroundColor = color;
+    indicator.title = name;
+    container.appendChild(indicator);
+  }
+}
+
+// Update progress panel
+function updateProgressPanel(attempts, progress) {
+  const panel = document.getElementById('solver-progress');
+  
+  // Update attempts
+  panel.querySelector('.attempts').textContent = `${attempts.toLocaleString()} attempts`;
+  
+  if (progress) {
+    // Update piece indicators
+    for (let i = 0; i < shapes.length; i++) {
+      const indicator = document.getElementById(`indicator-${shapes[i][0]}`);
+      indicator.classList.remove('placed', 'current');
+      if (i < progress.pieceIndex) {
+        indicator.classList.add('placed');
+      } else if (i === progress.pieceIndex) {
+        indicator.classList.add('current');
+      }
+    }
+    
+    // Update current piece name
+    document.getElementById('current-piece-name').textContent = progress.pieceName;
+    
+    // Update orientation
+    document.getElementById('current-orientation').textContent = progress.orientationIndex + 1;
+    document.getElementById('total-orientations').textContent = progress.totalOrientations;
+    const orientPct = ((progress.orientationIndex + 1) / progress.totalOrientations) * 100;
+    document.getElementById('orientation-progress').style.width = `${orientPct}%`;
+    
+    // Update position
+    document.getElementById('current-row').textContent = progress.row;
+    document.getElementById('current-col').textContent = progress.col;
+    const posPct = ((progress.row * 7 + progress.col + 1) / progress.totalPositions) * 100;
+    document.getElementById('position-progress').style.width = `${posPct}%`;
+  }
+}
+
+// Show/hide progress panel
+function showProgressPanel(show) {
+  const panel = document.getElementById('solver-progress');
+  if (show) {
+    initProgressPanel();
+    panel.classList.add('active');
+  } else {
+    panel.classList.remove('active');
+  }
+}
+
 // Visualize all placements (callback for solver)
-function visualizeAllPlacements(placements, attempts) {
+function visualizeAllPlacements(placements, attempts, progress) {
   // Clear all pieces
   for (const [name, , ] of shapes) {
     const group = SVG.get(name);
@@ -137,13 +199,14 @@ function visualizeAllPlacements(placements, attempts) {
     if (p) visualizePlacement(p);
   }
   
-  // Update attempt counter (could add a UI element for this)
-  console.log(`Attempts: ${attempts}`);
+  // Update progress panel
+  updateProgressPanel(attempts, progress);
 }
 
 window.solvePuzzle = async function () {
   if (Solver.isSolving()) {
     Solver.stop();
+    showProgressPanel(false);
     Swal.fire({
       title: "Stopped",
       text: "Solver stopped.",
@@ -161,20 +224,24 @@ window.solvePuzzle = async function () {
   const day = today.getDate();
   
   const dateStr = today.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
-  console.log(`Solving for ${dateStr}...`);
+  
+  // Show progress panel
+  showProgressPanel(true);
   
   Swal.fire({
     title: `Solving for ${dateStr}`,
-    text: "Wheeee!",
+    text: "Watch the progress panel!",
     icon: "info",
-    timer: 2000,
+    timer: 1500,
     showConfirmButton: false
   });
   
   const targetCells = Solver.getDateCells(month, day);
-  console.log(`Target cells: month at [${targetCells[0]}], day at [${targetCells[1]}]`);
   
   const result = await Solver.solve(shapes, targetCells, visualizeAllPlacements, 20);
+  
+  // Hide progress panel
+  showProgressPanel(false);
   
   if (result.success) {
     // Restore interactive pieces at solved positions
@@ -182,14 +249,14 @@ window.solvePuzzle = async function () {
     
     Swal.fire({
       title: "Solved!",
-      text: `Found a solution for ${dateStr} after ${result.attempts} attempts`,
+      text: `Found a solution for ${dateStr} after ${result.attempts.toLocaleString()} attempts`,
       icon: "success",
       confirmButtonText: "Phew"
     });
   } else {
     Swal.fire({
       title: "No solution found",
-      text: `Tried ${result.attempts} positions. This may be a bug.`,
+      text: `Tried ${result.attempts.toLocaleString()} positions. This may be a bug.`,
       icon: "error"
     });
     scatterShapes();
