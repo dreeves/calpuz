@@ -58,8 +58,7 @@ Thanks also to Christopher for 3D-printing one of these!
 };
 
 window.colorChangeButton = function () {
-  const polygons = document.querySelectorAll('.graph #elements g polygon');
-  polygons.forEach(polygon => polygon.style.fill = getRandomColor())
+  document.querySelectorAll('.graph #elements g > *').forEach(el => el.style.fill = getRandomColor());
 };
 
 // Cached elements container to prevent DOM leak
