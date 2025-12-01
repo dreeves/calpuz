@@ -225,7 +225,7 @@ function initProgressPanel() {
   // Header row
   const header = document.createElement('div');
   header.className = 'header-row';
-  header.innerHTML = '<span></span><span>Piece</span><span>Orient</span><span>Position</span>';
+  header.innerHTML = '<span></span><span>Piece</span><span>Orient</span><span>Pos</span>';
   container.appendChild(header);
   
   // Row for each piece
@@ -266,7 +266,8 @@ function updateProgressPanel(attempts, allPiecesProgress) {
       posEl.textContent = '-';
     } else {
       orientEl.textContent = `${piece.orientation}/${piece.totalOrientations}`;
-      posEl.textContent = `(${piece.row}, ${piece.col})`;
+      const posIndex = piece.row * 7 + piece.col + 1;
+      posEl.textContent = `${posIndex}/49`;
     }
   }
 }
