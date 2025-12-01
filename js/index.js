@@ -54,6 +54,15 @@ window.colorChangeButton = function () {
   polygons.forEach(polygon => polygon.style.fill = getRandomColor())
 };
 
+// Get or create the elements container (reuse to prevent DOM leak)
+function getElementsContainer() {
+  let container = svg.findOne('#elements');
+  if (!container) {
+    container = svg.group().id('elements');
+  }
+  return container;
+}
+
 // Visualize a placement from the solver using actual cell positions
 function visualizePlacement(placement) {
   if (!placement) return;
@@ -62,7 +71,8 @@ function visualizePlacement(placement) {
   const targetGroup = SVG.get(placement.name);
   if (targetGroup) targetGroup.remove();
   
-  const newGroup = svg.group().id("elements").group().id(nom);
+  const container = getElementsContainer();
+  const newGroup = container.group().id(nom);
   
   // Draw each cell as a square, based on the solver's actual cell placement
   for (const [dr, dc] of placement.cells) {
@@ -86,8 +96,9 @@ function restoreInteractivePieces(placements) {
     // Get the piece color
     const [nom, hue, fig] = shapes.find(shape => shape[0] === p.name);
     
-    // Create new interactive group
-    const newGroup = svg.group().id("elements").group().id(nom);
+    // Create new interactive group (reuse container)
+    const container = getElementsContainer();
+    const newGroup = container.group().id(nom);
     
     // Draw each cell as a rectangle (same as visualization but interactive)
     for (const [dr, dc] of p.cells) {
@@ -223,7 +234,7 @@ window.solvePuzzle = async function () {
   
   // Get today's date
   const today = new Date();
-  const month = 0; //today.getMonth();
+  const month = 11; //today.getMonth();
   const day = 1; //today.getDate();
   
   const dateStr = today.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
@@ -233,7 +244,7 @@ window.solvePuzzle = async function () {
   
   Swal.fire({
     title: `Solving for ${dateStr}`,
-    text: "Watch the progress panel!",
+    text: "Whee!",
     icon: "info",
     timer: 1500,
     showConfirmButton: false

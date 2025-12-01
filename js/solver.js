@@ -281,23 +281,26 @@ window.Solver = (function() {
                 col,
                 cells: orientation.cells,
                 rotation: orientation.rotation,
-                flipped: orientation.flipped
+                flipped: orientation.flipped,
+                orientationIndex: orientIdx,
+                totalOrientations
               };
               attempts++;
               
               // Visualize periodically with progress info for ALL pieces
-              if (animationDelay > 0 && attempts % 5 === 0) {
+              // Update every 20 attempts to reduce DOM overhead
+              if (animationDelay > 0 && attempts % 20 === 0) {
                 // Build progress state for all pieces
                 const allPiecesProgress = pieceNames.map((name, idx) => {
                   const piece = pieceData[name];
                   if (idx < pieceIndex) {
-                    // Already placed
+                    // Already placed - use stored orientationIndex for correct odometer display
                     const p = placements[idx];
                     return {
                       name,
                       status: 'placed',
-                      orientation: p ? `${p.rotation + 1}` : '-',
-                      totalOrientations: piece.orientations.length,
+                      orientation: p ? p.orientationIndex + 1 : '-',
+                      totalOrientations: p ? p.totalOrientations : piece.orientations.length,
                       row: p ? p.row : 0,
                       col: p ? p.col : 0
                     };
