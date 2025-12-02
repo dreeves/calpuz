@@ -410,13 +410,16 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
         .stroke({ width: 3, color: '#ff0000' });
     }
     
-    // Show unfillable region sizes text
+    // Show unfillable region sizes text - positioned to right of "31", below "25-28"
     if (deadRegionSizes.length > 0) {
       const sizesText = `Unfillable region sizes: ${deadRegionSizes.join(', ')}`;
+      // Position: right of column 2 (cell 31), centered in columns 3-6, row 6
+      const textX = x0 + 3 * boxel + (4 * boxel) / 2; // Center of columns 3-6
+      const textY = y0 + 6 * boxel + boxel / 2; // Center of row 6
       deadGroup.text(sizesText)
         .font({ size: 14, weight: 'bold', family: 'Arial' })
         .fill('#ff0000')
-        .move(x0, y0 - 25);
+        .center(textX, textY);
     }
   }
   
