@@ -414,7 +414,7 @@ window.Solver = (function() {
                 positionIndex: 0, totalPositions: 0 };
         });
         visualizeCallback(placements, attempts, allPiecesProgress, [], pieceName, true);
-        await delay(currentDelay * 2); // Pause a bit longer to show failure
+        await delay(currentDelay); // Same delay as normal steps
       }
       
       return false;
