@@ -328,8 +328,8 @@ function drawPendingPieces(progress, failedPieceName = null) {
   
   if (!progress) return;
   
-  // Get pending and current pieces (not yet placed)
-  const pendingPieces = progress.filter(p => p.status === 'pending' || p.status === 'current');
+  // Get only pending pieces (current piece is already on the grid)
+  const pendingPieces = progress.filter(p => p.status === 'pending');
   if (pendingPieces.length === 0) return;
   
   const pendingGroup = svg.group().id('pending-pieces');
@@ -361,8 +361,8 @@ function drawPendingPieces(progress, failedPieceName = null) {
     // Draw the piece
     const poly = pieceGroup.polygon(polygen(vertices, previewScale))
       .fill(color)
-      .opacity(piece.status === 'current' ? 1 : 0.6)
-      .stroke({ width: 2, color: piece.status === 'current' ? '#000' : '#666' });
+      .opacity(0.85)
+      .stroke({ width: 2, color: '#333' });
     
     pieceGroup.translate(px, py);
     
