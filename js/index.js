@@ -1,4 +1,13 @@
 const TAU = 2*Math.PI;
+
+// Singular or plural. Eg, splur(0, "cat") returns "0 cats" or for irregular 
+// plurals, eg, splur(1, "child", "children") returns "1 child".
+function splur(n, s, p=null) { 
+  return n === 1    ? `${n} ${s}`
+       : p === null ? `${n} ${s}s`
+       :              `${n} ${p}`;
+}
+
 const w = window.innerWidth;
 const h = window.innerHeight;
 const boxel = w/20;           // size in pixels of a calendar cell
@@ -248,8 +257,10 @@ function initProgressPanel() {
 
 // Update progress panel with all pieces' state
 function updateProgressPanel(attempts, allPiecesProgress) {
-  document.getElementById('attempt-count').textContent = attempts.toLocaleString();
-  document.getElementById('solution-count').textContent = Solver.getSolutionCount();
+  const sols = Solver.getSolutionCount();
+  const tries = attempts.toLocaleString();
+  document.getElementById('attempts-text').textContent = 
+    `${splur(sols, "sol'n")} in ${tries} tries`;
   
   if (!allPiecesProgress) return;
   
