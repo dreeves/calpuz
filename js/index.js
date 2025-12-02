@@ -356,7 +356,7 @@ window.solvePuzzle = async function () {
   } else {
     Swal.fire({
       title: "No solution found",
-      text: `Tried ${result.attempts.toLocaleString()} positions. This may be a bug.`,
+      text: `Tried ${result.attempts.toLocaleString()} positions. Then presumably you aborted by clicking the little key again?`,
       icon: "error"
     });
     scatterShapes();

@@ -251,7 +251,7 @@ window.Solver = (function() {
   }
   
   // Main solve function
-  async function solve(shapes, targetCells, visualizeCallback, animationDelay = 30) {
+  async function solve(shapes, targetCells, visualizeCallback, animationDelay = 0) {
     if (!pieceData) {
       initPieceData(shapes);
     }
