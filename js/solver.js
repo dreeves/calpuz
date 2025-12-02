@@ -493,8 +493,20 @@ window.Solver = (function() {
     const success = await backtrack(0);
     solving = false;
     
-    // Final visualization (no dead cells info needed)
-    visualizeCallback(placements, attempts, null, [], [], null, false);
+    // Final visualization showing all pieces exhausted (at max orient/pos)
+    const finalProgress = pieceNames.map((name) => {
+      const pd = pieceData[name];
+      const totalOrients = pd.orientations.length;
+      return { 
+        name, 
+        status: 'pending',
+        orientation: totalOrients, 
+        totalOrientations: totalOrients,
+        positionIndex: 0, 
+        totalPositions: 0 
+      };
+    });
+    visualizeCallback(placements, attempts, finalProgress, [], [], null, false);
     
     return { success, attempts, placements };
   }
