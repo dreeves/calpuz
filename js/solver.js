@@ -381,10 +381,15 @@ window.Solver = (function() {
     }
     
     let solutionCount = 0;
+    let attempts = 0;
+    let firstSolutionAttempts = null;
     
     function backtrack(pieceIndex) {
       if (pieceIndex === 8) {
         solutionCount++;
+        if (firstSolutionAttempts === null) {
+          firstSolutionAttempts = attempts;
+        }
         return; // Don't stop - continue to find more solutions
       }
       
@@ -396,6 +401,7 @@ window.Solver = (function() {
           for (let col = 0; col < 7; col++) {
             if (canPlace(grid, orientation.cells, row, col)) {
               setPiece(grid, orientation.cells, row, col, 3 + pieceIndex);
+              attempts++;
               backtrack(pieceIndex + 1);
               setPiece(grid, orientation.cells, row, col, 1); // Backtrack
             }
@@ -405,7 +411,7 @@ window.Solver = (function() {
     }
     
     backtrack(0);
-    return solutionCount;
+    return { solutions: solutionCount, firstAt: firstSolutionAttempts, totalAttempts: attempts };
   }
   
   // Debug function: count solutions for all dates
@@ -414,32 +420,41 @@ window.Solver = (function() {
                         'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const results = [];
     let totalSolutions = 0;
+    let totalAttempts = 0;
     
     console.log('=== COUNTING SOLUTIONS FOR ALL DATES ===\n');
     
     for (let month = 0; month < 12; month++) {
       for (let day = 1; day <= 31; day++) {
         const targetCells = getDateCells(month, day);
-        const count = countSolutions(shapes, targetCells);
+        const result = countSolutions(shapes, targetCells);
         
         const dateStr = `${monthNames[month]} ${day}`;
-        results.push({ month, day, dateStr, solutions: count });
-        totalSolutions += count;
+        results.push({ month, day, dateStr, ...result });
+        totalSolutions += result.solutions;
+        totalAttempts += result.totalAttempts;
         
-        console.log(`${dateStr.padEnd(7)}: ${count.toLocaleString().padStart(6)} solutions`);
+        const firstStr = result.firstAt !== null 
+          ? `first at ${result.firstAt.toLocaleString().padStart(8)}`
+          : 'no solution';
+        console.log(`${dateStr.padEnd(7)}: ${firstStr}, ${result.solutions.toLocaleString().padStart(5)} total in ${result.totalAttempts.toLocaleString().padStart(10)} attempts`);
       }
     }
     
     console.log('\n=== SUMMARY ===');
     console.log(`Total dates: ${results.length}`);
     console.log(`Total solutions: ${totalSolutions.toLocaleString()}`);
+    console.log(`Total attempts: ${totalAttempts.toLocaleString()}`);
     console.log(`Average solutions per date: ${Math.round(totalSolutions / results.length).toLocaleString()}`);
     
     // Find dates with most and fewest solutions
-    const mostSolutions = results.reduce((a, b) => a.solutions > b.solutions ? a : b);
-    const fewestSolutions = results.reduce((a, b) => a.solutions < b.solutions ? a : b);
-    console.log(`Most solutions: ${mostSolutions.dateStr} (${mostSolutions.solutions.toLocaleString()})`);
-    console.log(`Fewest solutions: ${fewestSolutions.dateStr} (${fewestSolutions.solutions.toLocaleString()})`);
+    const withSolutions = results.filter(r => r.solutions > 0);
+    if (withSolutions.length > 0) {
+      const mostSolutions = withSolutions.reduce((a, b) => a.solutions > b.solutions ? a : b);
+      const fewestSolutions = withSolutions.reduce((a, b) => a.solutions < b.solutions ? a : b);
+      console.log(`Most solutions: ${mostSolutions.dateStr} (${mostSolutions.solutions.toLocaleString()})`);
+      console.log(`Fewest solutions: ${fewestSolutions.dateStr} (${fewestSolutions.solutions.toLocaleString()})`);
+    }
     
     return results;
   }
