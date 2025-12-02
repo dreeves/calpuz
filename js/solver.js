@@ -250,6 +250,44 @@ window.Solver = (function() {
     return positions;
   }
   
+  // Find connected components of empty cells and return any "dead" cells
+  // (cells in components too small to be filled by any remaining piece)
+  function findDeadCells(grid, minPieceSize) {
+    const visited = Array(7).fill(null).map(() => Array(7).fill(false));
+    const deadCells = [];
+    
+    function floodFill(startR, startC) {
+      const component = [];
+      const stack = [[startR, startC]];
+      
+      while (stack.length > 0) {
+        const [r, c] = stack.pop();
+        if (r < 0 || r >= 7 || c < 0 || c >= 7) continue;
+        if (visited[r][c]) continue;
+        if (grid[r][c] !== 1) continue; // Only empty cells (value 1)
+        
+        visited[r][c] = true;
+        component.push([r, c]);
+        
+        stack.push([r-1, c], [r+1, c], [r, c-1], [r, c+1]);
+      }
+      return component;
+    }
+    
+    for (let r = 0; r < 7; r++) {
+      for (let c = 0; c < 7; c++) {
+        if (grid[r][c] === 1 && !visited[r][c]) {
+          const component = floodFill(r, c);
+          if (component.length < minPieceSize) {
+            deadCells.push(...component);
+          }
+        }
+      }
+    }
+    
+    return deadCells;
+  }
+  
   // Main solve function
   async function solve(shapes, targetCells, visualizeCallback, animationDelay = 0) {
     if (!pieceData) {
@@ -305,6 +343,9 @@ window.Solver = (function() {
           };
           attempts++;
           
+          // Check for dead cells (isolated regions too small to fill)
+          const deadCells = findDeadCells(grid, 5); // 5 = smallest piece size
+          
           // Visualize every iteration
           const allPiecesProgress = pieceNames.map((name, idx) => {
             const pd = pieceData[name];
@@ -321,12 +362,15 @@ window.Solver = (function() {
                   orientation: 0, totalOrientations: pd.orientations.length,
                   positionIndex: 0, totalPositions: 0 };
           });
-          visualizeCallback(placements, attempts, allPiecesProgress);
+          visualizeCallback(placements, attempts, allPiecesProgress, deadCells);
           await delay(animationDelay);
           
-          // Recurse
-          if (await backtrack(pieceIndex + 1)) {
-            return true;
+          // Prune if dead cells exist
+          if (deadCells.length === 0) {
+            // Recurse only if no dead cells
+            if (await backtrack(pieceIndex + 1)) {
+              return true;
+            }
           }
           
           // Backtrack

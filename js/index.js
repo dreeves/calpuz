@@ -288,16 +288,34 @@ window.showProgressPanel = function(show) {
 window.solveAll = function() { return Solver.solveAll(shapes) }
 
 // Visualize all placements (callback for solver)
-function visualizeAllPlacements(placements, attempts, progress) {
+function visualizeAllPlacements(placements, attempts, progress, deadCells = []) {
   // Clear all pieces
   for (const [name, , ] of shapes) {
     const group = SVG.get(name);
     if (group) group.remove();
   }
   
+  // Clear any existing dead cell markers
+  const oldDeadMarkers = SVG.get('dead-cells');
+  if (oldDeadMarkers) oldDeadMarkers.remove();
+  
   // Draw current placements
   for (const p of placements) {
     if (p) visualizePlacement(p);
+  }
+  
+  // Draw red X's on dead cells
+  if (deadCells.length > 0) {
+    const deadGroup = svg.group().id('dead-cells');
+    for (const [r, c] of deadCells) {
+      const cx = x0 + c * boxel + boxel / 2;
+      const cy = y0 + r * boxel + boxel / 2;
+      const size = boxel * 0.3;
+      deadGroup.line(cx - size, cy - size, cx + size, cy + size)
+        .stroke({ width: 3, color: '#ff0000' });
+      deadGroup.line(cx - size, cy + size, cx + size, cy - size)
+        .stroke({ width: 3, color: '#ff0000' });
+    }
   }
   
   // Update progress panel
