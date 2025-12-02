@@ -370,6 +370,16 @@ window.Solver = (function() {
         foundSolution = true;
         paused = true;
         
+        // Update visualization to show new solution count
+        const allPiecesProgress = pieceNames.map((name, idx) => {
+          const pd = pieceData[name];
+          const p = placements[idx];
+          return { name, status: 'placed',
+              orientation: p.orientationIndex + 1, totalOrientations: p.totalOrientations,
+              positionIndex: p.positionIndex + 1, totalPositions: p.totalPositions };
+        });
+        visualizeCallback(placements, attempts, allPiecesProgress, [], [], null, false);
+        
         // Wait while paused (user can resume to find next solution)
         while (paused && solving) {
           await new Promise(r => setTimeout(r, 50));
