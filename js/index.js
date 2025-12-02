@@ -414,10 +414,10 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
     if (deadRegionSizes.length > 0) {
       const sizesText = `Unfillable region sizes: ${deadRegionSizes.join(', ')}`;
       // Position: starts at column 3 (right of cell 31), vertically centered in row 6
-      const textX = x0 + 3 * boxel + 5; // Small padding after column 2
-      const textY = y0 + 6 * boxel + boxel / 2 - 7; // Vertically centered in row 6
+      const textX = x0 + 3 * boxel + 15; // Padding after column 2
+      const textY = y0 + 6 * boxel + boxel / 2 - 9; // Vertically centered in row 6
       deadGroup.text(sizesText)
-        .font({ size: 14, weight: 'bold', family: 'Arial' })
+        .font({ size: 18, weight: 'bold', family: 'Arial' })
         .fill('#ff0000')
         .move(textX, textY);
     }
@@ -438,6 +438,7 @@ window.solvePuzzle = async function () {
     // Remove pending pieces display
     const pending = SVG.get('pending-pieces');
     if (pending) pending.remove();
+    /* POPUP DISABLED - uncomment to restore
     Swal.fire({
       title: "Stopped",
       text: "Solver stopped.",
@@ -445,6 +446,7 @@ window.solvePuzzle = async function () {
       timer: 1500,
       showConfirmButton: false
     });
+    */
     scatterShapes();
     return;
   }
@@ -459,6 +461,7 @@ window.solvePuzzle = async function () {
   // Show progress panel
   showProgressPanel(true);
   
+  /* POPUP DISABLED - uncomment to restore
   Swal.fire({
     title: `Solving for ${dateStr}`,
     text: "Whee!",
@@ -466,6 +469,7 @@ window.solvePuzzle = async function () {
     timer: 1500,
     showConfirmButton: false
   });
+  */
   
   const targetCells = Solver.getDateCells(month, day);
   
@@ -484,18 +488,22 @@ window.solvePuzzle = async function () {
     // Restore interactive pieces at solved positions
     restoreInteractivePieces(result.placements);
     
+    /* POPUP DISABLED - uncomment to restore
     Swal.fire({
       title: "Solved!",
       text: `Found a solution for ${dateStr} after ${result.attempts.toLocaleString()} attempts`,
       icon: "success",
       confirmButtonText: "Phew"
     });
+    */
   } else {
+    /* POPUP DISABLED - uncomment to restore
     Swal.fire({
       title: "No solution found",
       text: `Tried ${result.attempts.toLocaleString()} positions. Then presumably you aborted by clicking the little key again?`,
       icon: "error"
     });
+    */
     scatterShapes();
   }
 }
