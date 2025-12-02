@@ -334,14 +334,19 @@ function drawPreviewPiece(pieceName, failed = false) {
   const [name, color, vertices] = shape;
   const previewGroup = svg.group().id('preview-piece');
   
-  // Position to the left of the grid
-  const previewX = x0 - boxel * 4;
-  const previewY = y0 + boxel * 2;
-  const previewScale = 0.7;
+  // Position below the grid, centered
+  const previewScale = boxel * 0.5;
+  const previewX = x0 + boxel * 2;
+  const previewY = y0 + calh + boxel * 0.5;
   
-  // Draw the piece
-  const scaledVertices = vertices.map(([x, y]) => [x * boxel * previewScale, y * boxel * previewScale]);
-  const poly = previewGroup.polygon(scaledVertices.flat().join(','))
+  // Add "Next:" label
+  previewGroup.text('Next:')
+    .font({ size: 16, weight: 'bold', family: 'Arial' })
+    .fill('#333')
+    .move(0, -20);
+  
+  // Draw the piece using polygen
+  const poly = previewGroup.polygon(polygen(vertices, previewScale))
     .fill(color)
     .opacity(0.9)
     .stroke({ width: 2, color: '#333' });
@@ -355,9 +360,9 @@ function drawPreviewPiece(pieceName, failed = false) {
     const cy = bbox.cy;
     const size = Math.max(bbox.width, bbox.height) * 0.5;
     previewGroup.line(cx - size, cy - size, cx + size, cy + size)
-      .stroke({ width: 6, color: '#ff0000' });
+      .stroke({ width: 8, color: '#ff0000' });
     previewGroup.line(cx - size, cy + size, cx + size, cy - size)
-      .stroke({ width: 6, color: '#ff0000' });
+      .stroke({ width: 8, color: '#ff0000' });
   }
 }
 
