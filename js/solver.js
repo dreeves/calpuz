@@ -493,20 +493,9 @@ window.Solver = (function() {
     const success = await backtrack(0);
     solving = false;
     
-    // Final visualization showing all pieces exhausted (at max orient/pos)
-    const finalProgress = pieceNames.map((name) => {
-      const pd = pieceData[name];
-      const totalOrients = pd.orientations.length;
-      return { 
-        name, 
-        status: 'placed',  // Use 'placed' so the numbers display (not '-')
-        orientation: totalOrients, 
-        totalOrientations: totalOrients,
-        positionIndex: 0, 
-        totalPositions: 0 
-      };
-    });
-    visualizeCallback(placements, attempts, finalProgress, [], [], null, false);
+    // Don't fabricate a "final" progress state - the last real visualization
+    // during solving already shows the true state. Just update attempt count.
+    visualizeCallback(placements, attempts, null, [], [], null, false);
     
     return { success, attempts, placements };
   }

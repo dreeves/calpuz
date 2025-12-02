@@ -265,7 +265,7 @@ function updateProgressPanel(attempts, allPiecesProgress) {
   
   if (!allPiecesProgress) return;
   
-  // Update each piece row
+  // Update each piece row - always show actual numbers, no special cases
   for (const piece of allPiecesProgress) {
     const row = document.getElementById(`row-${piece.name}`);
     if (!row) continue;
@@ -276,13 +276,8 @@ function updateProgressPanel(attempts, allPiecesProgress) {
     const orientEl = row.querySelector('.piece-orient');
     const posEl = row.querySelector('.piece-pos');
     
-    if (piece.status === 'pending') {
-      orientEl.textContent = '-';
-      posEl.textContent = '-';
-    } else {
-      orientEl.textContent = `${piece.orientation}/${piece.totalOrientations}`;
-      posEl.textContent = `${piece.positionIndex}/${piece.totalPositions}`;
-    }
+    orientEl.textContent = `${piece.orientation}/${piece.totalOrientations}`;
+    posEl.textContent = `${piece.positionIndex}/${piece.totalPositions}`;
   }
 }
 
