@@ -1,3 +1,5 @@
+[Um, I think Claude spontaneously generated this?]
+
 # Overview
 
 Calendar Puzzle is an interactive browser-based puzzle game where users arrange geometric pieces (pentominoes and one hexomino) to fit within a calendar grid, revealing the current date. The application includes a brute-force solver with visualization capabilities that demonstrates how to solve the puzzle automatically.
