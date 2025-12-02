@@ -259,7 +259,18 @@ window.Solver = (function() {
   
   // Find connected components of empty cells and return any "dead" cells
   // (cells in components too small to be filled by any remaining piece)
-  function findDeadCells(grid, minPieceSize) {
+  // Check if a region size can be filled with pieces
+  // With 7 pentominoes (5 cells) and 1 hexomino (6 cells), valid sizes are:
+  // - 5k (all pentominoes): 5, 10, 15, 20, 25, 30, 35
+  // - 5k + 1 (pentominoes + hexomino): 6, 11, 16, 21, 26, 31, 36, 41
+  // Invalid: 1-4, 7-9, 12-14, 17-19, 22-24, 27-29, 32-34, 37-39, 42+
+  function isFillableSize(size) {
+    if (size < 5) return false;
+    const remainder = size % 5;
+    return remainder === 0 || remainder === 1;
+  }
+  
+  function findDeadCells(grid) {
     const visited = Array(7).fill(null).map(() => Array(7).fill(false));
     const deadCells = [];
     
@@ -285,7 +296,7 @@ window.Solver = (function() {
       for (let c = 0; c < 7; c++) {
         if (grid[r][c] === 1 && !visited[r][c]) {
           const component = floodFill(r, c);
-          if (component.length < minPieceSize) {
+          if (!isFillableSize(component.length)) {
             deadCells.push(...component);
           }
         }
@@ -361,7 +372,7 @@ window.Solver = (function() {
           attempts++;
           
           // Check for dead cells (isolated regions too small to fill)
-          const deadCells = findDeadCells(grid, 5); // 5 = smallest piece size
+          const deadCells = findDeadCells(grid);
           
           // Visualize every iteration - show current piece being placed (no X yet, just preview)
           const allPiecesProgress = pieceNames.map((name, idx) => {
@@ -476,7 +487,7 @@ window.Solver = (function() {
           attempts++;
           
           // Prune if dead cells exist
-          const deadCells = findDeadCells(grid, 5);
+          const deadCells = findDeadCells(grid);
           if (deadCells.length === 0) {
             backtrack(pieceIndex + 1);
           }
