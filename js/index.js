@@ -268,10 +268,7 @@ function updateProgressPanel(attempts, allPiecesProgress) {
       posEl.textContent = '-';
     } else {
       orientEl.textContent = `${piece.orientation}/${piece.totalOrientations}`;
-      // Valid anchors: rows 0-4 cols 0-5 (30), row 5 cols 0-2 (3) = 33 total
-      const r = piece.row, c = Math.min(piece.col, 5);
-      const posIndex = r <= 4 ? r * 6 + c + 1 : (c <= 2 ? 31 + c : 33);
-      posEl.textContent = `${posIndex}/33`;
+      posEl.textContent = `${piece.positionIndex}/${piece.totalPositions}`;
     }
   }
 }
