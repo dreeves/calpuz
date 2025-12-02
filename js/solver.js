@@ -368,53 +368,78 @@ window.Solver = (function() {
     return pieceData;
   }
   
-  // Debug function: solve for all dates and log attempts
-  async function solveAll(shapes) {
+  // Count all solutions for a given date (synchronous, no visualization)
+  function countSolutions(shapes, targetCells) {
+    if (!pieceData) {
+      initPieceData(shapes);
+    }
+    
+    const pieceNames = shapes.map(s => s[0]);
+    const grid = copyGrid(gridTemplate);
+    for (const [r, c] of targetCells) {
+      grid[r][c] = 2;
+    }
+    
+    let solutionCount = 0;
+    
+    function backtrack(pieceIndex) {
+      if (pieceIndex === 8) {
+        solutionCount++;
+        return; // Don't stop - continue to find more solutions
+      }
+      
+      const pieceName = pieceNames[pieceIndex];
+      const piece = pieceData[pieceName];
+      
+      for (const orientation of piece.orientations) {
+        for (let row = 0; row < 7; row++) {
+          for (let col = 0; col < 7; col++) {
+            if (canPlace(grid, orientation.cells, row, col)) {
+              setPiece(grid, orientation.cells, row, col, 3 + pieceIndex);
+              backtrack(pieceIndex + 1);
+              setPiece(grid, orientation.cells, row, col, 1); // Backtrack
+            }
+          }
+        }
+      }
+    }
+    
+    backtrack(0);
+    return solutionCount;
+  }
+  
+  // Debug function: count solutions for all dates
+  function solveAll(shapes) {
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
                         'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const results = [];
-    let totalAttempts = 0;
-    let solved = 0;
-    let failed = 0;
+    let totalSolutions = 0;
     
-    console.log('=== SOLVING ALL DATES ===\n');
+    console.log('=== COUNTING SOLUTIONS FOR ALL DATES ===\n');
     
     for (let month = 0; month < 12; month++) {
       for (let day = 1; day <= 31; day++) {
         const targetCells = getDateCells(month, day);
-        
-        // Solve without visualization (animationDelay = 0, no callback)
-        const result = await solve(shapes, targetCells, () => {}, 0);
+        const count = countSolutions(shapes, targetCells);
         
         const dateStr = `${monthNames[month]} ${day}`;
-        results.push({ month, day, dateStr, ...result });
-        totalAttempts += result.attempts;
+        results.push({ month, day, dateStr, solutions: count });
+        totalSolutions += count;
         
-        if (result.success) {
-          solved++;
-          console.log(`${dateStr.padEnd(7)}: ${result.attempts.toLocaleString().padStart(10)} attempts`);
-        } else {
-          failed++;
-          console.log(`${dateStr.padEnd(7)}: FAILED after ${result.attempts.toLocaleString()} attempts`);
-        }
+        console.log(`${dateStr.padEnd(7)}: ${count.toLocaleString().padStart(6)} solutions`);
       }
     }
     
     console.log('\n=== SUMMARY ===');
     console.log(`Total dates: ${results.length}`);
-    console.log(`Solved: ${solved}`);
-    console.log(`Failed: ${failed}`);
-    console.log(`Total attempts: ${totalAttempts.toLocaleString()}`);
-    console.log(`Average attempts: ${Math.round(totalAttempts / results.length).toLocaleString()}`);
+    console.log(`Total solutions: ${totalSolutions.toLocaleString()}`);
+    console.log(`Average solutions per date: ${Math.round(totalSolutions / results.length).toLocaleString()}`);
     
-    // Find hardest and easiest dates
-    const successfulResults = results.filter(r => r.success);
-    if (successfulResults.length > 0) {
-      const hardest = successfulResults.reduce((a, b) => a.attempts > b.attempts ? a : b);
-      const easiest = successfulResults.reduce((a, b) => a.attempts < b.attempts ? a : b);
-      console.log(`Hardest: ${hardest.dateStr} (${hardest.attempts.toLocaleString()} attempts)`);
-      console.log(`Easiest: ${easiest.dateStr} (${easiest.attempts.toLocaleString()} attempts)`);
-    }
+    // Find dates with most and fewest solutions
+    const mostSolutions = results.reduce((a, b) => a.solutions > b.solutions ? a : b);
+    const fewestSolutions = results.reduce((a, b) => a.solutions < b.solutions ? a : b);
+    console.log(`Most solutions: ${mostSolutions.dateStr} (${mostSolutions.solutions.toLocaleString()})`);
+    console.log(`Fewest solutions: ${fewestSolutions.dateStr} (${fewestSolutions.solutions.toLocaleString()})`);
     
     return results;
   }

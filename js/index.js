@@ -287,11 +287,12 @@ window.showProgressPanel = function(show) {
   }
 }
 
-// Debug: solve all dates and log attempts (call from browser console)
-window.solveAll = async function() {
-  console.log('Starting solveAll - this will solve 372 dates (12 months x 31 days)');
-  const results = await Solver.solveAll(shapes);
-  console.log('Done! Results returned as array.');
+// Debug: count solutions for all dates (call from browser console)
+window.solveAll = function() {
+  console.log('Starting solveAll - counting solutions for 372 dates...');
+  console.log('(This may take a while - each date requires exhaustive search)\n');
+  const results = Solver.solveAll(shapes);
+  console.log('\nDone! Results returned as array.');
   return results;
 }
 
