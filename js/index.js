@@ -268,7 +268,10 @@ function updateProgressPanel(attempts, allPiecesProgress) {
       posEl.textContent = '-';
     } else {
       orientEl.textContent = `${piece.orientation}/${piece.totalOrientations}`;
-      posEl.textContent = `${piece.positionIndex}/${piece.totalPositions}`;
+      // Valid anchors: rows 0-4 cols 0-5 (30), row 5 cols 0-2 (3) = 33 total
+      const r = piece.row, c = Math.min(piece.col, 5);
+      const posIndex = r <= 4 ? r * 6 + c + 1 : (c <= 2 ? 31 + c : 33);
+      posEl.textContent = `${posIndex}/33`;
     }
   }
 }
@@ -339,7 +342,7 @@ window.solvePuzzle = async function () {
   
   const targetCells = Solver.getDateCells(month, day);
   
-  const result = await Solver.solve(shapes, targetCells, visualizeAllPlacements, 20);
+  const result = await Solver.solve(shapes, targetCells, visualizeAllPlacements, 1);
   
   // Panel stays visible - user can dismiss with X button
   
