@@ -373,7 +373,7 @@ window.Solver = (function() {
                   positionIndex: 0, totalPositions: 0 };
           });
           visualizeCallback(placements, attempts, allPiecesProgress, deadCells);
-          await delay(animationDelay);
+          await delay(currentDelay);
           
           // Prune if dead cells exist
           if (deadCells.length === 0) {
