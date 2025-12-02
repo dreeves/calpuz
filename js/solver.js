@@ -499,7 +499,7 @@ window.Solver = (function() {
       const totalOrients = pd.orientations.length;
       return { 
         name, 
-        status: 'pending',
+        status: 'placed',  // Use 'placed' so the numbers display (not '-')
         orientation: totalOrients, 
         totalOrientations: totalOrients,
         positionIndex: 0, 
