@@ -268,10 +268,7 @@ function updateProgressPanel(attempts, allPiecesProgress) {
       posEl.textContent = '-';
     } else {
       orientEl.textContent = `${piece.orientation}/${piece.totalOrientations}`;
-      // Valid anchors: rows 0-4 cols 0-5 (30), row 5 cols 0-2 (3) = 33 total
-      const r = piece.row, c = Math.min(piece.col, 5);
-      const posIndex = r <= 4 ? r * 6 + c + 1 : (c <= 2 ? 31 + c : 33);
-      posEl.textContent = `${posIndex}/33`;
+      posEl.textContent = `${piece.positionIndex}/${piece.totalPositions}`;
     }
   }
 }
@@ -288,13 +285,7 @@ window.showProgressPanel = function(show) {
 }
 
 // Debug: count solutions for all dates (call from browser console)
-window.solveAll = function() {
-  console.log('Starting solveAll - counting solutions for 372 dates...');
-  console.log('(This may take a while - each date requires exhaustive search)\n');
-  const results = Solver.solveAll(shapes);
-  console.log('\nDone! Results returned as array.');
-  return results;
-}
+window.solveAll = function() { return Solver.solveAll(shapes) }
 
 // Visualize all placements (callback for solver)
 function visualizeAllPlacements(placements, attempts, progress) {

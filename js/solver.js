@@ -237,6 +237,19 @@ window.Solver = (function() {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
   
+  // Get all valid positions for placing a piece orientation on current grid
+  function getValidPositions(grid, cells) {
+    const positions = [];
+    for (let row = 0; row < 7; row++) {
+      for (let col = 0; col < 7; col++) {
+        if (canPlace(grid, cells, row, col)) {
+          positions.push([row, col]);
+        }
+      }
+    }
+    return positions;
+  }
+  
   // Main solve function
   async function solve(shapes, targetCells, visualizeCallback, animationDelay = 30) {
     if (!pieceData) {
@@ -264,83 +277,63 @@ window.Solver = (function() {
       
       const pieceName = pieceNames[pieceIndex];
       const piece = pieceData[pieceName];
-      
       const totalOrientations = piece.orientations.length;
       
       // Try each orientation
       for (let orientIdx = 0; orientIdx < totalOrientations; orientIdx++) {
         const orientation = piece.orientations[orientIdx];
-        // Try each position
-        for (let row = 0; row < 7; row++) {
-          for (let col = 0; col < 7; col++) {
-            if (canPlace(grid, orientation.cells, row, col)) {
-              // Place piece
-              setPiece(grid, orientation.cells, row, col, 3 + pieceIndex);
-              placements[pieceIndex] = {
-                name: pieceName,
-                row,
-                col,
-                cells: orientation.cells,
-                rotation: orientation.rotation,
-                flipped: orientation.flipped,
-                orientationIndex: orientIdx,
-                totalOrientations
-              };
-              attempts++;
-              
-              // Visualize periodically with progress info for ALL pieces
-              // Update every 20 attempts to reduce DOM overhead
-              if (animationDelay > 0 && attempts % 20 === 0) {
-                // Build progress state for all pieces
-                const allPiecesProgress = pieceNames.map((name, idx) => {
-                  const piece = pieceData[name];
-                  if (idx < pieceIndex) {
-                    // Already placed - use stored orientationIndex for correct odometer display
-                    const p = placements[idx];
-                    return {
-                      name,
-                      status: 'placed',
-                      orientation: p ? p.orientationIndex + 1 : '-',
-                      totalOrientations: p ? p.totalOrientations : piece.orientations.length,
-                      row: p ? p.row : 0,
-                      col: p ? p.col : 0
-                    };
-                  } else if (idx === pieceIndex) {
-                    // Currently being placed
-                    return {
-                      name,
-                      status: 'current',
-                      orientation: orientIdx + 1,
-                      totalOrientations,
-                      row,
-                      col
-                    };
-                  } else {
-                    // Not yet attempted
-                    return {
-                      name,
-                      status: 'pending',
-                      orientation: 0,
-                      totalOrientations: piece.orientations.length,
-                      row: 0,
-                      col: 0
-                    };
-                  }
-                });
-                visualizeCallback(placements, attempts, allPiecesProgress);
-                await delay(animationDelay);
-              }
-              
-              // Recurse
-              if (await backtrack(pieceIndex + 1)) {
-                return true;
-              }
-              
-              // Backtrack
-              setPiece(grid, orientation.cells, row, col, 1);
-              placements[pieceIndex] = null;
-            }
+        const validPositions = getValidPositions(grid, orientation.cells);
+        const totalPositions = validPositions.length;
+        
+        // Try each valid position
+        for (let posIdx = 0; posIdx < totalPositions; posIdx++) {
+          const [row, col] = validPositions[posIdx];
+          
+          // Place piece
+          setPiece(grid, orientation.cells, row, col, 3 + pieceIndex);
+          placements[pieceIndex] = {
+            name: pieceName,
+            row,
+            col,
+            cells: orientation.cells,
+            rotation: orientation.rotation,
+            flipped: orientation.flipped,
+            orientationIndex: orientIdx,
+            totalOrientations,
+            positionIndex: posIdx,
+            totalPositions
+          };
+          attempts++;
+          
+          // Visualize periodically with progress info for ALL pieces
+          if (animationDelay > 0 && attempts % 20 === 0) {
+            const allPiecesProgress = pieceNames.map((name, idx) => {
+              const pd = pieceData[name];
+              const p = placements[idx];
+              return idx < pieceIndex
+                ? { name, status: 'placed',
+                    orientation: p.orientationIndex + 1, totalOrientations: p.totalOrientations,
+                    positionIndex: p.positionIndex + 1, totalPositions: p.totalPositions }
+                : idx === pieceIndex
+                ? { name, status: 'current',
+                    orientation: orientIdx + 1, totalOrientations,
+                    positionIndex: posIdx + 1, totalPositions }
+                : { name, status: 'pending',
+                    orientation: 0, totalOrientations: pd.orientations.length,
+                    positionIndex: 0, totalPositions: 0 };
+            });
+            visualizeCallback(placements, attempts, allPiecesProgress);
+            await delay(animationDelay);
           }
+          
+          // Recurse
+          if (await backtrack(pieceIndex + 1)) {
+            return true;
+          }
+          
+          // Backtrack
+          setPiece(grid, orientation.cells, row, col, 1);
+          placements[pieceIndex] = null;
         }
       }
       
@@ -422,7 +415,7 @@ window.Solver = (function() {
     let totalSolutions = 0;
     let totalAttempts = 0;
     
-    console.log('=== COUNTING SOLUTIONS FOR ALL DATES ===\n');
+    console.log('=== FINDING ALL SOLUTIONS FOR ALL DATES ===\n');
     
     for (let month = 0; month < 12; month++) {
       for (let day = 1; day <= 31; day++) {
