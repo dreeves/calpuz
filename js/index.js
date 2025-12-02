@@ -338,14 +338,7 @@ function drawPendingPieces(progress, failedPieceName = null) {
   const previewScale = boxel * 0.4;
   const spacing = boxel * 2.5; // Space between pieces
   const startX = x0;
-  const startY = y0 + calh + boxel * 1.3; // More padding below grid
-  
-  // Add label with responsive font size
-  const labelFontSize = Math.max(10, Math.min(14, boxel * 0.25));
-  pendingGroup.text('Remaining:')
-    .font({ size: labelFontSize, weight: 'bold', family: 'Arial' })
-    .fill('#555')
-    .move(startX, startY - labelFontSize * 1.5);
+  const startY = y0 + calh + boxel * 1.0; // Padding below grid
   
   // Draw each pending piece
   pendingPieces.forEach((piece, index) => {
