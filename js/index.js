@@ -295,6 +295,26 @@ window.setSpeed = function(ms) {
 // Debug: count solutions for all dates (call from browser console)
 window.solveAll = function() { return Solver.solveAll(shapes) }
 
+// Draw circles around target date cells
+function drawDateCircles(targetCells) {
+  removeeDateCircles(); // Clean up any existing
+  const circleGroup = svg.group().id('date-circles');
+  for (const [r, c] of targetCells) {
+    const cx = x0 + c * boxel + boxel / 2;
+    const cy = y0 + r * boxel + boxel / 2;
+    circleGroup.circle(boxel * 0.85)
+      .center(cx, cy)
+      .fill('none')
+      .stroke({ width: 3, color: '#ff6b6b', dasharray: '5,3' });
+  }
+}
+
+// Remove date circles
+function removeeDateCircles() {
+  const circles = SVG.get('date-circles');
+  if (circles) circles.remove();
+}
+
 // Visualize all placements (callback for solver)
 function visualizeAllPlacements(placements, attempts, progress, deadCells = []) {
   // Clear all pieces
@@ -334,9 +354,7 @@ window.solvePuzzle = async function () {
   if (Solver.isSolving()) {
     Solver.stop();
     showProgressPanel(false);
-    // Remove date circles
-    const circles = SVG.get('date-circles');
-    if (circles) circles.remove();
+    removeeDateCircles();
     Swal.fire({
       title: "Stopped",
       text: "Solver stopped.",
@@ -368,22 +386,11 @@ window.solvePuzzle = async function () {
   
   const targetCells = Solver.getDateCells(month, day);
   
-  // Draw circles around target date cells
-  const circleGroup = svg.group().id('date-circles');
-  for (const [r, c] of targetCells) {
-    const cx = x0 + c * boxel + boxel / 2;
-    const cy = y0 + r * boxel + boxel / 2;
-    circleGroup.circle(boxel * 0.85)
-      .center(cx, cy)
-      .fill('none')
-      .stroke({ width: 3, color: '#ff6b6b', dasharray: '5,3' });
-  }
+  drawDateCircles(targetCells);
   
   const result = await Solver.solve(shapes, targetCells, visualizeAllPlacements, solverSpeed);
   
-  // Remove circles after solving
-  const circles = SVG.get('date-circles');
-  if (circles) circles.remove();
+  removeeDateCircles();
   
   // Panel stays visible - user can dismiss with X button
   
