@@ -340,9 +340,9 @@ function drawPreviewPiece(pieceName, failed = false) {
   const previewY = y0 + calh + boxel * 0.5;
   
   // Add "Trying:" label (shows piece being attempted next)
-  previewGroup.text(failed ? 'Failed:' : 'Next:')
-    .font({ size: 16, weight: 'bold', family: 'Arial' })
-    .fill(failed ? '#ff0000' : '#333')
+  previewGroup.text('Next:')
+    .font({ size: 16, family: 'Arial' })
+    .fill('#333')
     .move(0, -20);
   
   // Draw the piece using polygen
