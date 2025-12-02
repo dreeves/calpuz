@@ -381,14 +381,14 @@ function drawPendingPieces(progress, failedPieceName = null) {
 }
 
 // Visualize all placements (callback for solver)
-function visualizeAllPlacements(placements, attempts, progress, deadCells = [], nextPiece = null, pieceFailed = false) {
+function visualizeAllPlacements(placements, attempts, progress, deadCells = [], deadRegionSizes = [], nextPiece = null, pieceFailed = false) {
   // Clear all pieces
   for (const [name, , ] of shapes) {
     const group = SVG.get(name);
     if (group) group.remove();
   }
   
-  // Clear any existing dead cell markers
+  // Clear any existing dead cell markers and text
   const oldDeadMarkers = SVG.get('dead-cells');
   if (oldDeadMarkers) oldDeadMarkers.remove();
   
@@ -397,7 +397,7 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
     if (p) visualizePlacement(p);
   }
   
-  // Draw red X's on dead cells
+  // Draw red X's on dead cells and show unfillable sizes text
   if (deadCells.length > 0) {
     const deadGroup = svg.group().id('dead-cells');
     for (const [r, c] of deadCells) {
@@ -408,6 +408,15 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
         .stroke({ width: 3, color: '#ff0000' });
       deadGroup.line(cx - size, cy + size, cx + size, cy - size)
         .stroke({ width: 3, color: '#ff0000' });
+    }
+    
+    // Show unfillable region sizes text
+    if (deadRegionSizes.length > 0) {
+      const sizesText = `Unfillable region sizes: ${deadRegionSizes.join(', ')}`;
+      deadGroup.text(sizesText)
+        .font({ size: 14, weight: 'bold', family: 'Arial' })
+        .fill('#ff0000')
+        .move(x0, y0 - 25);
     }
   }
   

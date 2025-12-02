@@ -273,6 +273,7 @@ window.Solver = (function() {
   function findDeadCells(grid) {
     const visited = Array(7).fill(null).map(() => Array(7).fill(false));
     const deadCells = [];
+    const deadRegionSizes = [];
     
     function floodFill(startR, startC) {
       const component = [];
@@ -298,12 +299,13 @@ window.Solver = (function() {
           const component = floodFill(r, c);
           if (!isFillableSize(component.length)) {
             deadCells.push(...component);
+            deadRegionSizes.push(component.length);
           }
         }
       }
     }
     
-    return deadCells;
+    return { deadCells, deadRegionSizes };
   }
   
   // Main solve function
@@ -372,7 +374,7 @@ window.Solver = (function() {
           attempts++;
           
           // Check for dead cells (isolated regions too small to fill)
-          const deadCells = findDeadCells(grid);
+          const { deadCells, deadRegionSizes } = findDeadCells(grid);
           
           // Visualize every iteration - show current piece being placed (no X yet, just preview)
           const allPiecesProgress = pieceNames.map((name, idx) => {
@@ -393,7 +395,7 @@ window.Solver = (function() {
           // Show next piece as preview (the one we'll attempt after this placement)
           const nextPieceIdx = pieceIndex + 1;
           const nextPieceName = nextPieceIdx < 8 ? pieceNames[nextPieceIdx] : null;
-          visualizeCallback(placements, attempts, allPiecesProgress, deadCells, nextPieceName, false);
+          visualizeCallback(placements, attempts, allPiecesProgress, deadCells, deadRegionSizes, nextPieceName, false);
           await delay(currentDelay);
           
           // Prune if dead cells exist
@@ -424,7 +426,7 @@ window.Solver = (function() {
                 orientation: 0, totalOrientations: pd.orientations.length,
                 positionIndex: 0, totalPositions: 0 };
         });
-        visualizeCallback(placements, attempts, allPiecesProgress, [], pieceName, true);
+        visualizeCallback(placements, attempts, allPiecesProgress, [], [], pieceName, true);
         await delay(currentDelay); // Same delay as normal steps
       }
       
@@ -434,8 +436,8 @@ window.Solver = (function() {
     const success = await backtrack(0);
     solving = false;
     
-    // Final visualization
-    visualizeCallback(placements, attempts);
+    // Final visualization (no dead cells info needed)
+    visualizeCallback(placements, attempts, null, [], [], null, false);
     
     return { success, attempts, placements };
   }
@@ -487,7 +489,7 @@ window.Solver = (function() {
           attempts++;
           
           // Prune if dead cells exist
-          const deadCells = findDeadCells(grid);
+          const { deadCells } = findDeadCells(grid);
           if (deadCells.length === 0) {
             backtrack(pieceIndex + 1);
           }
