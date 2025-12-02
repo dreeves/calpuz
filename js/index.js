@@ -357,7 +357,7 @@ window.solvePuzzle = async function () {
   
   const targetCells = Solver.getDateCells(month, day);
   
-  const result = await Solver.solve(shapes, targetCells, visualizeAllPlacements, 1);
+  const result = await Solver.solve(shapes, targetCells, visualizeAllPlacements, 50);
   
   // Panel stays visible - user can dismiss with X button
   
