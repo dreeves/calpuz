@@ -327,11 +327,18 @@ window.Solver = (function() {
       const piece = pieceData[pieceName];
       const totalOrientations = piece.orientations.length;
       
+      // Track if any placement was ever possible
+      let hadValidPlacement = false;
+      
       // Try each orientation
       for (let orientIdx = 0; orientIdx < totalOrientations; orientIdx++) {
         const orientation = piece.orientations[orientIdx];
         const validPositions = getValidPositions(grid, orientation.cells);
         const totalPositions = validPositions.length;
+        
+        if (totalPositions > 0) {
+          hadValidPlacement = true;
+        }
         
         // Try each valid position
         for (let posIdx = 0; posIdx < totalPositions; posIdx++) {
@@ -392,8 +399,9 @@ window.Solver = (function() {
         }
       }
       
-      // No valid placement found - show this piece as failed before backtracking
-      if (pieceIndex > 0) {
+      // Only show failure X if this piece had ZERO valid placements
+      // (meaning it literally couldn't fit anywhere on the grid)
+      if (!hadValidPlacement && pieceIndex > 0) {
         const allPiecesProgress = pieceNames.map((name, idx) => {
           const pd = pieceData[name];
           const p = placements[idx];
