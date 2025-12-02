@@ -397,9 +397,17 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
   const oldDeadMarkers = SVG.get('dead-cells');
   if (oldDeadMarkers) oldDeadMarkers.remove();
   
-  // Draw current placements
-  for (const p of placements) {
-    if (p) visualizePlacement(p);
+  // Check if all 8 pieces are placed (solution found)
+  const allPlaced = placements.filter(p => p !== null).length === 8;
+  
+  if (allPlaced && Solver.hasFoundSolution()) {
+    // Solution found - make pieces interactive so user can drag them
+    restoreInteractivePieces(placements);
+  } else {
+    // Still solving - draw non-interactive placements
+    for (const p of placements) {
+      if (p) visualizePlacement(p);
+    }
   }
   
   // Draw red X's on dead cells and show unfillable sizes text
