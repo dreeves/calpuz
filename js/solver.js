@@ -231,10 +231,17 @@ window.Solver = (function() {
   let solving = false;
   let attempts = 0;
   let placements = [];
+  let currentDelay = 50; // Dynamic delay that can be changed mid-solve
   
-  // Async delay for animation
+  // Async delay for animation (uses currentDelay if no ms specified)
   function delay(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    const actualDelay = ms !== undefined ? ms : currentDelay;
+    return new Promise(resolve => setTimeout(resolve, actualDelay));
+  }
+  
+  // Set speed dynamically (can be called during solve)
+  function setSpeed(ms) {
+    currentDelay = ms;
   }
   
   // Get all valid positions for placing a piece orientation on current grid
@@ -293,6 +300,9 @@ window.Solver = (function() {
     if (!pieceData) {
       initPieceData(shapes);
     }
+    
+    // Initialize speed from parameter
+    currentDelay = animationDelay;
     
     const pieceNames = shapes.map(s => s[0]);
     
@@ -501,6 +511,7 @@ window.Solver = (function() {
     isSolving,
     getDateCells,
     initPieceData,
-    getPieceData
+    getPieceData,
+    setSpeed
   };
 })();

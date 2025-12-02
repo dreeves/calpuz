@@ -9,6 +9,7 @@ const sbarw = 68.5;           // width of the sidebar on the right
 const x0 = (w-calw-sbarw)/2;  // (x0, y0) = left top corner of the calendar grid
 const y0 = Math.min((h-calh+headh)/2, headh + 200);  // centered or near top, whichever is higher
 let svg;                      // this gets initialized when the page loads
+let solverSpeed = 50;         // animation delay in ms (adjustable via speed buttons)
 
 let shapes = [                // array of 8 shapes aka puzzle pieces
   // 1. red corner (4 orientations, non-chiral)
@@ -284,6 +285,19 @@ window.showProgressPanel = function(show) {
   }
 }
 
+// Set solver animation speed (global for speed buttons)
+window.setSpeed = function(ms) {
+  solverSpeed = ms;
+  Solver.setSpeed(ms);
+  // Update button active states
+  document.querySelectorAll('.speed-btn').forEach(btn => {
+    btn.classList.remove('active');
+    if (parseInt(btn.getAttribute('onclick').match(/\d+/)[0]) === ms) {
+      btn.classList.add('active');
+    }
+  });
+}
+
 // Debug: count solutions for all dates (call from browser console)
 window.solveAll = function() { return Solver.solveAll(shapes) }
 
@@ -357,7 +371,7 @@ window.solvePuzzle = async function () {
   
   const targetCells = Solver.getDateCells(month, day);
   
-  const result = await Solver.solve(shapes, targetCells, visualizeAllPlacements, 50);
+  const result = await Solver.solve(shapes, targetCells, visualizeAllPlacements, solverSpeed);
   
   // Panel stays visible - user can dismiss with X button
   
