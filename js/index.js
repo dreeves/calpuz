@@ -320,50 +320,64 @@ function removeeDateCircles() {
   if (circles) circles.remove();
 }
 
-// Draw preview piece next to grid
-function drawPreviewPiece(pieceName, failed = false) {
-  // Remove old preview
-  const oldPreview = SVG.get('preview-piece');
-  if (oldPreview) oldPreview.remove();
+// Draw all pending pieces below the grid in order
+function drawPendingPieces(progress, failedPieceName = null) {
+  // Remove old pending pieces display
+  const oldPending = SVG.get('pending-pieces');
+  if (oldPending) oldPending.remove();
   
-  if (!pieceName) return;
+  if (!progress) return;
   
-  const shape = shapes.find(s => s[0] === pieceName);
-  if (!shape) return;
+  // Get pending and current pieces (not yet placed)
+  const pendingPieces = progress.filter(p => p.status === 'pending' || p.status === 'current');
+  if (pendingPieces.length === 0) return;
   
-  const [name, color, vertices] = shape;
-  const previewGroup = svg.group().id('preview-piece');
+  const pendingGroup = svg.group().id('pending-pieces');
   
-  // Position below the grid, centered
-  const previewScale = boxel * 0.5;
-  const previewX = x0 + boxel * 2;
-  const previewY = y0 + calh + boxel * 0.5;
+  // Calculate layout - pieces in a row below the grid
+  const previewScale = boxel * 0.4;
+  const spacing = boxel * 2.5; // Space between pieces
+  const startX = x0;
+  const startY = y0 + calh + boxel * 0.8;
   
-  // Add "Trying:" label (shows piece being attempted next)
-  previewGroup.text('Next:')
-    .font({ size: 16, family: 'Arial' })
-    .fill('#333')
-    .move(0, -20);
+  // Add label
+  pendingGroup.text('Remaining:')
+    .font({ size: 14, weight: 'bold', family: 'Arial' })
+    .fill('#555')
+    .move(startX, startY - 25);
   
-  // Draw the piece using polygen
-  const poly = previewGroup.polygon(polygen(vertices, previewScale))
-    .fill(color)
-    .opacity(0.9)
-    .stroke({ width: 2, color: '#333' });
-  
-  previewGroup.translate(previewX, previewY);
-  
-  // If failed, draw a big red X over it
-  if (failed) {
-    const bbox = poly.bbox();
-    const cx = bbox.cx;
-    const cy = bbox.cy;
-    const size = Math.max(bbox.width, bbox.height) * 0.5;
-    previewGroup.line(cx - size, cy - size, cx + size, cy + size)
-      .stroke({ width: 8, color: '#ff0000' });
-    previewGroup.line(cx - size, cy + size, cx + size, cy - size)
-      .stroke({ width: 8, color: '#ff0000' });
-  }
+  // Draw each pending piece
+  pendingPieces.forEach((piece, index) => {
+    const shape = shapes.find(s => s[0] === piece.name);
+    if (!shape) return;
+    
+    const [name, color, vertices] = shape;
+    const pieceGroup = pendingGroup.group();
+    
+    // Position this piece in the row
+    const px = startX + index * spacing;
+    const py = startY;
+    
+    // Draw the piece
+    const poly = pieceGroup.polygon(polygen(vertices, previewScale))
+      .fill(color)
+      .opacity(piece.status === 'current' ? 1 : 0.6)
+      .stroke({ width: 2, color: piece.status === 'current' ? '#000' : '#666' });
+    
+    pieceGroup.translate(px, py);
+    
+    // If this is the failed piece, draw X over it
+    if (name === failedPieceName) {
+      const bbox = poly.bbox();
+      const cx = bbox.cx;
+      const cy = bbox.cy;
+      const size = Math.max(bbox.width, bbox.height) * 0.5;
+      pieceGroup.line(cx - size, cy - size, cx + size, cy + size)
+        .stroke({ width: 6, color: '#ff0000' });
+      pieceGroup.line(cx - size, cy + size, cx + size, cy - size)
+        .stroke({ width: 6, color: '#ff0000' });
+    }
+  });
 }
 
 // Visualize all placements (callback for solver)
@@ -397,8 +411,8 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
     }
   }
   
-  // Draw preview of next piece
-  drawPreviewPiece(nextPiece, pieceFailed);
+  // Draw all pending pieces below the grid
+  drawPendingPieces(progress, pieceFailed ? nextPiece : null);
   
   // Update progress panel
   updateProgressPanel(attempts, progress);
@@ -409,9 +423,9 @@ window.solvePuzzle = async function () {
     Solver.stop();
     showProgressPanel(false);
     removeeDateCircles();
-    // Remove preview piece
-    const preview = SVG.get('preview-piece');
-    if (preview) preview.remove();
+    // Remove pending pieces display
+    const pending = SVG.get('pending-pieces');
+    if (pending) pending.remove();
     Swal.fire({
       title: "Stopped",
       text: "Solver stopped.",
@@ -448,9 +462,9 @@ window.solvePuzzle = async function () {
   const result = await Solver.solve(shapes, targetCells, visualizeAllPlacements, solverSpeed);
   
   removeeDateCircles();
-  // Remove preview piece
-  const preview = SVG.get('preview-piece');
-  if (preview) preview.remove();
+  // Clean up pending pieces display
+  const pending = SVG.get('pending-pieces');
+  if (pending) pending.remove();
   
   // Panel stays visible - user can dismiss with X button
   
