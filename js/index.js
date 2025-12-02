@@ -248,19 +248,8 @@ function initProgressPanel() {
 
 // Update progress panel with all pieces' state
 function updateProgressPanel(attempts, allPiecesProgress) {
-  document.querySelector('.solver-progress .attempts').textContent = 
-    `${attempts.toLocaleString()} attempts`;
-  
-  // Update solution count
-  const solutionCount = Solver.getSolutionCount();
-  const solutionsEl = document.querySelector('.solver-progress .solutions');
-  const countEl = document.getElementById('solution-count');
-  if (solutionCount > 0) {
-    solutionsEl.style.display = 'block';
-    countEl.textContent = solutionCount;
-  } else {
-    solutionsEl.style.display = 'none';
-  }
+  document.getElementById('attempt-count').textContent = attempts.toLocaleString();
+  document.getElementById('solution-count').textContent = Solver.getSolutionCount();
   
   if (!allPiecesProgress) return;
   

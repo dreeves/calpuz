@@ -143,14 +143,6 @@ ul {
   font-size: 18px;
   font-weight: bold;
   color: #4ecdc4;
-  margin-bottom: 4px;
-  font-family: Arial, sans-serif;
-}
-
-.solver-progress .solutions {
-  font-size: 16px;
-  font-weight: bold;
-  color: #ff6b6b;
   margin-bottom: 12px;
   font-family: Arial, sans-serif;
 }
