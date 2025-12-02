@@ -305,26 +305,24 @@ window.Solver = (function() {
           };
           attempts++;
           
-          // Visualize periodically with progress info for ALL pieces
-          if (animationDelay > 0 && attempts % 20 === 0) {
-            const allPiecesProgress = pieceNames.map((name, idx) => {
-              const pd = pieceData[name];
-              const p = placements[idx];
-              return idx < pieceIndex
-                ? { name, status: 'placed',
-                    orientation: p.orientationIndex + 1, totalOrientations: p.totalOrientations,
-                    positionIndex: p.positionIndex + 1, totalPositions: p.totalPositions }
-                : idx === pieceIndex
-                ? { name, status: 'current',
-                    orientation: orientIdx + 1, totalOrientations,
-                    positionIndex: posIdx + 1, totalPositions }
-                : { name, status: 'pending',
-                    orientation: 0, totalOrientations: pd.orientations.length,
-                    positionIndex: 0, totalPositions: 0 };
-            });
-            visualizeCallback(placements, attempts, allPiecesProgress);
-            await delay(animationDelay);
-          }
+          // Visualize every iteration
+          const allPiecesProgress = pieceNames.map((name, idx) => {
+            const pd = pieceData[name];
+            const p = placements[idx];
+            return idx < pieceIndex
+              ? { name, status: 'placed',
+                  orientation: p.orientationIndex + 1, totalOrientations: p.totalOrientations,
+                  positionIndex: p.positionIndex + 1, totalPositions: p.totalPositions }
+              : idx === pieceIndex
+              ? { name, status: 'current',
+                  orientation: orientIdx + 1, totalOrientations,
+                  positionIndex: posIdx + 1, totalPositions }
+              : { name, status: 'pending',
+                  orientation: 0, totalOrientations: pd.orientations.length,
+                  positionIndex: 0, totalPositions: 0 };
+          });
+          visualizeCallback(placements, attempts, allPiecesProgress);
+          await delay(animationDelay);
           
           // Recurse
           if (await backtrack(pieceIndex + 1)) {
