@@ -356,10 +356,7 @@ window.Solver = (function() {
           // Check for dead cells (isolated regions too small to fill)
           const deadCells = findDeadCells(grid, 5); // 5 = smallest piece size
           
-          // Visualize every iteration - show next piece to try
-          const nextPieceIdx = pieceIndex + 1;
-          const nextPieceName = nextPieceIdx < 8 ? pieceNames[nextPieceIdx] : null;
-          
+          // Visualize every iteration - show current piece being placed (no X yet, just preview)
           const allPiecesProgress = pieceNames.map((name, idx) => {
             const pd = pieceData[name];
             const p = placements[idx];
@@ -375,6 +372,9 @@ window.Solver = (function() {
                   orientation: 0, totalOrientations: pd.orientations.length,
                   positionIndex: 0, totalPositions: 0 };
           });
+          // Show next piece as preview (the one we'll attempt after this placement)
+          const nextPieceIdx = pieceIndex + 1;
+          const nextPieceName = nextPieceIdx < 8 ? pieceNames[nextPieceIdx] : null;
           visualizeCallback(placements, attempts, allPiecesProgress, deadCells, nextPieceName, false);
           await delay(currentDelay);
           
