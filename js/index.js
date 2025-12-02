@@ -320,8 +320,49 @@ function removeeDateCircles() {
   if (circles) circles.remove();
 }
 
+// Draw preview piece next to grid
+function drawPreviewPiece(pieceName, failed = false) {
+  // Remove old preview
+  const oldPreview = SVG.get('preview-piece');
+  if (oldPreview) oldPreview.remove();
+  
+  if (!pieceName) return;
+  
+  const shape = shapes.find(s => s[0] === pieceName);
+  if (!shape) return;
+  
+  const [name, color, vertices] = shape;
+  const previewGroup = svg.group().id('preview-piece');
+  
+  // Position to the left of the grid
+  const previewX = x0 - boxel * 4;
+  const previewY = y0 + boxel * 2;
+  const previewScale = 0.7;
+  
+  // Draw the piece
+  const scaledVertices = vertices.map(([x, y]) => [x * boxel * previewScale, y * boxel * previewScale]);
+  const poly = previewGroup.polygon(scaledVertices.flat().join(','))
+    .fill(color)
+    .opacity(0.9)
+    .stroke({ width: 2, color: '#333' });
+  
+  previewGroup.translate(previewX, previewY);
+  
+  // If failed, draw a big red X over it
+  if (failed) {
+    const bbox = poly.bbox();
+    const cx = bbox.cx;
+    const cy = bbox.cy;
+    const size = Math.max(bbox.width, bbox.height) * 0.5;
+    previewGroup.line(cx - size, cy - size, cx + size, cy + size)
+      .stroke({ width: 6, color: '#ff0000' });
+    previewGroup.line(cx - size, cy + size, cx + size, cy - size)
+      .stroke({ width: 6, color: '#ff0000' });
+  }
+}
+
 // Visualize all placements (callback for solver)
-function visualizeAllPlacements(placements, attempts, progress, deadCells = []) {
+function visualizeAllPlacements(placements, attempts, progress, deadCells = [], nextPiece = null, pieceFailed = false) {
   // Clear all pieces
   for (const [name, , ] of shapes) {
     const group = SVG.get(name);
@@ -351,6 +392,9 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = []) 
     }
   }
   
+  // Draw preview of next piece
+  drawPreviewPiece(nextPiece, pieceFailed);
+  
   // Update progress panel
   updateProgressPanel(attempts, progress);
 }
@@ -360,6 +404,9 @@ window.solvePuzzle = async function () {
     Solver.stop();
     showProgressPanel(false);
     removeeDateCircles();
+    // Remove preview piece
+    const preview = SVG.get('preview-piece');
+    if (preview) preview.remove();
     Swal.fire({
       title: "Stopped",
       text: "Solver stopped.",
@@ -396,6 +443,9 @@ window.solvePuzzle = async function () {
   const result = await Solver.solve(shapes, targetCells, visualizeAllPlacements, solverSpeed);
   
   removeeDateCircles();
+  // Remove preview piece
+  const preview = SVG.get('preview-piece');
+  if (preview) preview.remove();
   
   // Panel stays visible - user can dismiss with X button
   

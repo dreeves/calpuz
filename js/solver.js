@@ -356,7 +356,10 @@ window.Solver = (function() {
           // Check for dead cells (isolated regions too small to fill)
           const deadCells = findDeadCells(grid, 5); // 5 = smallest piece size
           
-          // Visualize every iteration
+          // Visualize every iteration - show next piece to try
+          const nextPieceIdx = pieceIndex + 1;
+          const nextPieceName = nextPieceIdx < 8 ? pieceNames[nextPieceIdx] : null;
+          
           const allPiecesProgress = pieceNames.map((name, idx) => {
             const pd = pieceData[name];
             const p = placements[idx];
@@ -372,7 +375,7 @@ window.Solver = (function() {
                   orientation: 0, totalOrientations: pd.orientations.length,
                   positionIndex: 0, totalPositions: 0 };
           });
-          visualizeCallback(placements, attempts, allPiecesProgress, deadCells);
+          visualizeCallback(placements, attempts, allPiecesProgress, deadCells, nextPieceName, false);
           await delay(currentDelay);
           
           // Prune if dead cells exist
@@ -387,6 +390,23 @@ window.Solver = (function() {
           setPiece(grid, orientation.cells, row, col, 1);
           placements[pieceIndex] = null;
         }
+      }
+      
+      // No valid placement found - show this piece as failed before backtracking
+      if (pieceIndex > 0) {
+        const allPiecesProgress = pieceNames.map((name, idx) => {
+          const pd = pieceData[name];
+          const p = placements[idx];
+          return idx < pieceIndex
+            ? { name, status: 'placed',
+                orientation: p.orientationIndex + 1, totalOrientations: p.totalOrientations,
+                positionIndex: p.positionIndex + 1, totalPositions: p.totalPositions }
+            : { name, status: 'pending',
+                orientation: 0, totalOrientations: pd.orientations.length,
+                positionIndex: 0, totalPositions: 0 };
+        });
+        visualizeCallback(placements, attempts, allPiecesProgress, [], pieceName, true);
+        await delay(currentDelay * 2); // Pause a bit longer to show failure
       }
       
       return false;
