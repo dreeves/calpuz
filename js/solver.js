@@ -442,15 +442,18 @@ window.Solver = (function() {
       const piece = pieceData[pieceName];
       
       for (const orientation of piece.orientations) {
-        for (let row = 0; row < 7; row++) {
-          for (let col = 0; col < 7; col++) {
-            if (canPlace(grid, orientation.cells, row, col)) {
-              setPiece(grid, orientation.cells, row, col, 3 + pieceIndex);
-              attempts++;
-              backtrack(pieceIndex + 1);
-              setPiece(grid, orientation.cells, row, col, 1); // Backtrack
-            }
+        const validPositions = getValidPositions(grid, orientation.cells);
+        for (const [row, col] of validPositions) {
+          setPiece(grid, orientation.cells, row, col, 3 + pieceIndex);
+          attempts++;
+          
+          // Prune if dead cells exist
+          const deadCells = findDeadCells(grid, 5);
+          if (deadCells.length === 0) {
+            backtrack(pieceIndex + 1);
           }
+          
+          setPiece(grid, orientation.cells, row, col, 1); // Backtrack
         }
       }
     }
