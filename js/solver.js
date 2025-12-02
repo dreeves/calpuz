@@ -229,19 +229,46 @@ window.Solver = (function() {
   
   // Solver state
   let solving = false;
+  let paused = false;
   let attempts = 0;
   let placements = [];
   let currentDelay = 50; // Dynamic delay that can be changed mid-solve
   
   // Async delay for animation (uses currentDelay if no ms specified)
+  // Also waits while paused
   function delay(ms) {
     const actualDelay = ms !== undefined ? ms : currentDelay;
-    return new Promise(resolve => setTimeout(resolve, actualDelay));
+    return new Promise(async resolve => {
+      await new Promise(r => setTimeout(r, actualDelay));
+      // Wait while paused
+      while (paused && solving) {
+        await new Promise(r => setTimeout(r, 50));
+      }
+      resolve();
+    });
   }
   
   // Set speed dynamically (can be called during solve)
   function setSpeed(ms) {
     currentDelay = ms;
+  }
+  
+  // Pause/resume functions
+  function pause() {
+    paused = true;
+  }
+  
+  function resume() {
+    paused = false;
+  }
+  
+  function togglePause() {
+    paused = !paused;
+    return paused;
+  }
+  
+  function isPaused() {
+    return paused;
   }
   
   // Get all valid positions for placing a piece orientation on current grid
@@ -326,6 +353,7 @@ window.Solver = (function() {
     }
     
     solving = true;
+    paused = false;
     attempts = 0;
     placements = new Array(8).fill(null);
     
@@ -444,6 +472,7 @@ window.Solver = (function() {
   
   function stop() {
     solving = false;
+    paused = false;
   }
   
   function isSolving() {
@@ -553,6 +582,10 @@ window.Solver = (function() {
     solveAll,
     stop,
     isSolving,
+    pause,
+    resume,
+    togglePause,
+    isPaused,
     getDateCells,
     initPieceData,
     getPieceData,

@@ -432,22 +432,9 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
 
 window.solvePuzzle = async function () {
   if (Solver.isSolving()) {
-    Solver.stop();
-    showProgressPanel(false);
-    removeeDateCircles();
-    // Remove pending pieces display
-    const pending = SVG.get('pending-pieces');
-    if (pending) pending.remove();
-    /* POPUP DISABLED - uncomment to restore
-    Swal.fire({
-      title: "Stopped",
-      text: "Solver stopped.",
-      icon: "info",
-      timer: 1500,
-      showConfirmButton: false
-    });
-    */
-    scatterShapes();
+    // Toggle pause/resume instead of stopping
+    const nowPaused = Solver.togglePause();
+    // Update UI to show paused state (optional: could add visual indicator)
     return;
   }
   
