@@ -230,6 +230,8 @@ window.Solver = (function() {
   // Solver state
   let solving = false;
   let paused = false;
+  let foundSolution = false; // True when paused at a solution
+  let solutionCount = 0;
   let attempts = 0;
   let placements = [];
   let currentDelay = 50; // Dynamic delay that can be changed mid-solve
@@ -354,6 +356,8 @@ window.Solver = (function() {
     
     solving = true;
     paused = false;
+    foundSolution = false;
+    solutionCount = 0;
     attempts = 0;
     placements = new Array(8).fill(null);
     
@@ -361,7 +365,22 @@ window.Solver = (function() {
       if (!solving) return false;
       
       if (pieceIndex === 8) {
-        return true; // All pieces placed!
+        // Found a solution! Increment count and pause
+        solutionCount++;
+        foundSolution = true;
+        paused = true;
+        
+        // Wait while paused (user can resume to find next solution)
+        while (paused && solving) {
+          await new Promise(r => setTimeout(r, 50));
+        }
+        foundSolution = false;
+        
+        // If stopped while paused, return true to unwind gracefully
+        if (!solving) return true;
+        
+        // Continue searching for more solutions (don't return true)
+        return false;
       }
       
       const pieceName = pieceNames[pieceIndex];
@@ -473,10 +492,19 @@ window.Solver = (function() {
   function stop() {
     solving = false;
     paused = false;
+    foundSolution = false;
   }
   
   function isSolving() {
     return solving;
+  }
+  
+  function hasFoundSolution() {
+    return foundSolution;
+  }
+  
+  function getSolutionCount() {
+    return solutionCount;
   }
   
   function getPieceData() {
@@ -586,6 +614,8 @@ window.Solver = (function() {
     resume,
     togglePause,
     isPaused,
+    hasFoundSolution,
+    getSolutionCount,
     getDateCells,
     initPieceData,
     getPieceData,
