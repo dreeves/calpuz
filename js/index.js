@@ -445,10 +445,12 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
 }
 
 window.solvePuzzle = async function () {
+  // Always show progress panel when solve button is pressed
+  showProgressPanel(true);
+  
   if (Solver.isSolving()) {
     // Toggle pause/resume instead of stopping
     const nowPaused = Solver.togglePause();
-    // Update UI to show paused state (optional: could add visual indicator)
     return;
   }
   
@@ -458,9 +460,6 @@ window.solvePuzzle = async function () {
   const day = today.getDate(); // one-based so the 1st = 1 etc
   
   const dateStr = today.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
-  
-  // Show progress panel
-  showProgressPanel(true);
   
   /* POPUP DISABLED - uncomment to restore
   Swal.fire({
