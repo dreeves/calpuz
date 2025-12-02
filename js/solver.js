@@ -112,55 +112,56 @@ window.Solver = (function() {
     return orientations;
   }
   
+  // (This is presumably redundant with the shapes array in index.js)
   // Manually defined cell patterns for each piece
   // These are verified to match the actual puzzle pieces
   // Format: [row, col] relative to top-left of bounding box
   const manualPieceCells = {
-    // Corner: L-shape, 5 cells
+    // Red Corner: L-shape, 5 cells, non-chiral
     //  X
     //  X
     //  X X X
     "corner": [[0,0], [1,0], [2,0], [2,1], [2,2]],
     
-    // Stair: N-pentomino pattern, 5 cells (truly chiral)
+    // Orange Stair: 3x1 plus 2x1 pattern, 5 cells, chiral
     //    X
     //    X
     //  X X
     //  X
     "stair": [[0,1], [1,1], [2,0], [2,1], [3,0]],
     
-    // Z-shape: Z pattern, 5 cells
+    // Yellow Z-shape: 3x1 w/ bumps, 5 cells, chiral
     //  X X
     //    X
     //    X X
     "z-shape": [[0,0], [0,1], [1,1], [2,1], [2,2]],
     
-    // Rectangle: 2x3, 6 cells
+    // Green Rectangle: 2x3, 6 cells, non-chiral
     //  X X
     //  X X
     //  X X
     "rectangle": [[0,0], [0,1], [1,0], [1,1], [2,0], [2,1]],
     
-    // C-shape: C/U pattern, 5 cells
+    // Cyan C-shape: C/U pattern, 5 cells, non-chiral
     //  X X
     //  X
     //  X X
     "c-shape": [[0,0], [0,1], [1,0], [2,0], [2,1]],
     
-    // Chair: chair pattern, 5 cells
+    // Purple Chair: 2x2 plus a bump, 5 cells, chiral
     //    X
     //  X X
     //  X X
     "chair": [[0,1], [1,0], [1,1], [2,0], [2,1]],
     
-    // Stilt: T-like pattern, 5 cells
+    // Pink Stilt: T-like pattern, 5 cells, chiral
     //  X
     //  X X
     //  X
     //  X
     "stilt": [[0,0], [1,0], [1,1], [2,0], [3,0]],
     
-    // L-shape: L pattern, 5 cells  
+    // Blue L-shape: 5 cells, chiral
     //  X
     //  X
     //  X
