@@ -285,11 +285,16 @@ window.showProgressPanel = function(show) {
   }
 }
 
-// Set solver animation speed (global for speed input)
+// Set solver animation speed (global for speed buttons)
 window.setSpeed = function(ms) {
   const delay = parseInt(ms) || 0;
   solverSpeed = delay;
   Solver.setSpeed(delay);
+  // Update button active states
+  document.querySelectorAll('.speed-btn').forEach(btn => {
+    const btnSpeed = parseInt(btn.getAttribute('onclick').match(/\d+/)[0]);
+    btn.classList.toggle('active', btnSpeed === delay);
+  });
 }
 
 // Debug: count solutions for all dates (call from browser console)
