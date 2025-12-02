@@ -338,13 +338,14 @@ function drawPendingPieces(progress, failedPieceName = null) {
   const previewScale = boxel * 0.4;
   const spacing = boxel * 2.5; // Space between pieces
   const startX = x0;
-  const startY = y0 + calh + boxel * 0.8;
+  const startY = y0 + calh + boxel * 1.3; // More padding below grid
   
-  // Add label
+  // Add label with responsive font size
+  const labelFontSize = Math.max(10, Math.min(14, boxel * 0.25));
   pendingGroup.text('Remaining:')
-    .font({ size: 14, weight: 'bold', family: 'Arial' })
+    .font({ size: labelFontSize, weight: 'bold', family: 'Arial' })
     .fill('#555')
-    .move(startX, startY - 25);
+    .move(startX, startY - labelFontSize * 1.5);
   
   // Draw each pending piece
   pendingPieces.forEach((piece, index) => {
@@ -414,10 +415,11 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
     if (deadRegionSizes.length > 0) {
       const sizesText = `Unfillable region sizes: ${deadRegionSizes.join(', ')}`;
       // Position: starts at column 3 (right of cell 31), vertically centered in row 6
-      const textX = x0 + 3 * boxel + 15; // Padding after column 2
-      const textY = y0 + 6 * boxel + boxel / 2 - 9; // Vertically centered in row 6
+      const textX = x0 + 3 * boxel + boxel * 0.2; // Padding after column 2
+      const textY = y0 + 6 * boxel + boxel / 2 - boxel * 0.15; // Vertically centered in row 6
+      const fontSize = Math.max(10, Math.min(16, boxel * 0.28)); // Responsive font size
       deadGroup.text(sizesText)
-        .font({ size: 18, weight: 'bold', family: 'Arial' })
+        .font({ size: fontSize, weight: 'bold', family: 'Arial' })
         .fill('#ff0000')
         .move(textX, textY);
     }
