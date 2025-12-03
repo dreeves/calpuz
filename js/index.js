@@ -403,9 +403,8 @@ window.solvePuzzle = async function () {
   const result = await Solver.solve(shapes, targetCells, visualizeAllPlacements, solverSpeed);
   
   removeeDateCircles();
-  // Clean up pending pieces display
-  const pending = SVG.get('pending-pieces');
-  if (pending) pending.remove();
+  
+  // Don't remove pending pieces - let the final search state remain visible
   
   // Panel stays visible - user can dismiss with X button
   
