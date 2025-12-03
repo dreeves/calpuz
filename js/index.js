@@ -146,6 +146,7 @@ function visualizePlacement(placement) {
   
   const container = getElementsContainer();
   const newGroup = container.group().id(nom);
+  const innerGroup = newGroup.group();
   
   // Draw each cell as a square, based on the solver's actual cell placement
   for (const [dr, dc] of placement.cells) {
@@ -153,8 +154,52 @@ function visualizePlacement(placement) {
     const cellCol = placement.col + dc;
     const cellX = x0 + cellCol * boxel;
     const cellY = y0 + cellRow * boxel;
-    newGroup.rect(boxel, boxel).move(cellX, cellY).fill(hue).opacity('0.8').stroke({ width: 1, color: '#fff' });
+    innerGroup.rect(boxel, boxel).move(cellX, cellY).fill(hue).opacity('0.8').stroke({ width: 1, color: '#fff' });
   }
+  
+  // Always interactive - drag on outer group, rotation on inner group
+  let moved = false;
+  let ang = 0;
+  newGroup.draggy();
+  newGroup.on("dragmove", () => { moved = true });
+  innerGroup.on("mousedown", () => { moved = false });
+  innerGroup.on("contextmenu", e => { e.preventDefault() });
+  innerGroup.on("mouseup", e => {
+    if (!moved) {
+      if (e.ctrlKey) {
+        innerGroup.node._scale = (innerGroup.node._scale || 1) === 1 ? -1 : 1;
+      } else {
+        ang += 90 * (e.button === 2 ? 1 : -1);
+      }
+      const bbox = innerGroup.node.getBBox();
+      const centerX = bbox.x + bbox.width / 2;
+      const centerY = bbox.y + bbox.height / 2;
+      innerGroup.node.style.transformOrigin = `${centerX}px ${centerY}px`;
+      Crossy(innerGroup.node, "transform", `rotate(${ang}deg) scaleX(${innerGroup.node._scale || 1})`);
+    }
+    moved = false;
+    e.preventDefault();
+  });
+  
+  // Touch support
+  addTouchGestures(innerGroup.node, 
+    () => {
+      ang += 90;
+      const bbox = innerGroup.node.getBBox();
+      const centerX = bbox.x + bbox.width / 2;
+      const centerY = bbox.y + bbox.height / 2;
+      innerGroup.node.style.transformOrigin = `${centerX}px ${centerY}px`;
+      Crossy(innerGroup.node, "transform", `rotate(${ang}deg) scaleX(${innerGroup.node._scale || 1})`);
+    },
+    () => {
+      innerGroup.node._scale = (innerGroup.node._scale || 1) === 1 ? -1 : 1;
+      const bbox = innerGroup.node.getBBox();
+      const centerX = bbox.x + bbox.width / 2;
+      const centerY = bbox.y + bbox.height / 2;
+      innerGroup.node.style.transformOrigin = `${centerX}px ${centerY}px`;
+      Crossy(innerGroup.node, "transform", `rotate(${ang}deg) scaleX(${innerGroup.node._scale || 1})`);
+    }
+  );
 }
 
 // Initialize progress panel with table rows for each piece
