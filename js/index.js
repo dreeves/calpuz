@@ -494,28 +494,8 @@ window.solvePuzzle = async function () {
   
   // Panel stays visible - user can dismiss with X button
   
-  if (result.success) {
-    // Restore interactive pieces at solved positions
-    restoreInteractivePieces(result.placements);
-    
-    /* POPUP DISABLED - uncomment to restore
-    Swal.fire({
-      title: "Solved!",
-      text: `Found a solution for ${dateStr} after ${result.attempts.toLocaleString()} attempts`,
-      icon: "success",
-      confirmButtonText: "Phew"
-    });
-    */
-  } else {
-    /* POPUP DISABLED - uncomment to restore
-    Swal.fire({
-      title: "No solution found",
-      text: `Tried ${result.attempts.toLocaleString()} positions. Then presumably you aborted by clicking the little key again?`,
-      icon: "error"
-    });
-    */
-    scatterShapes();
-  }
+  // Restore interactive pieces at wherever they ended up (no special cases)
+  restoreInteractivePieces(result.placements);
   
   // Reset autoRun when solver finishes
   autoRun = false;
