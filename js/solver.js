@@ -599,12 +599,21 @@ window.Solver = (function() {
     return result;
   }
   
+  // Shuffle array in place (Fisher-Yates)
+  function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+  
   // Try all 8! permutations of piece order, find the one with fewest tries
   function tryAllPermutations(shapes) {
-    const allPerms = permutations(shapes);
-    console.log(`Testing ${allPerms.length.toLocaleString()} permutations...`);
+    const allPerms = shuffle(permutations(shapes));
+    console.log(`Testing ${allPerms.length.toLocaleString()} permutations (shuffled)...`);
     
-    let bestTries = Infinity;
+    let bestTries = 432411; // Known best threshold
     let bestPerm = null;
     let bestIdx = -1;
     
