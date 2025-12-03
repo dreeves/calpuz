@@ -402,9 +402,7 @@ window.solvePuzzle = async function () {
   
   const result = await Solver.solve(shapes, targetCells, visualizeAllPlacements, solverSpeed);
   
-  removeeDateCircles();
-  
-  // Don't remove pending pieces - let the final search state remain visible
+  // Let the final search state remain visible (circles, pending pieces, etc)
   
   // Panel stays visible - user can dismiss with X button
   
