@@ -408,26 +408,9 @@ window.Solver = (function() {
         
         if (totalPositions > 0) {
           hadValidPlacement = true;
-        } else {
-          // No valid positions for this orientation - still visualize to show we tried it
-          const allPiecesProgress = pieceNames.map((name, idx) => {
-            const pd = pieceData[name];
-            const p = placements[idx];
-            return idx < pieceIndex
-              ? { name, status: 'placed',
-                  orientation: p.orientationIndex + 1, totalOrientations: p.totalOrientations,
-                  positionIndex: p.positionIndex + 1, totalPositions: p.totalPositions }
-              : idx === pieceIndex
-              ? { name, status: 'current',
-                  orientation: orientIdx + 1, totalOrientations,
-                  positionIndex: 0, totalPositions: 0 }
-              : { name, status: 'pending',
-                  orientation: 0, totalOrientations: pd.orientations.length,
-                  positionIndex: 0, totalPositions: 0 };
-          });
-          visualizeCallback(placements, attempts, allPiecesProgress, [], [], pieceName, false);
-          await delay(currentDelay);
         }
+        // When totalPositions === 0, just skip to next orientation - no visualization
+        // (visualizing would show a frame with the piece missing, causing blink)
         
         // Try each valid position
         for (let posIdx = 0; posIdx < totalPositions; posIdx++) {
