@@ -360,14 +360,12 @@ window.Solver = (function() {
     solutionCount = 0;
     attempts = 0;
     placements = new Array(8).fill(null);
-    let lastSolutionPlacements = null;  // Snapshot of most recent solution
     
     async function backtrack(pieceIndex) {
       if (!solving) return false;
       
       if (pieceIndex === 8) {
-        // Found a solution! Snapshot it before backtracking erases it
-        lastSolutionPlacements = placements.map(p => ({...p}));
+        // Found a solution!
         solutionCount++;
         foundSolution = true;
         paused = true;
@@ -496,11 +494,9 @@ window.Solver = (function() {
     solving = false;
     
     // Don't call visualizeCallback here - the last real visualization during
-    // solving already shows the correct state. Calling it now would redraw from
-    // the nulled-out placements array and erase everything.
+    // solving already shows the correct state.
     
-    // Return the snapshot of the last solution for restoring interactive pieces
-    return { success, attempts, placements: lastSolutionPlacements };
+    return { success, attempts };
   }
   
   function stop() {

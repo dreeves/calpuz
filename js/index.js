@@ -157,79 +157,6 @@ function visualizePlacement(placement) {
   }
 }
 
-// Restore interactive pieces after solving - use simple rectangles like visualization
-function restoreInteractivePieces(placements) {
-  for (const p of placements) {
-    if (!p) continue;
-    
-    // Remove the solver's cell-based visualization
-    const group = SVG.get(p.name);
-    if (group) group.remove();
-    
-    // Get the piece color
-    const [nom, hue, fig] = shapes.find(shape => shape[0] === p.name);
-    
-    // Create new interactive group (reuse container)
-    // Outer group handles drag, inner group handles rotation (to avoid conflicts)
-    const container = getElementsContainer();
-    const newGroup = container.group().id(nom);
-    const innerGroup = newGroup.group();
-    
-    // Draw each cell as a rectangle (same as visualization but interactive)
-    for (const [dr, dc] of p.cells) {
-      const cellRow = p.row + dr;
-      const cellCol = p.col + dc;
-      const cellX = x0 + cellCol * boxel;
-      const cellY = y0 + cellRow * boxel;
-      innerGroup.rect(boxel, boxel).move(cellX, cellY).fill(hue).opacity('0.8');
-    }
-    
-    // Add interactivity: drag on outer group, rotation on inner group
-    let moved = false;
-    let ang = 0;
-    newGroup.draggy();
-    newGroup.on("dragmove", () => { moved = true });
-    innerGroup.on("mousedown", () => { moved = false });
-    innerGroup.on("contextmenu", e => { e.preventDefault() });
-    innerGroup.on("mouseup", e => {
-      if (!moved) {
-        if (e.ctrlKey) {
-          innerGroup.node._scale = (innerGroup.node._scale || 1) === 1 ? -1 : 1;
-        } else {
-          ang += 90 * (e.button === 2 ? 1 : -1);
-        }
-        const bbox = innerGroup.node.getBBox();
-        const centerX = bbox.x + bbox.width / 2;
-        const centerY = bbox.y + bbox.height / 2;
-        innerGroup.node.style.transformOrigin = `${centerX}px ${centerY}px`;
-        Crossy(innerGroup.node, "transform", `rotate(${ang}deg) scaleX(${innerGroup.node._scale || 1})`);
-      }
-      moved = false;
-      e.preventDefault();
-    });
-    
-    // Touch support: tap to rotate, long press to flip
-    addTouchGestures(innerGroup.node, 
-      () => {
-        ang += 90;
-        const bbox = innerGroup.node.getBBox();
-        const centerX = bbox.x + bbox.width / 2;
-        const centerY = bbox.y + bbox.height / 2;
-        innerGroup.node.style.transformOrigin = `${centerX}px ${centerY}px`;
-        Crossy(innerGroup.node, "transform", `rotate(${ang}deg) scaleX(${innerGroup.node._scale || 1})`);
-      },
-      () => {
-        innerGroup.node._scale = (innerGroup.node._scale || 1) === 1 ? -1 : 1;
-        const bbox = innerGroup.node.getBBox();
-        const centerX = bbox.x + bbox.width / 2;
-        const centerY = bbox.y + bbox.height / 2;
-        innerGroup.node.style.transformOrigin = `${centerX}px ${centerY}px`;
-        Crossy(innerGroup.node, "transform", `rotate(${ang}deg) scaleX(${innerGroup.node._scale || 1})`);
-      }
-    );
-  }
-}
-
 // Initialize progress panel with table rows for each piece
 function initProgressPanel() {
   const container = document.getElementById('pieces-table');
@@ -393,31 +320,19 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
   const oldDeadMarkers = SVG.get('dead-cells');
   if (oldDeadMarkers) oldDeadMarkers.remove();
   
-  // Check if all 8 pieces are placed (solution found)
-  const allPlaced = placements.filter(p => p !== null).length === 8;
+  // Draw all placements
+  for (const p of placements) {
+    if (p) visualizePlacement(p);
+  }
   
-  if (allPlaced && Solver.hasFoundSolution()) {
-    // Solution found
-    if (autoRun) {
-      // Auto-run mode: just show the placement briefly, then resume
-      for (const p of placements) {
-        if (p) visualizePlacement(p);
+  // Auto-run mode: auto-resume after showing solution briefly
+  const allPlaced = placements.filter(p => p !== null).length === 8;
+  if (autoRun && allPlaced && Solver.hasFoundSolution() && Solver.isPaused()) {
+    setTimeout(() => {
+      if (autoRun && Solver.isSolving() && Solver.isPaused()) {
+        Solver.resume();
       }
-      // Auto-resume after a brief delay to show the solution
-      setTimeout(() => {
-        if (autoRun && Solver.isSolving() && Solver.isPaused()) {
-          Solver.resume();
-        }
-      }, Math.max(50, solverSpeed));
-    } else {
-      // Manual mode: make pieces interactive so user can drag them
-      restoreInteractivePieces(placements);
-    }
-  } else {
-    // Still solving - draw non-interactive placements
-    for (const p of placements) {
-      if (p) visualizePlacement(p);
-    }
+    }, Math.max(50, solverSpeed));
   }
   
   // Draw red X's on dead cells and show unfillable sizes text
@@ -493,10 +408,6 @@ window.solvePuzzle = async function () {
   if (pending) pending.remove();
   
   // Panel stays visible - user can dismiss with X button
-  
-  // Don't call restoreInteractivePieces - it would redraw from the last solution
-  // snapshot and overwrite the actual final search state. The visualization
-  // already shows the true state; just leave it.
   
   // Reset autoRun when solver finishes
   autoRun = false;
