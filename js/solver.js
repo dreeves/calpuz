@@ -523,6 +523,67 @@ window.Solver = (function() {
     return pieceData;
   }
   
+  // Find first solution for a given date (synchronous, no visualization)
+  function solveOnce(shapes, targetCells) {
+    if (!pieceData) {
+      initPieceData(shapes);
+    }
+    
+    const pieceNames = shapes.map(s => s[0]);
+    const grid = copyGrid(gridTemplate);
+    for (const [r, c] of targetCells) {
+      grid[r][c] = 2;
+    }
+    
+    let attempts = 0;
+    
+    function backtrack(pieceIndex) {
+      if (pieceIndex === 8) return true; // Found a solution - stop
+      
+      const pieceName = pieceNames[pieceIndex];
+      const piece = pieceData[pieceName];
+      
+      for (const orientation of piece.orientations) {
+        const validPositions = getValidPositions(grid, orientation.cells);
+        for (const [row, col] of validPositions) {
+          setPiece(grid, orientation.cells, row, col, 3 + pieceIndex);
+          attempts++;
+          
+          const { deadCells } = findDeadCells(grid);
+          if (deadCells.length === 0 && backtrack(pieceIndex + 1)) {
+            return true;
+          }
+          
+          setPiece(grid, orientation.cells, row, col, 1);
+        }
+      }
+      return false;
+    }
+    
+    const success = backtrack(0);
+    return { success, attempts };
+  }
+  
+  // Solve once for all 366 dates, return total attempts
+  function solveOnceAllDates(shapes) {
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    let totalAttempts = 0;
+    let solved = 0;
+    
+    for (let month = 0; month < 12; month++) {
+      for (let day = 1; day <= 31; day++) {
+        const targetCells = getDateCells(month, day);
+        const result = solveOnce(shapes, targetCells);
+        totalAttempts += result.attempts;
+        if (result.success) solved++;
+      }
+    }
+    
+    console.log(`Solved ${solved}/366 dates in ${totalAttempts.toLocaleString()} total tries`);
+    return totalAttempts;
+  }
+
   // Count all solutions for a given date (synchronous, no visualization)
   function countSolutions(shapes, targetCells) {
     if (!pieceData) {
@@ -619,6 +680,8 @@ window.Solver = (function() {
   
   return {
     solve,
+    solveOnce,
+    solveOnceAllDates,
     solveAll,
     stop,
     isSolving,

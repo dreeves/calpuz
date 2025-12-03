@@ -278,6 +278,7 @@ window.setSpeed = function(ms) {
 
 // Debug: count solutions for all dates (call from browser console)
 window.solveAll = function() { return Solver.solveAll(shapes) }
+window.solveOnceAllDates = function() { return Solver.solveOnceAllDates(shapes) }
 
 // Draw circles around target date cells
 function drawDateCircles(targetCells) {
