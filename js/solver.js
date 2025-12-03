@@ -565,7 +565,8 @@ window.Solver = (function() {
   }
   
   // Solve once for all 366 dates, return total attempts
-  function solveOnceAllDates(shapes, quiet = false) {
+  // If threshold is provided, aborts early when total exceeds it
+  function solveOnceAllDates(shapes, quiet = false, threshold = Infinity) {
     let totalAttempts = 0;
     let solved = 0;
     
@@ -575,6 +576,7 @@ window.Solver = (function() {
         const result = solveOnce(shapes, targetCells);
         totalAttempts += result.attempts;
         if (result.success) solved++;
+        if (totalAttempts >= threshold) return totalAttempts;
       }
     }
     
@@ -612,7 +614,7 @@ window.Solver = (function() {
     for (let i = 0; i < allPerms.length; i++) {
       const perm = allPerms[i];
       pieceData = null; // Reset so it reinitializes with new order
-      const tries = solveOnceAllDates(perm, true);
+      const tries = solveOnceAllDates(perm, true, bestTries);
       
       if (tries < bestTries) {
         bestTries = tries;
