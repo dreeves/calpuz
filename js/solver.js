@@ -605,6 +605,9 @@ window.Solver = (function() {
     let bestTries = Infinity;
     let bestPerm = null;
     let bestIdx = -1;
+    let worstTries = 0;
+    let worstPerm = null;
+    let worstIdx = -1;
     
     for (let i = 0; i < allPerms.length; i++) {
       const perm = allPerms[i];
@@ -617,18 +620,25 @@ window.Solver = (function() {
         bestIdx = i;
         console.log(`#${i + 1}: ${tries.toLocaleString()} tries - NEW BEST! [${perm.map(s => s[0]).join(', ')}]`);
       }
+      if (tries > worstTries) {
+        worstTries = tries;
+        worstPerm = perm;
+        worstIdx = i;
+        console.log(`#${i + 1}: ${tries.toLocaleString()} tries - NEW WORST! [${perm.map(s => s[0]).join(', ')}]`);
+      }
       
       // Progress update every 1000 permutations
       if ((i + 1) % 1000 === 0) {
-        console.log(`Progress: ${i + 1}/${allPerms.length} tested, best so far: ${bestTries.toLocaleString()}`);
+        console.log(`Progress: ${i + 1}/${allPerms.length} tested, best: ${bestTries.toLocaleString()}, worst: ${worstTries.toLocaleString()}`);
       }
     }
     
-    console.log(`\n=== BEST PERMUTATION ===`);
-    console.log(`Permutation #${bestIdx + 1}: ${bestTries.toLocaleString()} total tries`);
-    console.log(`Order: [${bestPerm.map(s => s[0]).join(', ')}]`);
+    console.log(`\n=== RESULTS ===`);
+    console.log(`BEST #${bestIdx + 1}: ${bestTries.toLocaleString()} tries [${bestPerm.map(s => s[0]).join(', ')}]`);
+    console.log(`WORST #${worstIdx + 1}: ${worstTries.toLocaleString()} tries [${worstPerm.map(s => s[0]).join(', ')}]`);
+    console.log(`Ratio: ${(worstTries / bestTries).toFixed(2)}x`);
     
-    return { bestTries, bestOrder: bestPerm.map(s => s[0]), bestPerm };
+    return { bestTries, bestOrder: bestPerm.map(s => s[0]), bestPerm, worstTries, worstOrder: worstPerm.map(s => s[0]), worstPerm };
   }
 
   // Count all solutions for a given date (synchronous, no visualization)
