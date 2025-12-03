@@ -565,9 +565,7 @@ window.Solver = (function() {
   }
   
   // Solve once for all 366 dates, return total attempts
-  function solveOnceAllDates(shapes) {
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
-                        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  function solveOnceAllDates(shapes, quiet = false) {
     let totalAttempts = 0;
     let solved = 0;
     
@@ -580,8 +578,57 @@ window.Solver = (function() {
       }
     }
     
-    console.log(`Solved ${solved}/366 dates in ${totalAttempts.toLocaleString()} total tries`);
+    if (!quiet) {
+      console.log(`Solved ${solved}/366 dates in ${totalAttempts.toLocaleString()} total tries`);
+    }
     return totalAttempts;
+  }
+  
+  // Generate all permutations of an array
+  function permutations(arr) {
+    if (arr.length <= 1) return [arr];
+    const result = [];
+    for (let i = 0; i < arr.length; i++) {
+      const rest = [...arr.slice(0, i), ...arr.slice(i + 1)];
+      for (const perm of permutations(rest)) {
+        result.push([arr[i], ...perm]);
+      }
+    }
+    return result;
+  }
+  
+  // Try all 8! permutations of piece order, find the one with fewest tries
+  function tryAllPermutations(shapes) {
+    const allPerms = permutations(shapes);
+    console.log(`Testing ${allPerms.length.toLocaleString()} permutations...`);
+    
+    let bestTries = Infinity;
+    let bestPerm = null;
+    let bestIdx = -1;
+    
+    for (let i = 0; i < allPerms.length; i++) {
+      const perm = allPerms[i];
+      pieceData = null; // Reset so it reinitializes with new order
+      const tries = solveOnceAllDates(perm, true);
+      
+      if (tries < bestTries) {
+        bestTries = tries;
+        bestPerm = perm;
+        bestIdx = i;
+        console.log(`#${i + 1}: ${tries.toLocaleString()} tries - NEW BEST! [${perm.map(s => s[0]).join(', ')}]`);
+      }
+      
+      // Progress update every 1000 permutations
+      if ((i + 1) % 1000 === 0) {
+        console.log(`Progress: ${i + 1}/${allPerms.length} tested, best so far: ${bestTries.toLocaleString()}`);
+      }
+    }
+    
+    console.log(`\n=== BEST PERMUTATION ===`);
+    console.log(`Permutation #${bestIdx + 1}: ${bestTries.toLocaleString()} total tries`);
+    console.log(`Order: [${bestPerm.map(s => s[0]).join(', ')}]`);
+    
+    return { bestTries, bestOrder: bestPerm.map(s => s[0]), bestPerm };
   }
 
   // Count all solutions for a given date (synchronous, no visualization)
@@ -682,6 +729,7 @@ window.Solver = (function() {
     solve,
     solveOnce,
     solveOnceAllDates,
+    tryAllPermutations,
     solveAll,
     stop,
     isSolving,
