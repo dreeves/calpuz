@@ -494,8 +494,9 @@ window.solvePuzzle = async function () {
   
   // Panel stays visible - user can dismiss with X button
   
-  // Restore interactive pieces at wherever they ended up (no special cases)
-  restoreInteractivePieces(result.placements);
+  // Don't call restoreInteractivePieces - it would redraw from the last solution
+  // snapshot and overwrite the actual final search state. The visualization
+  // already shows the true state; just leave it.
   
   // Reset autoRun when solver finishes
   autoRun = false;
