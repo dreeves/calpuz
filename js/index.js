@@ -136,7 +136,7 @@ function getElementsContainer() {
   return elementsContainer;
 }
 
-// Visualize a placement from the solver using actual cell positions
+// Visualize a placement from the solver - draw piece at grid position using polygon
 function visualizePlacement(placement) {
   if (!placement) return;
   
@@ -146,58 +146,51 @@ function visualizePlacement(placement) {
   
   const container = getElementsContainer();
   const newGroup = container.group().id(nom);
-  const innerGroup = newGroup.group();
+  const pol = newGroup.polygon(polygen(fig, boxel)).fill(hue).opacity('0.8');
   
-  // Draw each cell as a square, based on the solver's actual cell placement
-  for (const [dr, dc] of placement.cells) {
-    const cellRow = placement.row + dr;
-    const cellCol = placement.col + dc;
-    const cellX = x0 + cellCol * boxel;
-    const cellY = y0 + cellRow * boxel;
-    innerGroup.rect(boxel, boxel).move(cellX, cellY).fill(hue).opacity('0.8').stroke({ width: 1, color: '#fff' });
-  }
+  // Position at the grid location, applying rotation and flip from placement
+  const baseX = x0 + placement.col * boxel;
+  const baseY = y0 + placement.row * boxel;
+  newGroup.translate(baseX, baseY);
   
-  // Always interactive - drag on outer group, rotation on inner group
+  // Apply rotation and flip
+  const bbox = pol.node.getBBox();
+  const centerX = bbox.x + bbox.width / 2;
+  const centerY = bbox.y + bbox.height / 2;
+  pol.node.style.transformOrigin = `${centerX}px ${centerY}px`;
+  const angle = placement.rotation * 90;
+  const flip = placement.flipped ? -1 : 1;
+  Crossy(pol.node, "transform", `rotate(${angle}deg) scaleX(${flip})`);
+  
+  // Always interactive - same as movePoly
   let moved = false;
-  let ang = 0;
+  let ang = angle;
   newGroup.draggy();
   newGroup.on("dragmove", () => { moved = true });
-  innerGroup.on("mousedown", () => { moved = false });
-  innerGroup.on("contextmenu", e => { e.preventDefault() });
-  innerGroup.on("mouseup", e => {
+  pol.on("mousedown", () => { moved = false });
+  pol.on("contextmenu", e => { e.preventDefault() });
+  pol.on("mouseup", e => {
     if (!moved) {
       if (e.ctrlKey) {
-        innerGroup.node._scale = (innerGroup.node._scale || 1) === 1 ? -1 : 1;
+        pol.node._scale = (pol.node._scale || flip) === 1 ? -1 : 1;
       } else {
         ang += 90 * (e.button === 2 ? 1 : -1);
       }
-      const bbox = innerGroup.node.getBBox();
-      const centerX = bbox.x + bbox.width / 2;
-      const centerY = bbox.y + bbox.height / 2;
-      innerGroup.node.style.transformOrigin = `${centerX}px ${centerY}px`;
-      Crossy(innerGroup.node, "transform", `rotate(${ang}deg) scaleX(${innerGroup.node._scale || 1})`);
+      Crossy(pol.node, "transform", `rotate(${ang}deg) scaleX(${pol.node._scale || flip})`);
     }
     moved = false;
     e.preventDefault();
   });
   
   // Touch support
-  addTouchGestures(innerGroup.node, 
+  addTouchGestures(pol.node, 
     () => {
       ang += 90;
-      const bbox = innerGroup.node.getBBox();
-      const centerX = bbox.x + bbox.width / 2;
-      const centerY = bbox.y + bbox.height / 2;
-      innerGroup.node.style.transformOrigin = `${centerX}px ${centerY}px`;
-      Crossy(innerGroup.node, "transform", `rotate(${ang}deg) scaleX(${innerGroup.node._scale || 1})`);
+      Crossy(pol.node, "transform", `rotate(${ang}deg) scaleX(${pol.node._scale || flip})`);
     },
     () => {
-      innerGroup.node._scale = (innerGroup.node._scale || 1) === 1 ? -1 : 1;
-      const bbox = innerGroup.node.getBBox();
-      const centerX = bbox.x + bbox.width / 2;
-      const centerY = bbox.y + bbox.height / 2;
-      innerGroup.node.style.transformOrigin = `${centerX}px ${centerY}px`;
-      Crossy(innerGroup.node, "transform", `rotate(${ang}deg) scaleX(${innerGroup.node._scale || 1})`);
+      pol.node._scale = (pol.node._scale || flip) === 1 ? -1 : 1;
+      Crossy(pol.node, "transform", `rotate(${ang}deg) scaleX(${pol.node._scale || flip})`);
     }
   );
 }
@@ -313,7 +306,7 @@ function drawPendingPieces(progress, failedPieceName = null) {
   const pendingPieces = progress.filter(p => p.status === 'pending');
   if (pendingPieces.length === 0) return;
   
-  const pendingGroup = svg.group().id('pending-pieces');
+  const pendingGroup = svg.group().id('pending-pieces').style('pointer-events', 'none');
   
   // Calculate layout - pieces in a row below the grid
   const previewScale = boxel * 0.4;
