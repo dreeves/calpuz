@@ -19,7 +19,7 @@ const x0 = (w-calw-sbarw)/2;  // (x0, y0) = left top corner of the calendar grid
 const y0 = Math.min((h-calh+headh)/2, headh + boxel*4);  // centered or near top, whichever is higher
 let svg;                      // this gets initialized when the page loads
 let solverSpeed = 50;         // animation delay in ms (adjustable via speed buttons)
-let autoRun = false;          // when true, automatically resume after each solution
+window.pauseOnSolution = true;  // set to false in console to skip pausing on solutions
 
 let shapes = [                // array of 8 shapes aka puzzle pieces
   // 1. red corner (4 orientations, non-chiral)
@@ -370,11 +370,11 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
     if (p) visualizePlacement(p);
   }
   
-  // Auto-run mode: auto-resume after showing solution briefly
+  // Auto-resume after showing solution briefly (when pauseOnSolution is false)
   const allPlaced = placements.filter(p => p !== null).length === 8;
-  if (autoRun && allPlaced && Solver.hasFoundSolution() && Solver.isPaused()) {
+  if (!window.pauseOnSolution && allPlaced && Solver.hasFoundSolution() && Solver.isPaused()) {
     setTimeout(() => {
-      if (autoRun && Solver.isSolving() && Solver.isPaused()) {
+      if (!window.pauseOnSolution && Solver.isSolving() && Solver.isPaused()) {
         Solver.resume();
       }
     }, Math.max(50, solverSpeed));
@@ -448,25 +448,6 @@ window.solvePuzzle = async function () {
   const result = await Solver.solve(shapes, targetCells, visualizeAllPlacements, solverSpeed);
   
   // Let the final search state remain visible (circles, pending pieces, etc)
-  
-  // Panel stays visible - user can dismiss with X button
-  
-  // Reset autoRun when solver finishes
-  autoRun = false;
-}
-
-// Find all solutions automatically (super-key mode)
-window.findAllSolutions = async function() {
-  if (Solver.isSolving()) {
-    // If already solving, toggle autoRun off and stop
-    autoRun = false;
-    Solver.stop();
-    return;
-  }
-  
-  // Start in auto-run mode
-  autoRun = true;
-  await solvePuzzle();
 }
 
 function movePoly(polyId, x, y, angle = 0, flip = false) {
