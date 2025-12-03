@@ -576,7 +576,7 @@ window.Solver = (function() {
         const result = solveOnce(shapes, targetCells);
         totalAttempts += result.attempts;
         if (result.success) solved++;
-        if (totalAttempts >= threshold) return totalAttempts;
+        if (totalAttempts >= threshold) return Infinity; // Aborted - not a valid result
       }
     }
     
