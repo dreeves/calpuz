@@ -360,12 +360,14 @@ window.Solver = (function() {
     solutionCount = 0;
     attempts = 0;
     placements = new Array(8).fill(null);
+    let lastSolutionPlacements = null;  // Snapshot of most recent solution
     
     async function backtrack(pieceIndex) {
       if (!solving) return false;
       
       if (pieceIndex === 8) {
-        // Found a solution! Increment count and pause
+        // Found a solution! Snapshot it before backtracking erases it
+        lastSolutionPlacements = placements.map(p => ({...p}));
         solutionCount++;
         foundSolution = true;
         paused = true;
@@ -497,7 +499,8 @@ window.Solver = (function() {
     // during solving already shows the true state. Just update attempt count.
     visualizeCallback(placements, attempts, null, [], [], null, false);
     
-    return { success, attempts, placements };
+    // Return the snapshot of the last solution (not the mutable placements which are now nulled)
+    return { success, attempts, placements: lastSolutionPlacements };
   }
   
   function stop() {
