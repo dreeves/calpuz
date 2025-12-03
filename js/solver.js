@@ -495,11 +495,11 @@ window.Solver = (function() {
     const success = await backtrack(0);
     solving = false;
     
-    // Don't fabricate a "final" progress state - the last real visualization
-    // during solving already shows the true state. Just update attempt count.
-    visualizeCallback(placements, attempts, null, [], [], null, false);
+    // Don't call visualizeCallback here - the last real visualization during
+    // solving already shows the correct state. Calling it now would redraw from
+    // the nulled-out placements array and erase everything.
     
-    // Return the snapshot of the last solution (not the mutable placements which are now nulled)
+    // Return the snapshot of the last solution for restoring interactive pieces
     return { success, attempts, placements: lastSolutionPlacements };
   }
   
