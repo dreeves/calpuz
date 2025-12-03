@@ -191,7 +191,7 @@ window.Solver = (function() {
         numCells: baseCells.length
       };
       
-      console.log(`${name}: ${baseCells.length} cells, ${orientations.length} orientations`);
+      //console.log(`${name}: ${baseCells.length} cells, ${orientations.length} orientations`);
     }
   }
   
