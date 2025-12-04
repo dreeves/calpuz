@@ -1,5 +1,3 @@
-[Um, I think Claude spontaneously generated this?]
-
 # Overview
 
 Calendar Puzzle is an interactive browser-based puzzle game where users arrange geometric pieces (pentominoes and one hexomino) to fit within a calendar grid, revealing the current date. The application includes a brute-force solver with visualization capabilities that demonstrates how to solve the puzzle automatically.
@@ -52,7 +50,15 @@ Preferred communication style: Simple, everyday language.
    - Grid template (7x7 boolean matrix) defines valid placement cells
    - `polygonToCells()`: Converts polygon vertices to grid cell coverage
    - Point-in-polygon ray casting for collision detection
-   - Adjustable animation speed (`solverSpeed` variable) for educational purposes
+   - Dead cell detection: identifies unfillable regions for early pruning
+
+6. **Solver Control Flow**
+   - Solve button (key icon) only opens the control panel
+   - Speed emoji buttons control search: ⏸️ (step), 🐌 (1000ms), 🐢 (500ms), 🐇 (250ms), 🚀 (100ms), ⚡️ (0ms)
+   - Step mode (⏸️): executes one placement then pauses
+   - Speed buttons start a fresh search or resume if paused
+   - When search exhausts all possibilities, buttons gray out but remain clickable to start new search
+   - Canonical piece ordering optimized for efficiency: rectangle, z-shape, stair, corner, c-shape, stilt, l-shape, chair
 
 ## UI/UX Design Patterns
 
