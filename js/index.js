@@ -252,7 +252,7 @@ function initProgressPanel() {
   }
 }
 
-// Update progress panel with all pieces' state
+// Update progress panel with all pieces' state - rebuild rows in dynamic order
 function updateProgressPanel(attempts, allPiecesProgress) {
   const sols = Solver.getSolutionCount();
   document.getElementById('attempts-text').textContent = 
@@ -260,19 +260,29 @@ function updateProgressPanel(attempts, allPiecesProgress) {
   
   if (!allPiecesProgress) return;
   
-  // Update each piece row - always show actual numbers, no special cases
+  // Ensure header exists before updating rows
+  initProgressPanel();
+  
+  const container = document.getElementById('pieces-table');
+  const header = container.querySelector('.header-row');
+  
+  // Clear all rows except header
+  container.innerHTML = '';
+  if (header) container.appendChild(header);
+  
+  // Rebuild rows in the order provided by allPiecesProgress
   for (const piece of allPiecesProgress) {
-    const row = document.getElementById(`row-${piece.name}`);
-    if (!row) continue;
-    
-    row.classList.remove('placed', 'current', 'pending');
-    row.classList.add(piece.status);
-    
-    const orientEl = row.querySelector('.piece-orient');
-    const posEl = row.querySelector('.piece-pos');
-    
-    orientEl.textContent = `${piece.orientation}/${piece.totalOrientations}`;
-    posEl.textContent = `${piece.positionIndex}/${piece.totalPositions}`;
+    const color = shapes.find(s => s[0] === piece.name)?.[1] || '#999';
+    const row = document.createElement('div');
+    row.className = `piece-row ${piece.status}`;
+    row.id = `row-${piece.name}`;
+    row.innerHTML = `
+      <div class="piece-color" style="background-color: ${color}"></div>
+      <div class="piece-name">${piece.name}</div>
+      <div class="piece-orient">${piece.orientation}/${piece.totalOrientations}</div>
+      <div class="piece-pos">${piece.positionIndex}/${piece.totalPositions}</div>
+    `;
+    container.appendChild(row);
   }
 }
 
