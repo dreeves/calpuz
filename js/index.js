@@ -140,12 +140,14 @@ function getElementsContainer() {
 // Snap a group to the nearest grid position
 function snapToGrid(group) {
   const bbox = group.bbox();
-  // Find the offset from grid alignment
-  const offsetX = (bbox.x - x0) % boxel;
-  const offsetY = (bbox.y - y0) % boxel;
+  // Find offset from grid, handling negatives with proper modulo
+  let offsetX = (bbox.x - x0) % boxel;
+  let offsetY = (bbox.y - y0) % boxel;
+  if (offsetX < 0) offsetX += boxel;
+  if (offsetY < 0) offsetY += boxel;
   // Snap to nearest grid line
-  const snapX = offsetX < boxel / 2 ? -offsetX : boxel - offsetX;
-  const snapY = offsetY < boxel / 2 ? -offsetY : boxel - offsetY;
+  const snapX = offsetX <= boxel / 2 ? -offsetX : boxel - offsetX;
+  const snapY = offsetY <= boxel / 2 ? -offsetY : boxel - offsetY;
   group.dmove(snapX, snapY);
 }
 
