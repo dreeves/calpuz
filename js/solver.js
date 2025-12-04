@@ -613,7 +613,7 @@ window.Solver = (function() {
     const allPerms = shuffle(permutations(shapes));
     console.log(`Testing ${allPerms.length.toLocaleString()} permutations (shuffled)...`);
     
-    let bestTries = 432411; // Known best threshold
+    let bestTries = 344186; // Known best threshold
     let bestPerm = null;
     let bestIdx = -1;
     

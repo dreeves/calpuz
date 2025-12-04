@@ -22,17 +22,17 @@ let solverSpeed = 50;         // animation delay in ms (adjustable via speed but
 window.pauseOnSolution = true;  // set to false in console to skip pausing on solutions
 
 let shapes = [                // array of 8 shapes aka puzzle pieces
-  // Ordered by best-known search efficiency: corner, z-shape, rectangle, c-shape, stair, stilt, l-shape, chair
-  // 1. red corner (4 orientations, non-chiral)
-  ["corner", "#e74c3c", [[0,0],[0,3],[3,3],[3,2],[1,2],[1,0]]],
+  // Ordered by best-known search efficiency: rectangle, z-shape, stair, corner, c-shape, stilt, l-shape, chair
+  // 1. green rectangle (2 orientations, non-chiral)
+  ["rectangle", "#2ecc71", [[0,0],[2,0],[2,3],[0,3]]],
   // 2. yellow z-shape (4 orientations, chiral)
   ["z-shape", "#f1c40f", [[0,1],[0,3],[1,3],[1,2],[3,2],[3,0],[2,0],[2,1]]],
-  // 3. green rectangle (2 orientations, non-chiral)
-  ["rectangle", "#2ecc71", [[0,0],[2,0],[2,3],[0,3]]],
-  // 4. cyan c-shape (4 orientations, non-chiral)
-  ["c-shape", "#77FFFF", [[0,0],[2,0],[2,3],[0,3],[0,2],[1,2],[1,1],[0,1]]],
-  // 5. orange stair (8 orientations, chiral)
+  // 3. orange stair (8 orientations, chiral)
   ["stair", "#e67e22", [[0,0],[0,2],[1,2],[1,4],[2,4],[2,1],[1,1],[1,0]]],
+  // 4. red corner (4 orientations, non-chiral)
+  ["corner", "#e74c3c", [[0,0],[0,3],[3,3],[3,2],[1,2],[1,0]]],
+  // 5. cyan c-shape (4 orientations, non-chiral)
+  ["c-shape", "#77FFFF", [[0,0],[2,0],[2,3],[0,3],[0,2],[1,2],[1,1],[0,1]]],
   // 6. pink stilt (8 orientations, chiral)
   ["stilt", "#ff99ab", [[0,0],[1,0],[1,1],[2,1],[2,2],[1,2],[1,4],[0,4]]],
   // 7. blue l-shape (8 orientations, chiral)
