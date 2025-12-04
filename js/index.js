@@ -257,12 +257,10 @@ function updateProgressPanel(attempts, allPiecesProgress) {
 // Show/hide progress panel (global for close button)
 window.showProgressPanel = function(show) {
   const panel = document.getElementById('solver-progress');
-  if (show) {
+  if (show && !panel.classList.contains('active')) {
     initProgressPanel();
-    panel.classList.add('active');
-  } else {
-    panel.classList.remove('active');
   }
+  panel.classList.toggle('active', show);
 }
 
 // Set solver animation speed (global for speed buttons)
