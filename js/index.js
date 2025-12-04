@@ -419,24 +419,27 @@ function drawPendingPieces(progress, failedPieceName = null) {
   // Calculate layout - pieces in a row ABOVE the grid
   const previewScale = boxel * 0.35;
   const gap = boxel * 0.3; // Tight gap between pieces
-  const startY = y0 - boxel * 1.2; // Above grid
+  const startY = y0 - boxel * 0.8; // Above grid
   
-  // Pre-calculate each piece's width (after rotating to be horizontal)
-  const pieceWidths = pendingPieces.map(piece => {
+  // Pre-calculate bounding info for each piece
+  const pieceInfo = pendingPieces.map(piece => {
     const shape = shapes.find(s => s[0] === piece.name);
-    if (!shape) return 0;
+    if (!shape) return { width: 0, height: 0, rotate: false };
     const [, , vertices] = shape;
-    // Get bounding box of vertices
     const xs = vertices.map(v => v[0]);
     const ys = vertices.map(v => v[1]);
-    const w = (Math.max(...xs) - Math.min(...xs)) * previewScale;
-    const h = (Math.max(...ys) - Math.min(...ys)) * previewScale;
-    // If taller than wide, we'll rotate it, so width becomes height
-    return h > w ? h : w;
+    const rawW = (Math.max(...xs) - Math.min(...xs)) * previewScale;
+    const rawH = (Math.max(...ys) - Math.min(...ys)) * previewScale;
+    const rotate = rawH > rawW;
+    return { 
+      width: rotate ? rawH : rawW, 
+      height: rotate ? rawW : rawH,
+      rotate 
+    };
   });
   
   // Total width of all pieces plus gaps
-  const totalWidth = pieceWidths.reduce((a, b) => a + b, 0) + gap * (pendingPieces.length - 1);
+  const totalWidth = pieceInfo.reduce((a, p) => a + p.width, 0) + gap * (pendingPieces.length - 1);
   // Center the row above the grid
   let currentX = x0 + (calw - totalWidth) / 2;
   
@@ -446,50 +449,45 @@ function drawPendingPieces(progress, failedPieceName = null) {
     if (!shape) return;
     
     const [name, color, vertices] = shape;
+    const info = pieceInfo[index];
     const pieceGroup = pendingGroup.group();
     
-    // Get bounding box to determine if we need to rotate
-    const xs = vertices.map(v => v[0]);
-    const ys = vertices.map(v => v[1]);
-    const minX = Math.min(...xs), minY = Math.min(...ys);
-    const w = (Math.max(...xs) - minX) * previewScale;
-    const h = (Math.max(...ys) - minY) * previewScale;
-    const needsRotate = h > w;
-    
-    // Create vertices centered at origin for rotation
-    const centeredVerts = vertices.map(v => [
-      (v[0] - minX) * previewScale - w/2,
-      (v[1] - minY) * previewScale - h/2
-    ]);
-    
-    // Rotate 90 degrees if needed (swap x,y and negate new x)
-    const finalVerts = needsRotate 
-      ? centeredVerts.map(v => [-v[1], v[0]])
-      : centeredVerts;
-    
-    // Draw the piece
-    const poly = pieceGroup.polygon(finalVerts.flat().join(','))
+    // Draw the piece using polygen, then rotate if needed
+    const poly = pieceGroup.polygon(polygen(vertices, previewScale))
       .fill(color)
       .opacity(0.85)
       .stroke({ width: 2, color: '#333' });
     
-    // Get actual bounding box after rotation
     const bbox = poly.bbox();
-    const pieceWidth = bbox.width;
     
-    // Position: center of piece at currentX + pieceWidth/2
-    pieceGroup.translate(currentX + pieceWidth/2 - bbox.cx, startY - bbox.cy);
+    // Position at currentX, startY (aligning top-left of bounding box)
+    let tx = currentX - bbox.x;
+    let ty = startY - bbox.y - bbox.height; // Align bottom of piece to startY
+    
+    if (info.rotate) {
+      // Rotate 90 degrees around center, then reposition
+      const cx = bbox.x + bbox.width / 2;
+      const cy = bbox.y + bbox.height / 2;
+      poly.rotate(90, cx, cy);
+      const newBbox = poly.bbox();
+      tx = currentX - newBbox.x;
+      ty = startY - newBbox.y - newBbox.height;
+    }
+    
+    pieceGroup.translate(tx, ty);
     
     // If this is the failed piece, draw X over it
     if (name === failedPieceName) {
-      const size = Math.max(bbox.width, bbox.height) * 0.4;
-      pieceGroup.line(-size, -size, size, size)
+      const pcx = currentX + info.width / 2;
+      const pcy = startY - info.height / 2;
+      const size = Math.max(info.width, info.height) * 0.4;
+      pendingGroup.line(pcx - size, pcy - size, pcx + size, pcy + size)
         .stroke({ width: 4, color: '#ff0000' });
-      pieceGroup.line(-size, size, size, -size)
+      pendingGroup.line(pcx - size, pcy + size, pcx + size, pcy - size)
         .stroke({ width: 4, color: '#ff0000' });
     }
     
-    currentX += pieceWidth + gap;
+    currentX += info.width + gap;
   });
 }
 
