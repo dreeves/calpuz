@@ -402,7 +402,7 @@ function removeeDateCircles() {
   if (circles) circles.remove();
 }
 
-// Draw all pending pieces below the grid in order
+// Draw all pending pieces above the grid in order (rotated to be short & wide)
 function drawPendingPieces(progress, failedPieceName = null) {
   // Remove old pending pieces display
   const oldPending = SVG.get('pending-pieces');
@@ -416,11 +416,29 @@ function drawPendingPieces(progress, failedPieceName = null) {
   
   const pendingGroup = svg.group().id('pending-pieces').style('pointer-events', 'none');
   
-  // Calculate layout - pieces in a row below the grid
-  const previewScale = boxel * 0.4;
-  const spacing = boxel * 2.5; // Space between pieces
-  const startX = x0;
-  const startY = y0 + calh + boxel * 1.0; // Padding below grid
+  // Calculate layout - pieces in a row ABOVE the grid
+  const previewScale = boxel * 0.35;
+  const gap = boxel * 0.3; // Tight gap between pieces
+  const startY = y0 - boxel * 1.2; // Above grid
+  
+  // Pre-calculate each piece's width (after rotating to be horizontal)
+  const pieceWidths = pendingPieces.map(piece => {
+    const shape = shapes.find(s => s[0] === piece.name);
+    if (!shape) return 0;
+    const [, , vertices] = shape;
+    // Get bounding box of vertices
+    const xs = vertices.map(v => v[0]);
+    const ys = vertices.map(v => v[1]);
+    const w = (Math.max(...xs) - Math.min(...xs)) * previewScale;
+    const h = (Math.max(...ys) - Math.min(...ys)) * previewScale;
+    // If taller than wide, we'll rotate it, so width becomes height
+    return h > w ? h : w;
+  });
+  
+  // Total width of all pieces plus gaps
+  const totalWidth = pieceWidths.reduce((a, b) => a + b, 0) + gap * (pendingPieces.length - 1);
+  // Center the row above the grid
+  let currentX = x0 + (calw - totalWidth) / 2;
   
   // Draw each pending piece
   pendingPieces.forEach((piece, index) => {
@@ -430,29 +448,48 @@ function drawPendingPieces(progress, failedPieceName = null) {
     const [name, color, vertices] = shape;
     const pieceGroup = pendingGroup.group();
     
-    // Position this piece in the row
-    const px = startX + index * spacing;
-    const py = startY;
+    // Get bounding box to determine if we need to rotate
+    const xs = vertices.map(v => v[0]);
+    const ys = vertices.map(v => v[1]);
+    const minX = Math.min(...xs), minY = Math.min(...ys);
+    const w = (Math.max(...xs) - minX) * previewScale;
+    const h = (Math.max(...ys) - minY) * previewScale;
+    const needsRotate = h > w;
+    
+    // Create vertices centered at origin for rotation
+    const centeredVerts = vertices.map(v => [
+      (v[0] - minX) * previewScale - w/2,
+      (v[1] - minY) * previewScale - h/2
+    ]);
+    
+    // Rotate 90 degrees if needed (swap x,y and negate new x)
+    const finalVerts = needsRotate 
+      ? centeredVerts.map(v => [-v[1], v[0]])
+      : centeredVerts;
     
     // Draw the piece
-    const poly = pieceGroup.polygon(polygen(vertices, previewScale))
+    const poly = pieceGroup.polygon(finalVerts.flat().join(','))
       .fill(color)
       .opacity(0.85)
       .stroke({ width: 2, color: '#333' });
     
-    pieceGroup.translate(px, py);
+    // Get actual bounding box after rotation
+    const bbox = poly.bbox();
+    const pieceWidth = bbox.width;
+    
+    // Position: center of piece at currentX + pieceWidth/2
+    pieceGroup.translate(currentX + pieceWidth/2 - bbox.cx, startY - bbox.cy);
     
     // If this is the failed piece, draw X over it
     if (name === failedPieceName) {
-      const bbox = poly.bbox();
-      const cx = bbox.cx;
-      const cy = bbox.cy;
-      const size = Math.max(bbox.width, bbox.height) * 0.5;
-      pieceGroup.line(cx - size, cy - size, cx + size, cy + size)
-        .stroke({ width: 6, color: '#ff0000' });
-      pieceGroup.line(cx - size, cy + size, cx + size, cy - size)
-        .stroke({ width: 6, color: '#ff0000' });
+      const size = Math.max(bbox.width, bbox.height) * 0.4;
+      pieceGroup.line(-size, -size, size, size)
+        .stroke({ width: 4, color: '#ff0000' });
+      pieceGroup.line(-size, size, size, -size)
+        .stroke({ width: 4, color: '#ff0000' });
     }
+    
+    currentX += pieceWidth + gap;
   });
 }
 
