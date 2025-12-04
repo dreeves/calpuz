@@ -84,12 +84,12 @@
     <button class="close-btn" onclick="showProgressPanel(false)">&times;</button>
     <h3>Solver Progress</h3>
     <div class="speed-controls">
-      <button class="speed-btn" onclick="stepOnce()">⏸️</button>
-      <button class="speed-btn" onclick="runSpeed(1000)">🐌</button>
-      <button class="speed-btn" onclick="runSpeed(500)">🐢</button>
-      <button class="speed-btn" onclick="runSpeed(250)">🐇</button>
-      <button class="speed-btn" onclick="runSpeed(100)">🚀</button>
-      <button class="speed-btn" onclick="runSpeed(0)">⚡️</button>
+      <button class="speed-btn" onclick="stepOnce()" title="∞ ms">⏸️</button>
+      <button class="speed-btn" onclick="runSpeed(1000)" title="1000ms">🐌</button>
+      <button class="speed-btn" onclick="runSpeed(500)" title="500ms">🐢</button>
+      <button class="speed-btn" onclick="runSpeed(250)" title="250ms">🐇</button>
+      <button class="speed-btn" onclick="runSpeed(100)" title="100ms">🚀</button>
+      <button class="speed-btn" onclick="runSpeed(0)" title="0ms">⚡️</button>
     </div>
     <div class="attempts" id="attempts-text">0 sol'ns in 0 tries</div>
     <div class="pieces-table" id="pieces-table"></div>
