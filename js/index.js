@@ -255,9 +255,8 @@ function initProgressPanel() {
 // Update progress panel with all pieces' state
 function updateProgressPanel(attempts, allPiecesProgress) {
   const sols = Solver.getSolutionCount();
-  const backtracks = Solver.getBacktracks();
   document.getElementById('attempts-text').textContent = 
-    `${splur(sols, "sol'n")} in ${splur(backtracks, "try", "tries")}`;
+    `${splur(sols, "sol'n")} in ${splur(attempts, "try", "tries")}`;
   
   if (!allPiecesProgress) return;
   
