@@ -141,6 +141,7 @@ ul {
 
 .solver-progress .speed-btn.disabled {
   opacity: 0.3;
+  pointer-events: none;
 }
 
 .solver-progress .attempts {

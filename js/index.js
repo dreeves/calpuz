@@ -266,21 +266,19 @@ window.showProgressPanel = function(show) {
 // Update speed button states
 function updateSpeedButtons(activeSpeed = null) {
   const exhausted = Solver.isExhausted();
-  const solving = Solver.isSolving();
   const paused = Solver.isPaused();
   
   document.querySelectorAll('.speed-btn').forEach(btn => {
-    // Gray out when exhausted (but still clickable to start new search)
-    btn.classList.toggle('disabled', exhausted && !solving);
+    btn.classList.toggle('disabled', exhausted);
     btn.classList.remove('active');
   });
   
-  // When paused (including at solutions), highlight the step button
-  if (solving && paused) {
-    document.querySelector('.speed-btn[onclick="stepOnce()"]').classList.add('active');
+  // When paused, highlight the step button
+  if (paused) {
+    document.querySelector('.speed-btn[onclick="stepOnce()"]')?.classList.add('active');
   }
-  // Otherwise highlight the active speed button while solving
-  else if (solving && activeSpeed !== null) {
+  // Otherwise highlight the active speed button
+  else if (activeSpeed !== null) {
     document.querySelectorAll('.speed-btn').forEach(btn => {
       const match = btn.getAttribute('onclick').match(/runSpeed\((\d+)\)/);
       if (match && parseInt(match[1]) === activeSpeed) {
