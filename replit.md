@@ -48,9 +48,9 @@ Preferred communication style: Simple, everyday language.
 5. **Solver Architecture**
    - Brute-force backtracking algorithm with visualization
    - Grid template (7x7 boolean matrix) defines valid placement cells
-   - `polygonToCells()`: Converts polygon vertices to grid cell coverage
-   - Point-in-polygon ray casting for collision detection
+   - Piece cells defined manually in `manualPieceCells` for precise control
    - Dead cell detection: identifies unfillable regions for early pruning
+   - **Dynamic "most constrained first" ordering**: At each step, counts valid placements for remaining pieces and tries the most constrained piece first
 
 6. **Solver Control Flow**
    - Solve button (key icon) only opens the control panel
@@ -58,7 +58,7 @@ Preferred communication style: Simple, everyday language.
    - Step mode (⏸️): executes one placement then pauses
    - Speed buttons start a fresh search or resume if paused
    - When search exhausts all possibilities, buttons gray out but remain clickable to start new search
-   - Canonical piece ordering optimized for efficiency: rectangle, z-shape, stair, corner, c-shape, stilt, l-shape, chair
+   - Docket and progress panel update dynamically to show solver's current piece ordering
 
 ## UI/UX Design Patterns
 

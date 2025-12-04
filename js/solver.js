@@ -559,6 +559,7 @@ window.Solver = (function() {
   }
   
   // Find first solution for a given date (synchronous, no visualization)
+  // NOTE: Uses fixed piece order, not dynamic "most constrained first" ordering
   function solveOnce(shapes, targetCells) {
     if (!pieceData) {
       initPieceData(shapes);
@@ -600,6 +601,7 @@ window.Solver = (function() {
   }
   
   // Solve once for all 366 dates, return total attempts
+  // NOTE: Uses fixed piece order, not dynamic "most constrained first" ordering
   // If threshold is provided, aborts early when total exceeds it
   function solveOnceAllDates(shapes, quiet = false, threshold = Infinity) {
     let totalAttempts = 0;
@@ -622,6 +624,7 @@ window.Solver = (function() {
   }
   
   // Count all solutions for a given date (synchronous, no visualization)
+  // NOTE: Uses fixed piece order, not dynamic "most constrained first" ordering
   function countSolutions(shapes, targetCells) {
     if (!pieceData) {
       initPieceData(shapes);

@@ -415,7 +415,7 @@ window.solveOnceAllDates = function() { return Solver.solveOnceAllDates(shapes) 
 
 // Draw circles around target date cells
 function drawDateCircles(targetCells) {
-  removeeDateCircles(); // Clean up any existing
+  removeDateCircles(); // Clean up any existing
   const circleGroup = svg.group().id('date-circles');
   for (const [r, c] of targetCells) {
     const cx = x0 + c * boxel + boxel / 2;
@@ -428,7 +428,7 @@ function drawDateCircles(targetCells) {
 }
 
 // Remove date circles
-function removeeDateCircles() {
+function removeDateCircles() {
   const circles = SVG.get('date-circles');
   if (circles) circles.remove();
 }
