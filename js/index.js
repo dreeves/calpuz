@@ -474,9 +474,9 @@ function drawPendingPieces(progress, failedPieceName = null) {
     
     pieceGroup.translate(tx, ty);
     
-    // Click to spawn full-sized draggable piece
+    // Click to spawn full-sized draggable piece (and remove from docket)
     poly.on('click', () => {
-      // Place near top-left of grid
+      pieceGroup.remove();
       movePoly(name, 0, 0);
     });
     
