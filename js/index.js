@@ -438,10 +438,8 @@ function drawPendingPieces(progress, failedPieceName = null) {
     };
   });
   
-  // Total width of all pieces plus gaps
-  const totalWidth = pieceInfo.reduce((a, p) => a + p.width, 0) + gap * (pendingPieces.length - 1);
-  // Center the row above the grid
-  let currentX = x0 + (calw - totalWidth) / 2;
+  // Start at left edge of grid - first piece always in same position
+  let currentX = x0;
   
   // Draw each pending piece
   pendingPieces.forEach((piece, index) => {
@@ -462,11 +460,10 @@ function drawPendingPieces(progress, failedPieceName = null) {
       drawVerts = rotated.map(v => [v[0] - minX, v[1] - minY]);
     }
     
-    // Draw the piece with pre-rotated vertices
+    // Draw the piece with pre-rotated vertices (no border)
     const poly = pieceGroup.polygon(polygen(drawVerts, previewScale))
       .fill(color)
-      .opacity(0.85)
-      .stroke({ width: 2, color: '#333' });
+      .opacity(0.85);
     
     const bbox = poly.bbox();
     
