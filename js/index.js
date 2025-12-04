@@ -139,12 +139,21 @@ function getElementsContainer() {
 
 // Snap a group to the nearest grid position
 function snapToGrid(group) {
+  // Use getBoundingClientRect to include CSS transforms (rotation/flip)
+  const rect = group.node.getBoundingClientRect();
+  const svgRect = svg.node.getBoundingClientRect();
+  // Convert from viewport coords to SVG coords
+  const visualX = rect.left - svgRect.left;
+  const visualY = rect.top - svgRect.top;
+  // Compute grid cell indices from visual position
+  const col = Math.round((visualX - x0) / boxel);
+  const row = Math.round((visualY - y0) / boxel);
+  // Need to offset by the difference between visual and transform position
   const rbox = group.rbox(svg);
-  // Compute grid cell indices from actual screen position
-  const col = Math.round((rbox.x - x0) / boxel);
-  const row = Math.round((rbox.y - y0) / boxel);
-  // Set absolute position (overwrites, doesn't accumulate)
-  group.translate(x0 + col * boxel, y0 + row * boxel);
+  const offsetX = visualX - rbox.x;
+  const offsetY = visualY - rbox.y;
+  // Set absolute position accounting for the visual offset
+  group.translate(x0 + col * boxel - offsetX, y0 + row * boxel - offsetY);
 }
 
 // Visualize a placement from the solver using actual cell positions
