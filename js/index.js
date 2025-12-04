@@ -251,6 +251,7 @@ function updateProgressPanel(attempts, allPiecesProgress) {
   const depth = allPiecesProgress 
     ? allPiecesProgress.filter(p => p.status === 'placed' || p.status === 'current').length
     : 0;
+  console.log('DEBUG:', { backtracks, depth, formatted: formatTries(backtracks, depth) });
   document.getElementById('attempts-text').textContent = 
     `${splur(sols, "sol'n")} in ${formatTries(backtracks, depth)}`;
   
