@@ -203,10 +203,13 @@ function visualizePlacement(placement) {
   );
 }
 
-// Initialize progress panel with table rows for each piece
+// Initialize progress panel with table rows for each piece (runs once)
+let panelInitialized = false;
 function initProgressPanel() {
+  if (panelInitialized) return;
+  panelInitialized = true;
+  
   const container = document.getElementById('pieces-table');
-  container.innerHTML = '';
   
   // Header row
   const header = document.createElement('div');
@@ -258,9 +261,7 @@ function updateProgressPanel(attempts, allPiecesProgress) {
 window.showProgressPanel = function(show) {
   const panel = document.getElementById('solver-progress');
   const solveBtn = document.getElementById('solve-btn');
-  if (show && !panel.classList.contains('active')) {
-    initProgressPanel();
-  }
+  if (show) initProgressPanel();
   panel.classList.toggle('active', show);
   solveBtn.classList.toggle('disabled', show);
 }
