@@ -266,7 +266,7 @@ window.showProgressPanel = function(show) {
 }
 
 // Make solver panel draggable by its header
-(function() {
+document.addEventListener('DOMContentLoaded', () => {
   const panel = document.getElementById('solver-progress');
   const handle = panel.querySelector('h3');
   let dragging = false, startX, startY, startLeft, startBottom;
@@ -288,7 +288,7 @@ window.showProgressPanel = function(show) {
   });
   
   document.addEventListener('mouseup', () => dragging = false);
-})();
+});
 
 // Update speed button states
 function updateSpeedButtons(activeSpeed = null) {
