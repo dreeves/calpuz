@@ -137,6 +137,18 @@ function getElementsContainer() {
   return elementsContainer;
 }
 
+// Snap a group to the nearest grid position
+function snapToGrid(group) {
+  const bbox = group.bbox();
+  // Find the offset from grid alignment
+  const offsetX = (bbox.x - x0) % boxel;
+  const offsetY = (bbox.y - y0) % boxel;
+  // Snap to nearest grid line
+  const snapX = offsetX < boxel / 2 ? -offsetX : boxel - offsetX;
+  const snapY = offsetY < boxel / 2 ? -offsetY : boxel - offsetY;
+  group.dmove(snapX, snapY);
+}
+
 // Visualize a placement from the solver using actual cell positions
 function visualizePlacement(placement) {
   if (!placement) return;
@@ -163,6 +175,7 @@ function visualizePlacement(placement) {
   let ang = 0;
   newGroup.draggy();
   newGroup.on("dragmove", () => { moved = true });
+  newGroup.on("dragend", () => { snapToGrid(newGroup); });
   innerGroup.on("mousedown", () => { moved = false });
   innerGroup.on("contextmenu", e => { e.preventDefault() });
   innerGroup.on("mouseup", e => {
@@ -587,8 +600,9 @@ function movePoly(polyId, x, y, angle = 0, flip = false) {
   let ang = 0;
   const cPol = newGroup.children()[0];
   newGroup.draggy();
-  newGroup.on("dragmove", () => { moved = true  });
-  cPol.on("mousedown",    () => { moved = false });
+  newGroup.on("dragmove", () => { moved = true });
+  newGroup.on("dragend", () => { snapToGrid(newGroup); });
+  cPol.on("mousedown", () => { moved = false });
   cPol.on("contextmenu",  e => { e.preventDefault() });
   cPol.on("mouseup",      e => {
     if (!moved) {
