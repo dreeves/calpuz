@@ -414,7 +414,7 @@ function drawPendingPieces(progress, failedPieceName = null) {
   const pendingPieces = progress.filter(p => p.status === 'pending');
   if (pendingPieces.length === 0) return;
   
-  const pendingGroup = svg.group().id('pending-pieces').style('pointer-events', 'none');
+  const pendingGroup = svg.group().id('pending-pieces');
   
   // Calculate layout - pieces in a row ABOVE the grid
   const previewScale = boxel * 0.35;
@@ -463,7 +463,8 @@ function drawPendingPieces(progress, failedPieceName = null) {
     // Draw the piece with pre-rotated vertices (no border)
     const poly = pieceGroup.polygon(polygen(drawVerts, previewScale))
       .fill(color)
-      .opacity(0.85);
+      .opacity(0.85)
+      .style('cursor', 'pointer');
     
     const bbox = poly.bbox();
     
@@ -472,6 +473,12 @@ function drawPendingPieces(progress, failedPieceName = null) {
     const ty = startY - bbox.y - bbox.height;
     
     pieceGroup.translate(tx, ty);
+    
+    // Click to spawn full-sized draggable piece
+    poly.on('click', () => {
+      // Place near top-left of grid
+      movePoly(name, 0, 0);
+    });
     
     // If this is the failed piece, draw X over it
     if (name === failedPieceName) {
