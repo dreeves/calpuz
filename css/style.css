@@ -64,6 +64,11 @@ ul {
   background: #586984;
 }
 
+.sidebar-item.disabled {
+  opacity: 0.3;
+  pointer-events: none;
+}
+
 /* Solver Progress Panel */
 .solver-progress {
   position: fixed;
