@@ -432,18 +432,23 @@ function resetDocket() {
 }
 
 // Draw all pending pieces above the grid in order (rotated to be short & wide)
-function drawPendingPieces(progress, failedPieceName = null) {
+function drawPendingPieces(progress, failedPieceName = null, orderedRemaining = []) {
   // Remove old pending pieces display
   const oldPending = SVG.get('pending-pieces');
   if (oldPending) oldPending.remove();
   
   if (!progress) return;
   
-  // Get only pending pieces, excluding any manually taken from docket
-  const pendingPieces = progress.filter(p => 
-    p.status === 'pending' && !takenFromDocket.has(p.name)
-  );
-  if (pendingPieces.length === 0) return;
+  // Use orderedRemaining for order, filter out manually taken pieces
+  // orderedRemaining is the dynamically-sorted list from the solver
+  const pendingNames = orderedRemaining.length > 0
+    ? orderedRemaining.filter(name => !takenFromDocket.has(name))
+    : progress.filter(p => p.status === 'pending' && !takenFromDocket.has(p.name)).map(p => p.name);
+  
+  if (pendingNames.length === 0) return;
+  
+  // Convert names to piece objects for drawing
+  const pendingPieces = pendingNames.map(name => ({ name }));
   
   const pendingGroup = svg.group().id('pending-pieces');
   
@@ -499,7 +504,7 @@ function drawPendingPieces(progress, failedPieceName = null) {
     // Click to spawn full-sized draggable piece (and re-render docket)
     poly.on('click', () => {
       takenFromDocket.add(name);
-      drawPendingPieces(progress, failedPieceName); // Re-render without this piece
+      drawPendingPieces(progress, failedPieceName, orderedRemaining); // Re-render without this piece
       movePoly(name, 0, 0);
     });
     
@@ -519,7 +524,7 @@ function drawPendingPieces(progress, failedPieceName = null) {
 }
 
 // Visualize all placements (callback for solver)
-function visualizeAllPlacements(placements, attempts, progress, deadCells = [], deadRegionSizes = [], nextPiece = null, pieceFailed = false) {
+function visualizeAllPlacements(placements, attempts, progress, deadCells = [], deadRegionSizes = [], nextPiece = null, pieceFailed = false, orderedRemaining = []) {
   // Clear all pieces
   for (const [name, , ] of shapes) {
     const group = SVG.get(name);
@@ -575,8 +580,8 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
     }
   }
   
-  // Draw all pending pieces below the grid
-  drawPendingPieces(progress, pieceFailed ? nextPiece : null);
+  // Draw all pending pieces in dynamic order
+  drawPendingPieces(progress, pieceFailed ? nextPiece : null, orderedRemaining);
   
   // Update progress panel
   updateProgressPanel(attempts, progress);

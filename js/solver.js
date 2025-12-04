@@ -349,6 +349,16 @@ window.Solver = (function() {
     return { deadCells, deadRegionSizes };
   }
   
+  // Count total valid placements for a piece on current grid
+  function countValidPlacements(grid, pieceName) {
+    const piece = pieceData[pieceName];
+    let count = 0;
+    for (const orientation of piece.orientations) {
+      count += getValidPositions(grid, orientation.cells).length;
+    }
+    return count;
+  }
+  
   // Main solve function
   async function solve(shapes, targetCells, visualizeCallback, animationDelay = 0) {
     if (!pieceData) {
@@ -358,7 +368,7 @@ window.Solver = (function() {
     // Initialize speed from parameter
     currentDelay = animationDelay;
     
-    const pieceNames = shapes.map(s => s[0]);
+    const allPieceNames = shapes.map(s => s[0]);
     
     // Initialize grid
     const grid = copyGrid(gridTemplate);
@@ -374,26 +384,29 @@ window.Solver = (function() {
     attempts = 0;
     backtracks = 0;
     currentDepth = 0;
-    placements = new Array(8).fill(null);
     
-    async function backtrack(pieceIndex) {
+    // Use object keyed by piece name instead of array by index
+    const placementsByName = {};
+    
+    async function backtrack(remainingPieces, placedPieces) {
       if (!solving) return false;
       
-      if (pieceIndex === 8) {
+      if (remainingPieces.length === 0) {
         // Found a solution!
         solutionCount++;
         foundSolution = true;
         paused = true;
         
-        // Update visualization to show new solution count
-        const allPiecesProgress = pieceNames.map((name, idx) => {
-          const pd = pieceData[name];
-          const p = placements[idx];
+        // Build progress from placed pieces (in order they were placed)
+        const allPiecesProgress = placedPieces.map(name => {
+          const p = placementsByName[name];
           return { name, status: 'placed',
               orientation: p.orientationIndex + 1, totalOrientations: p.totalOrientations,
               positionIndex: p.positionIndex + 1, totalPositions: p.totalPositions };
         });
-        visualizeCallback(placements, attempts, allPiecesProgress, [], [], null, false);
+        // Convert to array format for visualization
+        placements = placedPieces.map(name => placementsByName[name]);
+        visualizeCallback(placements, attempts, allPiecesProgress, [], [], null, false, []);
         
         // Wait while paused (user can resume to find next solution)
         while (paused && solving) {
@@ -408,9 +421,19 @@ window.Solver = (function() {
         return false;
       }
       
-      const pieceName = pieceNames[pieceIndex];
+      // Sort remaining pieces by valid placement count (most constrained first)
+      const piecesWithCounts = remainingPieces.map(name => ({
+        name,
+        count: countValidPlacements(grid, name)
+      }));
+      piecesWithCounts.sort((a, b) => a.count - b.count);
+      const orderedRemaining = piecesWithCounts.map(p => p.name);
+      
+      // Pick the most constrained piece (first in sorted order)
+      const pieceName = orderedRemaining[0];
       const piece = pieceData[pieceName];
       const totalOrientations = piece.orientations.length;
+      const depth = placedPieces.length;
       
       // Track if any placement was ever possible
       let hadValidPlacement = false;
@@ -424,16 +447,14 @@ window.Solver = (function() {
         if (totalPositions > 0) {
           hadValidPlacement = true;
         }
-        // When totalPositions === 0, just skip to next orientation - no visualization
-        // (visualizing would show a frame with the piece missing, causing blink)
         
         // Try each valid position
         for (let posIdx = 0; posIdx < totalPositions; posIdx++) {
           const [row, col] = validPositions[posIdx];
           
           // Place piece
-          setPiece(grid, orientation.cells, row, col, 3 + pieceIndex);
-          placements[pieceIndex] = {
+          setPiece(grid, orientation.cells, row, col, 3 + depth);
+          placementsByName[pieceName] = {
             name: pieceName,
             row,
             col,
@@ -446,31 +467,39 @@ window.Solver = (function() {
             totalPositions
           };
           attempts++;
-          currentDepth = pieceIndex + 1;
+          currentDepth = depth + 1;
           
           // Check for dead cells (isolated regions too small to fill)
           const { deadCells, deadRegionSizes } = findDeadCells(grid);
           
-          // Visualize every iteration - show current piece being placed (no X yet, just preview)
-          const allPiecesProgress = pieceNames.map((name, idx) => {
-            const pd = pieceData[name];
-            const p = placements[idx];
-            return idx < pieceIndex
-              ? { name, status: 'placed',
+          // Build progress: placed pieces + current + remaining (in dynamic order)
+          const newPlaced = [...placedPieces, pieceName];
+          const newRemaining = orderedRemaining.slice(1);
+          
+          const allPiecesProgress = [
+            ...placedPieces.map(name => {
+              const p = placementsByName[name];
+              return { name, status: 'placed',
                   orientation: p.orientationIndex + 1, totalOrientations: p.totalOrientations,
-                  positionIndex: p.positionIndex + 1, totalPositions: p.totalPositions }
-              : idx === pieceIndex
-              ? { name, status: 'current',
-                  orientation: orientIdx + 1, totalOrientations,
-                  positionIndex: posIdx + 1, totalPositions }
-              : { name, status: 'pending',
+                  positionIndex: p.positionIndex + 1, totalPositions: p.totalPositions };
+            }),
+            { name: pieceName, status: 'current',
+                orientation: orientIdx + 1, totalOrientations,
+                positionIndex: posIdx + 1, totalPositions },
+            ...newRemaining.map(name => {
+              const pd = pieceData[name];
+              return { name, status: 'pending',
                   orientation: 0, totalOrientations: pd.orientations.length,
                   positionIndex: 0, totalPositions: 0 };
-          });
-          // Show next piece as preview (the one we'll attempt after this placement)
-          const nextPieceIdx = pieceIndex + 1;
-          const nextPieceName = nextPieceIdx < 8 ? pieceNames[nextPieceIdx] : null;
-          visualizeCallback(placements, attempts, allPiecesProgress, deadCells, deadRegionSizes, nextPieceName, false);
+            })
+          ];
+          
+          // Next piece to try (first of remaining after current)
+          const nextPieceName = newRemaining.length > 0 ? newRemaining[0] : null;
+          
+          // Convert to array for visualization
+          placements = newPlaced.map(name => placementsByName[name]);
+          visualizeCallback(placements, attempts, allPiecesProgress, deadCells, deadRegionSizes, nextPieceName, false, newRemaining);
           
           // Step mode: pause after each placement
           if (stepMode) {
@@ -484,35 +513,38 @@ window.Solver = (function() {
           
           // Prune if dead cells exist
           if (deadCells.length === 0) {
-            // Recurse only if no dead cells
-            if (await backtrack(pieceIndex + 1)) {
+            // Recurse with updated lists
+            if (await backtrack(newRemaining, newPlaced)) {
               return true;
             }
           }
           
           // Backtrack
           setPiece(grid, orientation.cells, row, col, 1);
-          placements[pieceIndex] = null;
+          delete placementsByName[pieceName];
           backtracks++;
-          currentDepth = pieceIndex;
+          currentDepth = depth;
         }
       }
       
       // Only show failure X if this piece had ZERO valid placements
-      // (meaning it literally couldn't fit anywhere on the grid)
-      if (!hadValidPlacement && pieceIndex > 0) {
-        const allPiecesProgress = pieceNames.map((name, idx) => {
-          const pd = pieceData[name];
-          const p = placements[idx];
-          return idx < pieceIndex
-            ? { name, status: 'placed',
+      if (!hadValidPlacement && depth > 0) {
+        const allPiecesProgress = [
+          ...placedPieces.map(name => {
+            const p = placementsByName[name];
+            return { name, status: 'placed',
                 orientation: p.orientationIndex + 1, totalOrientations: p.totalOrientations,
-                positionIndex: p.positionIndex + 1, totalPositions: p.totalPositions }
-            : { name, status: 'pending',
+                positionIndex: p.positionIndex + 1, totalPositions: p.totalPositions };
+          }),
+          ...orderedRemaining.map(name => {
+            const pd = pieceData[name];
+            return { name, status: 'pending',
                 orientation: 0, totalOrientations: pd.orientations.length,
                 positionIndex: 0, totalPositions: 0 };
-        });
-        visualizeCallback(placements, attempts, allPiecesProgress, [], [], pieceName, true);
+          })
+        ];
+        placements = placedPieces.map(name => placementsByName[name]);
+        visualizeCallback(placements, attempts, allPiecesProgress, [], [], pieceName, true, orderedRemaining);
         
         // Step mode or normal delay
         if (stepMode) {
@@ -528,7 +560,7 @@ window.Solver = (function() {
       return false;
     }
     
-    const success = await backtrack(0);
+    const success = await backtrack(allPieceNames, []);
     solving = false;
     exhausted = true; // Search finished
     
