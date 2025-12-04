@@ -14,51 +14,6 @@ window.Solver = (function() {
     [1,1,1,0,0,0,0],  // 29-31, empty
   ];
 
-  // Convert polygon vertices to grid cells covered
-  // Polygon vertices are in (x, y) format where each unit = 1 grid cell
-  function polygonToCells(vertices) {
-    // Find bounding box
-    const xs = vertices.map(v => v[0]);
-    const ys = vertices.map(v => v[1]);
-    const minX = Math.min(...xs);
-    const maxX = Math.max(...xs);
-    const minY = Math.min(...ys);
-    const maxY = Math.max(...ys);
-    
-    const cells = [];
-    
-    // Check each potential cell (using center point)
-    for (let row = minY; row < maxY; row++) {
-      for (let col = minX; col < maxX; col++) {
-        // Test if cell center is inside polygon
-        const cx = col + 0.5;
-        const cy = row + 0.5;
-        if (pointInPolygon(cx, cy, vertices)) {
-          cells.push([row - minY, col - minX]); // Normalize to origin
-        }
-      }
-    }
-    
-    return cells;
-  }
-  
-  // Point-in-polygon test using ray casting
-  function pointInPolygon(x, y, vertices) {
-    let inside = false;
-    const n = vertices.length;
-    
-    for (let i = 0, j = n - 1; i < n; j = i++) {
-      const xi = vertices[i][0], yi = vertices[i][1];
-      const xj = vertices[j][0], yj = vertices[j][1];
-      
-      if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) {
-        inside = !inside;
-      }
-    }
-    
-    return inside;
-  }
-  
   // Rotate cells 90 degrees clockwise
   function rotateCells(cells) {
     // (row, col) -> (col, -row)
@@ -666,61 +621,6 @@ window.Solver = (function() {
     return totalAttempts;
   }
   
-  // Generate all permutations of an array
-  function permutations(arr) {
-    if (arr.length <= 1) return [arr];
-    const result = [];
-    for (let i = 0; i < arr.length; i++) {
-      const rest = [...arr.slice(0, i), ...arr.slice(i + 1)];
-      for (const perm of permutations(rest)) {
-        result.push([arr[i], ...perm]);
-      }
-    }
-    return result;
-  }
-  
-  // Shuffle array in place (Fisher-Yates)
-  function shuffle(arr) {
-    for (let i = arr.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [arr[i], arr[j]] = [arr[j], arr[i]];
-    }
-    return arr;
-  }
-  
-  // Try all 8! permutations of piece order, find the one with fewest tries
-  function tryAllPermutations(shapes) {
-    const allPerms = shuffle(permutations(shapes));
-    console.log(`Testing ${allPerms.length.toLocaleString()} permutations (shuffled)...`);
-    
-    let bestTries = 344186; // Known best threshold
-    let bestPerm = null;
-    let bestIdx = -1;
-    
-    for (let i = 0; i < allPerms.length; i++) {
-      const perm = allPerms[i];
-      pieceData = null; // Reset so it reinitializes with new order
-      const tries = solveOnceAllDates(perm, true, bestTries);
-      
-      if (tries < bestTries) {
-        bestTries = tries;
-        bestPerm = perm;
-        bestIdx = i;
-        console.log(`#${i + 1}: ${tries.toLocaleString()} tries - NEW BEST! [${perm.map(s => s[0]).join(', ')}]`);
-      }
-      
-      // Progress update every 1000 permutations
-      if ((i + 1) % 1000 === 0) {
-        console.log(`Progress: ${i + 1}/${allPerms.length} tested, best: ${bestTries.toLocaleString()}`);
-      }
-    }
-    
-    console.log(`\n=== BEST ===`);
-    console.log(`#${bestIdx + 1}: ${bestTries.toLocaleString()} tries [${bestPerm.map(s => s[0]).join(', ')}]`);
-    
-    return { bestTries, bestOrder: bestPerm.map(s => s[0]), bestPerm };
-  }
-
   // Count all solutions for a given date (synchronous, no visualization)
   function countSolutions(shapes, targetCells) {
     if (!pieceData) {
@@ -819,7 +719,6 @@ window.Solver = (function() {
     solve,
     solveOnce,
     solveOnceAllDates,
-    tryAllPermutations,
     solveAll,
     stop,
     isSolving,
