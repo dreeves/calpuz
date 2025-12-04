@@ -364,6 +364,8 @@ window.stepOnce = async function() {
 
 // Start the solver for today's date
 async function startSolve() {
+  resetDocket(); // Clear any manually taken pieces
+  
   const today = new Date();
   const month = today.getMonth();
   const day = today.getDate();
@@ -402,6 +404,14 @@ function removeeDateCircles() {
   if (circles) circles.remove();
 }
 
+// Track pieces that user has manually taken from the docket
+const takenFromDocket = new Set();
+
+// Clear taken pieces (called when solver restarts)
+function resetDocket() {
+  takenFromDocket.clear();
+}
+
 // Draw all pending pieces above the grid in order (rotated to be short & wide)
 function drawPendingPieces(progress, failedPieceName = null) {
   // Remove old pending pieces display
@@ -410,8 +420,10 @@ function drawPendingPieces(progress, failedPieceName = null) {
   
   if (!progress) return;
   
-  // Get only pending pieces (current piece is already on the grid)
-  const pendingPieces = progress.filter(p => p.status === 'pending');
+  // Get only pending pieces, excluding any manually taken from docket
+  const pendingPieces = progress.filter(p => 
+    p.status === 'pending' && !takenFromDocket.has(p.name)
+  );
   if (pendingPieces.length === 0) return;
   
   const pendingGroup = svg.group().id('pending-pieces');
@@ -421,38 +433,29 @@ function drawPendingPieces(progress, failedPieceName = null) {
   const gap = boxel * 0.3; // Tight gap between pieces
   const startY = y0 - boxel * 0.8; // Above grid
   
-  // Pre-calculate bounding info for each piece
-  const pieceInfo = pendingPieces.map(piece => {
+  // Start at left edge of grid - first piece always in same position
+  let currentX = x0;
+  
+  // Draw each pending piece
+  pendingPieces.forEach((piece) => {
     const shape = shapes.find(s => s[0] === piece.name);
-    if (!shape) return { width: 0, height: 0, rotate: false };
-    const [, , vertices] = shape;
+    if (!shape) return;
+    
+    const [name, color, vertices] = shape;
+    const pieceGroup = pendingGroup.group();
+    
+    // Calculate bounding info
     const xs = vertices.map(v => v[0]);
     const ys = vertices.map(v => v[1]);
     const rawW = (Math.max(...xs) - Math.min(...xs)) * previewScale;
     const rawH = (Math.max(...ys) - Math.min(...ys)) * previewScale;
     const rotate = rawH > rawW;
-    return { 
-      width: rotate ? rawH : rawW, 
-      height: rotate ? rawW : rawH,
-      rotate 
-    };
-  });
-  
-  // Start at left edge of grid - first piece always in same position
-  let currentX = x0;
-  
-  // Draw each pending piece
-  pendingPieces.forEach((piece, index) => {
-    const shape = shapes.find(s => s[0] === piece.name);
-    if (!shape) return;
-    
-    const [name, color, vertices] = shape;
-    const info = pieceInfo[index];
-    const pieceGroup = pendingGroup.group();
+    const pieceWidth = rotate ? rawH : rawW;
+    const pieceHeight = rotate ? rawW : rawH;
     
     // Pre-rotate vertices if needed (rotate coords, not the SVG element)
     let drawVerts = vertices;
-    if (info.rotate) {
+    if (rotate) {
       // Rotate 90 degrees: (x, y) -> (y, -x), then shift to positive coords
       const rotated = vertices.map(v => [v[1], -v[0]]);
       const minX = Math.min(...rotated.map(v => v[0]));
@@ -474,35 +477,25 @@ function drawPendingPieces(progress, failedPieceName = null) {
     
     pieceGroup.translate(tx, ty);
     
-    // Click to spawn full-sized draggable piece (and remove from docket)
+    // Click to spawn full-sized draggable piece (and re-render docket)
     poly.on('click', () => {
-      // Remove this piece and slide remaining pieces left
-      const myWidth = info.width + gap;
-      pieceGroup.remove();
-      
-      const remaining = pendingGroup.children().length;
-      for (let j = index; j < remaining; j++) {
-        const laterGroup = pendingGroup.get(j);
-        if (laterGroup) {
-          laterGroup.dmove(-myWidth, 0);
-        }
-      }
-      
+      takenFromDocket.add(name);
+      drawPendingPieces(progress, failedPieceName); // Re-render without this piece
       movePoly(name, 0, 0);
     });
     
     // If this is the failed piece, draw X over it
     if (name === failedPieceName) {
-      const pcx = currentX + info.width / 2;
-      const pcy = startY - info.height / 2;
-      const size = Math.max(info.width, info.height) * 0.4;
+      const pcx = currentX + pieceWidth / 2;
+      const pcy = startY - pieceHeight / 2;
+      const size = Math.max(pieceWidth, pieceHeight) * 0.4;
       pendingGroup.line(pcx - size, pcy - size, pcx + size, pcy + size)
         .stroke({ width: 4, color: '#ff0000' });
       pendingGroup.line(pcx - size, pcy + size, pcx + size, pcy - size)
         .stroke({ width: 4, color: '#ff0000' });
     }
     
-    currentX += info.width + gap;
+    currentX += pieceWidth + gap;
   });
 }
 
