@@ -139,21 +139,23 @@ function getElementsContainer() {
 
 // Snap a group to the nearest grid position
 function snapToGrid(group) {
-  // Use getBoundingClientRect to include CSS transforms (rotation/flip)
+  // Use getBoundingClientRect to get visual position (includes CSS transforms)
   const rect = group.node.getBoundingClientRect();
   const svgRect = svg.node.getBoundingClientRect();
-  // Convert from viewport coords to SVG coords
   const visualX = rect.left - svgRect.left;
   const visualY = rect.top - svgRect.top;
-  // Compute grid cell indices from visual position
+  // Compute nearest grid cell
   const col = Math.round((visualX - x0) / boxel);
   const row = Math.round((visualY - y0) / boxel);
-  // Need to offset by the difference between visual and transform position
-  const rbox = group.rbox(svg);
-  const offsetX = visualX - rbox.x;
-  const offsetY = visualY - rbox.y;
-  // Set absolute position accounting for the visual offset
-  group.translate(x0 + col * boxel - offsetX, y0 + row * boxel - offsetY);
+  // Get current transform position 
+  const matrix = group.transform();
+  const currentX = matrix.x || 0;
+  const currentY = matrix.y || 0;
+  // Calculate how far visual position is from transform position
+  const deltaX = visualX - currentX;
+  const deltaY = visualY - currentY;
+  // Snap: move to grid cell, accounting for the visual offset
+  group.translate(x0 + col * boxel - deltaX, y0 + row * boxel - deltaY);
 }
 
 // Visualize a placement from the solver using actual cell positions
@@ -168,14 +170,12 @@ function visualizePlacement(placement) {
   const newGroup = container.group().id(nom);
   const innerGroup = newGroup.group();
   
-  // Draw each cell as a square, based on the solver's actual cell placement
+  // Draw cells at LOCAL coordinates (relative to piece origin)
   for (const [dr, dc] of placement.cells) {
-    const cellRow = placement.row + dr;
-    const cellCol = placement.col + dc;
-    const cellX = x0 + cellCol * boxel;
-    const cellY = y0 + cellRow * boxel;
-    innerGroup.rect(boxel, boxel).move(cellX, cellY).fill(hue).opacity('0.8').stroke({ width: 1, color: '#fff' });
+    innerGroup.rect(boxel, boxel).move(dc * boxel, dr * boxel).fill(hue).opacity('0.8').stroke({ width: 1, color: '#fff' });
   }
+  // Translate the GROUP to board position (matches manual piece convention)
+  newGroup.translate(x0 + placement.col * boxel, y0 + placement.row * boxel);
   
   // Always interactive - drag on outer group, rotation on inner group
   let moved = false;
