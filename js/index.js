@@ -247,7 +247,10 @@ function initProgressPanel() {
 function updateProgressPanel(attempts, allPiecesProgress) {
   const sols = Solver.getSolutionCount();
   const backtracks = Solver.getBacktracks();
-  const depth = Solver.getCurrentDepth();
+  // Derive depth from snapshot: count pieces that are placed or current
+  const depth = allPiecesProgress 
+    ? allPiecesProgress.filter(p => p.status === 'placed' || p.status === 'current').length
+    : 0;
   document.getElementById('attempts-text').textContent = 
     `${splur(sols, "sol'n")} in ${formatTries(backtracks, depth)}`;
   
