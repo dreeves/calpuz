@@ -8,6 +8,17 @@ function splur(n, s, p=null) {
        :              `${n} ${p}`;
 }
 
+// Format fractional tries: backtracks + currentDepth/8
+// Uses Unicode superscript/subscript for pretty fractions like "2 ³⁄₈"
+const SUPER = ['⁰','¹','²','³','⁴','⁵','⁶','⁷','⁸'];
+const SUB = ['₀','₁','₂','₃','₄','₅','₆','₇','₈'];
+function formatTries(backtracks, depth) {
+  const frac = depth > 0 ? ` ${SUPER[depth]}⁄${SUB[8]}` : '';
+  const n = backtracks;
+  const word = (n === 1 && depth === 0) ? 'try' : 'tries';
+  return `${n.toLocaleString()}${frac} ${word}`;
+}
+
 const w = window.innerWidth;
 const h = window.innerHeight;
 const boxel = w/20;           // size in pixels of a calendar cell
@@ -235,8 +246,10 @@ function initProgressPanel() {
 // Update progress panel with all pieces' state
 function updateProgressPanel(attempts, allPiecesProgress) {
   const sols = Solver.getSolutionCount();
+  const backtracks = Solver.getBacktracks();
+  const depth = Solver.getCurrentDepth();
   document.getElementById('attempts-text').textContent = 
-    `${splur(sols, "sol'n")} in ${splur(attempts, "try", "tries")}`;
+    `${splur(sols, "sol'n")} in ${formatTries(backtracks, depth)}`;
   
   if (!allPiecesProgress) return;
   

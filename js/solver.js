@@ -235,6 +235,8 @@ window.Solver = (function() {
   let stepMode = false; // True for single-step mode
   let solutionCount = 0;
   let attempts = 0;
+  let backtracks = 0;
+  let currentDepth = 0;
   let placements = [];
   let currentDelay = 50; // Dynamic delay that can be changed mid-solve
   
@@ -370,6 +372,8 @@ window.Solver = (function() {
     exhausted = false;
     solutionCount = 0;
     attempts = 0;
+    backtracks = 0;
+    currentDepth = 0;
     placements = new Array(8).fill(null);
     
     async function backtrack(pieceIndex) {
@@ -442,6 +446,7 @@ window.Solver = (function() {
             totalPositions
           };
           attempts++;
+          currentDepth = pieceIndex + 1;
           
           // Check for dead cells (isolated regions too small to fill)
           const { deadCells, deadRegionSizes } = findDeadCells(grid);
@@ -488,6 +493,8 @@ window.Solver = (function() {
           // Backtrack
           setPiece(grid, orientation.cells, row, col, 1);
           placements[pieceIndex] = null;
+          backtracks++;
+          currentDepth = pieceIndex;
         }
       }
       
@@ -544,6 +551,14 @@ window.Solver = (function() {
   
   function getSolutionCount() {
     return solutionCount;
+  }
+  
+  function getBacktracks() {
+    return backtracks;
+  }
+  
+  function getCurrentDepth() {
+    return currentDepth;
   }
   
   function getPieceData() {
@@ -778,6 +793,8 @@ window.Solver = (function() {
     setStepMode,
     hasFoundSolution,
     getSolutionCount,
+    getBacktracks,
+    getCurrentDepth,
     getDateCells,
     initPieceData,
     getPieceData,
