@@ -139,16 +139,12 @@ function getElementsContainer() {
 
 // Snap a group to the nearest grid position
 function snapToGrid(group) {
-  const bbox = group.bbox();
-  // Find offset from grid, handling negatives with proper modulo
-  let offsetX = (bbox.x - x0) % boxel;
-  let offsetY = (bbox.y - y0) % boxel;
-  if (offsetX < 0) offsetX += boxel;
-  if (offsetY < 0) offsetY += boxel;
-  // Snap to nearest grid line
-  const snapX = offsetX <= boxel / 2 ? -offsetX : boxel - offsetX;
-  const snapY = offsetY <= boxel / 2 ? -offsetY : boxel - offsetY;
-  group.dmove(snapX, snapY);
+  const rbox = group.rbox(svg);
+  // Compute grid cell indices from actual screen position
+  const col = Math.round((rbox.x - x0) / boxel);
+  const row = Math.round((rbox.y - y0) / boxel);
+  // Set absolute position (overwrites, doesn't accumulate)
+  group.translate(x0 + col * boxel, y0 + row * boxel);
 }
 
 // Visualize a placement from the solver using actual cell positions
