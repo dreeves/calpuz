@@ -476,7 +476,19 @@ function drawPendingPieces(progress, failedPieceName = null) {
     
     // Click to spawn full-sized draggable piece (and remove from docket)
     poly.on('click', () => {
+      // Remove this piece and slide remaining pieces left
+      const myWidth = info.width + gap;
       pieceGroup.remove();
+      
+      // Shift all remaining pieces left (they're now at indices 0, 1, 2... after removal)
+      const remaining = pendingGroup.children().length;
+      for (let j = index; j < remaining; j++) {
+        const laterGroup = pendingGroup.get(j);
+        if (laterGroup) {
+          laterGroup.dmove(-myWidth, 0);
+        }
+      }
+      
       movePoly(name, 0, 0);
     });
     
