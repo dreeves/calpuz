@@ -452,27 +452,27 @@ function drawPendingPieces(progress, failedPieceName = null) {
     const info = pieceInfo[index];
     const pieceGroup = pendingGroup.group();
     
-    // Draw the piece using polygen, then rotate if needed
-    const poly = pieceGroup.polygon(polygen(vertices, previewScale))
+    // Pre-rotate vertices if needed (rotate coords, not the SVG element)
+    let drawVerts = vertices;
+    if (info.rotate) {
+      // Rotate 90 degrees: (x, y) -> (y, -x), then shift to positive coords
+      const rotated = vertices.map(v => [v[1], -v[0]]);
+      const minX = Math.min(...rotated.map(v => v[0]));
+      const minY = Math.min(...rotated.map(v => v[1]));
+      drawVerts = rotated.map(v => [v[0] - minX, v[1] - minY]);
+    }
+    
+    // Draw the piece with pre-rotated vertices
+    const poly = pieceGroup.polygon(polygen(drawVerts, previewScale))
       .fill(color)
       .opacity(0.85)
       .stroke({ width: 2, color: '#333' });
     
     const bbox = poly.bbox();
     
-    // Position at currentX, startY (aligning top-left of bounding box)
-    let tx = currentX - bbox.x;
-    let ty = startY - bbox.y - bbox.height; // Align bottom of piece to startY
-    
-    if (info.rotate) {
-      // Rotate 90 degrees around center, then reposition
-      const cx = bbox.x + bbox.width / 2;
-      const cy = bbox.y + bbox.height / 2;
-      poly.rotate(90, cx, cy);
-      const newBbox = poly.bbox();
-      tx = currentX - newBbox.x;
-      ty = startY - newBbox.y - newBbox.height;
-    }
+    // Position at currentX, startY (aligning bottom of piece to startY)
+    const tx = currentX - bbox.x;
+    const ty = startY - bbox.y - bbox.height;
     
     pieceGroup.translate(tx, ty);
     
