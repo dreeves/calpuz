@@ -116,6 +116,12 @@ ul {
   text-transform: uppercase;
   letter-spacing: 1px;
   font-family: Arial, sans-serif;
+  cursor: grab;
+  user-select: none;
+}
+
+.solver-progress h3:active {
+  cursor: grabbing;
 }
 
 .solver-progress .speed-controls {

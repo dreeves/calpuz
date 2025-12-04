@@ -265,6 +265,31 @@ window.showProgressPanel = function(show) {
   solveBtn.classList.toggle('disabled', show);
 }
 
+// Make solver panel draggable by its header
+(function() {
+  const panel = document.getElementById('solver-progress');
+  const handle = panel.querySelector('h3');
+  let dragging = false, startX, startY, startLeft, startBottom;
+  
+  handle.addEventListener('mousedown', e => {
+    dragging = true;
+    startX = e.clientX;
+    startY = e.clientY;
+    const rect = panel.getBoundingClientRect();
+    startLeft = rect.left;
+    startBottom = window.innerHeight - rect.bottom;
+    e.preventDefault();
+  });
+  
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    panel.style.left = (startLeft + e.clientX - startX) + 'px';
+    panel.style.bottom = (startBottom - (e.clientY - startY)) + 'px';
+  });
+  
+  document.addEventListener('mouseup', () => dragging = false);
+})();
+
 // Update speed button states
 function updateSpeedButtons(activeSpeed = null) {
   const exhausted = Solver.isExhausted();
