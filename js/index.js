@@ -267,13 +267,20 @@ window.showProgressPanel = function(show) {
 function updateSpeedButtons(activeSpeed = null) {
   const exhausted = Solver.isExhausted();
   const solving = Solver.isSolving();
+  const paused = Solver.isPaused();
+  
   document.querySelectorAll('.speed-btn').forEach(btn => {
     // Gray out when exhausted (but still clickable to start new search)
     btn.classList.toggle('disabled', exhausted && !solving);
     btn.classList.remove('active');
   });
-  // Highlight active speed button while solving
-  if (solving && activeSpeed !== null) {
+  
+  // When paused (including at solutions), highlight the step button
+  if (solving && paused) {
+    document.querySelector('.speed-btn[onclick="stepOnce()"]').classList.add('active');
+  }
+  // Otherwise highlight the active speed button while solving
+  else if (solving && activeSpeed !== null) {
     document.querySelectorAll('.speed-btn').forEach(btn => {
       const match = btn.getAttribute('onclick').match(/runSpeed\((\d+)\)/);
       if (match && parseInt(match[1]) === activeSpeed) {
@@ -430,6 +437,9 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
   for (const p of placements) {
     if (p) visualizePlacement(p);
   }
+  
+  // Update button states to show pause button active when paused
+  updateSpeedButtons();
   
   // Auto-resume after showing solution briefly (when pauseOnSolution is false)
   const allPlaced = placements.filter(p => p !== null).length === 8;
