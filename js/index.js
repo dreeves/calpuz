@@ -263,16 +263,76 @@ window.showProgressPanel = function(show) {
   panel.classList.toggle('active', show);
 }
 
-// Set solver animation speed (global for speed buttons)
-window.setSpeed = function(ms) {
+// Update speed button states
+function updateSpeedButtons(activeSpeed = null) {
+  const exhausted = Solver.isExhausted();
+  const solving = Solver.isSolving();
+  document.querySelectorAll('.speed-btn').forEach(btn => {
+    // Gray out when exhausted (but still clickable to start new search)
+    btn.classList.toggle('disabled', exhausted && !solving);
+    btn.classList.remove('active');
+  });
+  // Highlight active speed button while solving
+  if (solving && activeSpeed !== null) {
+    document.querySelectorAll('.speed-btn').forEach(btn => {
+      const match = btn.getAttribute('onclick').match(/runSpeed\((\d+)\)/);
+      if (match && parseInt(match[1]) === activeSpeed) {
+        btn.classList.add('active');
+      }
+    });
+  }
+}
+
+// Start or resume the search at a given speed
+window.runSpeed = async function(ms) {
   const delay = parseInt(ms) || 0;
   solverSpeed = delay;
   Solver.setSpeed(delay);
-  // Update button active states
-  document.querySelectorAll('.speed-btn').forEach(btn => {
-    const btnSpeed = parseInt(btn.getAttribute('onclick').match(/\d+/)[0]);
-    btn.classList.toggle('active', btnSpeed === delay);
-  });
+  Solver.setStepMode(false);
+  updateSpeedButtons(delay);
+  
+  if (Solver.isSolving()) {
+    // Resume if paused
+    if (Solver.isPaused()) {
+      Solver.resume();
+    }
+    return;
+  }
+  
+  // Start fresh solve
+  await startSolve();
+}
+
+// Single step mode - do one placement then pause
+window.stepOnce = async function() {
+  Solver.setStepMode(true);
+  updateSpeedButtons();
+  // Highlight step button
+  document.querySelector('.speed-btn[onclick="stepOnce()"]').classList.add('active');
+  
+  if (Solver.isSolving()) {
+    if (Solver.isPaused()) {
+      Solver.resume();
+    }
+    return;
+  }
+  
+  await startSolve();
+}
+
+// Start the solver for today's date
+async function startSolve() {
+  const today = new Date();
+  const month = today.getMonth();
+  const day = today.getDate();
+  const targetCells = Solver.getDateCells(month, day);
+  
+  drawDateCircles(targetCells);
+  
+  await Solver.solve(shapes, targetCells, visualizeAllPlacements, solverSpeed);
+  
+  // Search exhausted - update button states
+  updateSpeedButtons();
 }
 
 // Debug: count solutions for all dates (call from browser console)
@@ -415,40 +475,9 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
   updateProgressPanel(attempts, progress);
 }
 
-window.solvePuzzle = async function () {
-  // Always show progress panel when solve button is pressed
+// Solve button just opens the panel - speed buttons control the search
+window.solvePuzzle = function() {
   showProgressPanel(true);
-  
-  if (Solver.isSolving()) {
-    // Toggle pause/resume instead of stopping
-    const nowPaused = Solver.togglePause();
-    return;
-  }
-  
-  // Get today's date
-  const today = new Date();
-  const month = today.getMonth(); // zero-based so Jan = 0, Dec = 11
-  const day = today.getDate(); // one-based so the 1st = 1 etc
-  
-  const dateStr = today.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
-  
-  /* POPUP DISABLED - uncomment to restore
-  Swal.fire({
-    title: `Solving for ${dateStr}`,
-    text: "Whee!",
-    icon: "info",
-    timer: 1500,
-    showConfirmButton: false
-  });
-  */
-  
-  const targetCells = Solver.getDateCells(month, day);
-  
-  drawDateCircles(targetCells);
-  
-  const result = await Solver.solve(shapes, targetCells, visualizeAllPlacements, solverSpeed);
-  
-  // Let the final search state remain visible (circles, pending pieces, etc)
 }
 
 function movePoly(polyId, x, y, angle = 0, flip = false) {

@@ -231,6 +231,8 @@ window.Solver = (function() {
   let solving = false;
   let paused = false;
   let foundSolution = false; // True when paused at a solution
+  let exhausted = false; // True when search finished (no more solutions)
+  let stepMode = false; // True for single-step mode
   let solutionCount = 0;
   let attempts = 0;
   let placements = [];
@@ -271,6 +273,14 @@ window.Solver = (function() {
   
   function isPaused() {
     return paused;
+  }
+  
+  function isExhausted() {
+    return exhausted;
+  }
+  
+  function setStepMode(enabled) {
+    stepMode = enabled;
   }
   
   // Get all valid positions for placing a piece orientation on current grid
@@ -357,6 +367,7 @@ window.Solver = (function() {
     solving = true;
     paused = false;
     foundSolution = false;
+    exhausted = false;
     solutionCount = 0;
     attempts = 0;
     placements = new Array(8).fill(null);
@@ -455,7 +466,16 @@ window.Solver = (function() {
           const nextPieceIdx = pieceIndex + 1;
           const nextPieceName = nextPieceIdx < 8 ? pieceNames[nextPieceIdx] : null;
           visualizeCallback(placements, attempts, allPiecesProgress, deadCells, deadRegionSizes, nextPieceName, false);
-          await delay(currentDelay);
+          
+          // Step mode: pause after each placement
+          if (stepMode) {
+            paused = true;
+            while (paused && solving) {
+              await new Promise(r => setTimeout(r, 50));
+            }
+          } else {
+            await delay(currentDelay);
+          }
           
           // Prune if dead cells exist
           if (deadCells.length === 0) {
@@ -486,7 +506,16 @@ window.Solver = (function() {
                 positionIndex: 0, totalPositions: 0 };
         });
         visualizeCallback(placements, attempts, allPiecesProgress, [], [], pieceName, true);
-        await delay(currentDelay); // Same delay as normal steps
+        
+        // Step mode or normal delay
+        if (stepMode) {
+          paused = true;
+          while (paused && solving) {
+            await new Promise(r => setTimeout(r, 50));
+          }
+        } else {
+          await delay(currentDelay);
+        }
       }
       
       return false;
@@ -494,9 +523,7 @@ window.Solver = (function() {
     
     const success = await backtrack(0);
     solving = false;
-    
-    // Don't call visualizeCallback here - the last real visualization during
-    // solving already shows the correct state.
+    exhausted = true; // Search finished
     
     return { success, attempts };
   }
@@ -747,6 +774,8 @@ window.Solver = (function() {
     resume,
     togglePause,
     isPaused,
+    isExhausted,
+    setStepMode,
     hasFoundSolution,
     getSolutionCount,
     getDateCells,
