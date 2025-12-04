@@ -474,14 +474,8 @@ function drawPendingPieces(progress, failedPieceName = null) {
     
     pieceGroup.translate(tx, ty);
     
-    // Drag to spawn full-sized piece and continue dragging it
-    poly.on('mousedown touchstart', (e) => {
-      e.preventDefault();
-      
-      // Get cursor position
-      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-      
+    // Click to spawn full-sized draggable piece (and remove from docket)
+    poly.on('click', () => {
       // Remove this piece and slide remaining pieces left
       const myWidth = info.width + gap;
       pieceGroup.remove();
@@ -494,21 +488,7 @@ function drawPendingPieces(progress, failedPieceName = null) {
         }
       }
       
-      // Spawn full-sized piece centered on cursor
-      const gridX = (clientX - x0) / boxel - 1;
-      const gridY = (clientY - y0) / boxel - 1;
-      movePoly(name, Math.max(0, gridX), Math.max(0, gridY));
-      
-      // Get the new piece and simulate mousedown to start dragging
-      const newGroup = SVG.get(name);
-      if (newGroup) {
-        const fakeEvent = new MouseEvent('mousedown', {
-          bubbles: true,
-          clientX: clientX,
-          clientY: clientY
-        });
-        newGroup.node.dispatchEvent(fakeEvent);
-      }
+      movePoly(name, 0, 0);
     });
     
     // If this is the failed piece, draw X over it
