@@ -265,29 +265,38 @@ window.showProgressPanel = function(show) {
   solveBtn.classList.toggle('disabled', show);
 }
 
-// Make solver panel draggable by its header
+// Make solver panel draggable by its header (mouse + touch)
 document.addEventListener('DOMContentLoaded', () => {
   const panel = document.getElementById('solver-progress');
   const handle = panel.querySelector('h3');
   let dragging = false, startX, startY, startLeft, startBottom;
   
-  handle.addEventListener('mousedown', e => {
+  function startDrag(x, y) {
     dragging = true;
-    startX = e.clientX;
-    startY = e.clientY;
+    startX = x;
+    startY = y;
     const rect = panel.getBoundingClientRect();
     startLeft = rect.left;
     startBottom = window.innerHeight - rect.bottom;
-    e.preventDefault();
-  });
+  }
   
-  document.addEventListener('mousemove', e => {
+  function doDrag(x, y) {
     if (!dragging) return;
-    panel.style.left = (startLeft + e.clientX - startX) + 'px';
-    panel.style.bottom = (startBottom - (e.clientY - startY)) + 'px';
-  });
+    panel.style.left = (startLeft + x - startX) + 'px';
+    panel.style.bottom = (startBottom - (y - startY)) + 'px';
+  }
   
-  document.addEventListener('mouseup', () => dragging = false);
+  function endDrag() { dragging = false; }
+  
+  // Mouse events
+  handle.addEventListener('mousedown', e => { startDrag(e.clientX, e.clientY); e.preventDefault(); });
+  document.addEventListener('mousemove', e => doDrag(e.clientX, e.clientY));
+  document.addEventListener('mouseup', endDrag);
+  
+  // Touch events
+  handle.addEventListener('touchstart', e => { startDrag(e.touches[0].clientX, e.touches[0].clientY); e.preventDefault(); }, { passive: false });
+  document.addEventListener('touchmove', e => { if (dragging) doDrag(e.touches[0].clientX, e.touches[0].clientY); }, { passive: true });
+  document.addEventListener('touchend', endDrag);
 });
 
 // Update speed button states
