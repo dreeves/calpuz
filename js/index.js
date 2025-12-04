@@ -1,11 +1,12 @@
 const TAU = 2*Math.PI;
 
-// Singular or plural. Eg, splur(0, "cat") returns "0 cats" or for irregular 
-// plurals, eg, splur(1, "child", "children") returns "1 child".
+// Singular or plural with comma formatting. Eg, splur(1000, "cat") returns "1,000 cats"
+// or for irregular plurals, eg, splur(1, "child", "children") returns "1 child".
 function splur(n, s, p=null) { 
-  return n === 1    ? `${n} ${s}`
-       : p === null ? `${n} ${s}s`
-       :              `${n} ${p}`;
+  const formatted = n.toLocaleString();
+  return n === 1    ? `${formatted} ${s}`
+       : p === null ? `${formatted} ${s}s`
+       :              `${formatted} ${p}`;
 }
 
 const w = window.innerWidth;

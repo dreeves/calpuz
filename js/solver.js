@@ -472,9 +472,15 @@ window.Solver = (function() {
           // Check for dead cells (isolated regions too small to fill)
           const { deadCells, deadRegionSizes } = findDeadCells(grid);
           
-          // Build progress: placed pieces + current + remaining (in dynamic order)
+          // Build progress: placed pieces + current + remaining (recompute order on current grid)
           const newPlaced = [...placedPieces, pieceName];
-          const newRemaining = orderedRemaining.slice(1);
+          const rawRemaining = orderedRemaining.slice(1);
+          
+          // Recompute most-constrained ordering for remaining pieces on current grid state
+          const newRemaining = rawRemaining
+            .map(name => ({ name, count: countValidPlacements(grid, name) }))
+            .sort((a, b) => a.count - b.count)
+            .map(x => x.name);
           
           const allPiecesProgress = [
             ...placedPieces.map(name => {
