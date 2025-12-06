@@ -51,6 +51,7 @@ Preferred communication style: Simple, everyday language.
    - Piece cells defined manually in `manualPieceCells` for precise control
    - Dead cell detection: identifies unfillable regions for early pruning
    - **Dynamic "most constrained first" ordering**: At each step, counts valid placements for remaining pieces and tries the most constrained piece first
+   - **Forced piece detection**: For size-5/6 regions, uses shape lookup (`shapeToPiece`) to identify if only one piece can fill it; forced pieces get count=1 for priority sorting
 
 6. **Solver Control Flow**
    - Solve button (key icon) only opens the control panel

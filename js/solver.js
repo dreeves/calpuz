@@ -124,8 +124,8 @@ window.Solver = (function() {
     "l-shape": [[0,0], [1,0], [2,0], [3,0], [3,1]],
   };
   
-  // Normalize cells to canonical form: translate to origin, sort, stringify
-  function normalizeCells(cells) {
+  // Create canonical shape key: translate to origin, sort, stringify
+  function shapeKey(cells) {
     const minR = Math.min(...cells.map(c => c[0]));
     const minC = Math.min(...cells.map(c => c[1]));
     const translated = cells.map(([r, c]) => [r - minR, c - minC]);
@@ -159,7 +159,7 @@ window.Solver = (function() {
       
       // Register all orientations in the shape lookup
       for (const orientation of orientations) {
-        const key = normalizeCells(orientation.cells);
+        const key = shapeKey(orientation.cells);
         shapeToPiece[key] = name;
       }
     }
@@ -325,7 +325,7 @@ window.Solver = (function() {
           
           // For size-5 or size-6 regions, check if exactly one piece can fill it
           if (size === 5 || size === 6) {
-            const key = normalizeCells(component);
+            const key = shapeKey(component);
             const matchingPiece = shapeToPiece[key];
             
             // No piece matches this shape → unfillable
