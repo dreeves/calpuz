@@ -240,6 +240,10 @@ window.Solver = (function() {
     stepMode = enabled;
   }
   
+  function isStepMode() {
+    return stepMode;
+  }
+  
   // Get all valid positions for placing a piece orientation on current grid
   function getValidPositions(grid, cells) {
     const positions = [];
@@ -731,6 +735,7 @@ window.Solver = (function() {
     isPaused,
     isExhausted,
     setStepMode,
+    isStepMode,
     hasFoundSolution,
     getSolutionCount,
     getBacktracks,
