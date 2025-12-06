@@ -330,68 +330,53 @@ document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('touchend', endDrag);
 });
 
-// Update speed button states
-function updateSpeedButtons(activeSpeed = null) {
+// Update speed button states - computes everything from solver state
+function updateSpeedButtons() {
   const exhausted = Solver.isExhausted();
-  const running = Solver.isSolving() && !Solver.isPaused();
+  const runningAtSpeed = Solver.isSolving() && !Solver.isPaused() && !Solver.isStepMode();
   
   document.querySelectorAll('.speed-btn').forEach(btn => {
     btn.classList.toggle('disabled', exhausted);
-    btn.classList.remove('active');
+    // Highlight only when running at this specific speed
+    const btnSpeed = btn.dataset.speed;
+    btn.classList.toggle('active', runningAtSpeed && btnSpeed === String(solverSpeed));
   });
   
   // Step button emoji: ⏸️ only when running at speed
-  const stepBtn = document.querySelector('.speed-btn[onclick="stepOnce()"]');
+  const stepBtn = document.querySelector('.speed-btn[data-speed="step"]');
   if (stepBtn) {
-    stepBtn.textContent = (running && !Solver.isStepMode()) ? '⏸️' : '↩️';
-  }
-  
-  // Only highlight a speed button when actively running at that speed
-  if (running && activeSpeed !== null) {
-    document.querySelectorAll('.speed-btn').forEach(btn => {
-      const match = btn.getAttribute('onclick').match(/runSpeed\((\d+)\)/);
-      if (match && parseInt(match[1]) === activeSpeed) {
-        btn.classList.add('active');
-      }
-    });
+    stepBtn.textContent = runningAtSpeed ? '⏸️' : '↩️';
   }
 }
 
 // Start or resume the search at a given speed
 window.runSpeed = async function(ms) {
-  const delay = parseInt(ms) || 0;
-  solverSpeed = delay;
-  Solver.setSpeed(delay);
+  solverSpeed = parseInt(ms) || 0;
+  Solver.setSpeed(solverSpeed);
   Solver.setStepMode(false);
-  updateSpeedButtons(delay);
   
-  if (Solver.isSolving()) {
-    // Resume if paused
-    if (Solver.isPaused()) {
-      Solver.resume();
-    }
+  if (Solver.isSolving() && Solver.isPaused()) {
+    Solver.resume();
     return;
   }
   
-  // Start fresh solve
-  await startSolve();
+  if (!Solver.isSolving()) {
+    await startSolve();
+  }
 }
 
 // Single step mode - do one placement then pause
 window.stepOnce = async function() {
   Solver.setStepMode(true);
-  updateSpeedButtons();
-  // Highlight step button
-  document.querySelector('.speed-btn[onclick="stepOnce()"]').classList.add('active');
   
-  if (Solver.isSolving()) {
-    if (Solver.isPaused()) {
-      Solver.resume();
-    }
+  if (Solver.isSolving() && Solver.isPaused()) {
+    Solver.resume();
     return;
   }
   
-  await startSolve();
+  if (!Solver.isSolving()) {
+    await startSolve();
+  }
 }
 
 // Start the solver for today's date
@@ -553,7 +538,7 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
   }
   
   // Update button states
-  updateSpeedButtons(solverSpeed);
+  updateSpeedButtons();
   
   // Auto-resume after showing solution briefly (when pauseOnSolution is false)
   const allPlaced = placements.filter(p => p !== null).length === 8;

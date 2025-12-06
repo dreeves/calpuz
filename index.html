@@ -78,18 +78,18 @@
     </div>
   </div>
 
-  <div style="position: fixed; bottom: 10px; right: 80px; color: #999; font-size: 12px; z-index: 10;">v2025.12.05-c</div>
+  <div style="position: fixed; bottom: 10px; right: 80px; color: #999; font-size: 12px; z-index: 10;">v2025.12.05-d</div>
 
   <div id="solver-progress" class="solver-progress">
     <button class="close-btn" onclick="showProgressPanel(false)">&times;</button>
     <h3>Solver Progress</h3>
     <div class="speed-controls">
-      <button class="speed-btn" onclick="stepOnce()" title="Step">↩️</button>
-      <button class="speed-btn" onclick="runSpeed(1000)" title="1000ms">🐌</button>
-      <button class="speed-btn" onclick="runSpeed(500)" title="500ms">🐢</button>
-      <button class="speed-btn" onclick="runSpeed(250)" title="250ms">🐇</button>
-      <button class="speed-btn" onclick="runSpeed(100)" title="100ms">🚀</button>
-      <button class="speed-btn" onclick="runSpeed(0)" title="0ms">⚡️</button>
+      <button class="speed-btn" data-speed="step" onclick="stepOnce()" title="Step">↩️</button>
+      <button class="speed-btn" data-speed="1000" onclick="runSpeed(1000)" title="1000ms">🐌</button>
+      <button class="speed-btn" data-speed="500" onclick="runSpeed(500)" title="500ms">🐢</button>
+      <button class="speed-btn" data-speed="250" onclick="runSpeed(250)" title="250ms">🐇</button>
+      <button class="speed-btn" data-speed="100" onclick="runSpeed(100)" title="100ms">🚀</button>
+      <button class="speed-btn" data-speed="0" onclick="runSpeed(0)" title="0ms">⚡️</button>
     </div>
     <div class="attempts" id="attempts-text">0 sol'ns in 0 tries</div>
     <div class="pieces-table" id="pieces-table"></div>
