@@ -563,17 +563,25 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
         .stroke({ width: 3, color: '#ff0000' });
     }
     
-    // Show unfillable region sizes text - starts right of "31", extends as needed
+    // Show dead cells info - starts right of "31", extends as needed
+    const textX = x0 + 3 * boxel + boxel * 0.2;
+    const fontSize = Math.max(10, Math.min(16, boxel * 0.28));
+    const lineHeight = fontSize * 1.4;
+    
+    // Line 1: Dead cells count
+    const textY1 = y0 + 6 * boxel + boxel / 2 - lineHeight * 0.7;
+    deadGroup.text(`Dead cells: ${deadCells.length}`)
+      .font({ size: fontSize, weight: 'bold', family: 'Arial' })
+      .fill('#ff0000')
+      .move(textX, textY1);
+    
+    // Line 2: Sizes of unfillable regions
     if (deadRegionSizes.length > 0) {
-      const sizesText = `Unfillable region sizes: ${deadRegionSizes.join(', ')}`;
-      // Position: starts at column 3 (right of cell 31), vertically centered in row 6
-      const textX = x0 + 3 * boxel + boxel * 0.2; // Padding after column 2
-      const textY = y0 + 6 * boxel + boxel / 2 - boxel * 0.15; // Vertically centered in row 6
-      const fontSize = Math.max(10, Math.min(16, boxel * 0.28)); // Responsive font size
-      deadGroup.text(sizesText)
+      const textY2 = textY1 + lineHeight;
+      deadGroup.text(`Sizes of unfillable regions: ${deadRegionSizes.join(', ')}`)
         .font({ size: fontSize, weight: 'bold', family: 'Arial' })
         .fill('#ff0000')
-        .move(textX, textY);
+        .move(textX, textY2);
     }
   }
   
