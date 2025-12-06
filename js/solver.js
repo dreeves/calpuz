@@ -368,6 +368,18 @@ window.Solver = (function() {
     return count;
   }
   
+  // Compute effective counts for remaining pieces, accounting for forced placements
+  function getEffectiveCounts(grid, remainingPieces) {
+    const { deadCells, deadRegionSizes, forcedPieces } = analyzeRegions(grid, remainingPieces);
+    
+    const counts = remainingPieces.map(name => ({
+      name,
+      count: forcedPieces.has(name) ? 1 : countValidPlacements(grid, name)
+    }));
+    
+    return { counts, deadCells, deadRegionSizes };
+  }
+  
   // Main solve function
   async function solve(shapes, targetCells, visualizeCallback, animationDelay = 0) {
     if (!pieceData) {
@@ -430,11 +442,8 @@ window.Solver = (function() {
         return false;
       }
       
-      // Sort remaining pieces by valid placement count (most constrained first)
-      const piecesWithCounts = remainingPieces.map(name => ({
-        name,
-        count: countValidPlacements(grid, name)
-      }));
+      // Sort remaining pieces by effective count (forced pieces get count=1)
+      const { counts: piecesWithCounts } = getEffectiveCounts(grid, remainingPieces);
       piecesWithCounts.sort((a, b) => a.count - b.count);
       const orderedRemaining = piecesWithCounts.map(p => p.name);
       
@@ -478,18 +487,12 @@ window.Solver = (function() {
           attempts++;
           currentDepth = depth + 1;
           
-          // Check for dead cells (isolated regions too small to fill)
-          const { deadCells, deadRegionSizes } = findDeadCells(grid);
-          
-          // Build progress: placed pieces + current + remaining (recompute order on current grid)
+          // Analyze regions: get dead cells AND recompute ordering with forced pieces
           const newPlaced = [...placedPieces, pieceName];
           const rawRemaining = orderedRemaining.slice(1);
-          
-          // Recompute most-constrained ordering for remaining pieces on current grid state
-          const newRemaining = rawRemaining
-            .map(name => ({ name, count: countValidPlacements(grid, name) }))
-            .sort((a, b) => a.count - b.count)
-            .map(x => x.name);
+          const { counts: remainingCounts, deadCells, deadRegionSizes } = getEffectiveCounts(grid, rawRemaining);
+          remainingCounts.sort((a, b) => a.count - b.count);
+          const newRemaining = remainingCounts.map(x => x.name);
           
           const allPiecesProgress = [
             ...placedPieces.map(name => {
