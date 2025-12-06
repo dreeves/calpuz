@@ -530,7 +530,7 @@ window.Solver = (function() {
           })
         ];
         placements = placedPieces.map(name => placementsByName[name]);
-        visualizeCallback(placements, attempts, allPiecesProgress, [], [], pieceName, true, orderedRemaining);
+        visualizeCallback(placements, attempts, allPiecesProgress, [], [], [], pieceName, true, orderedRemaining);
         
         // Step mode or normal delay
         if (stepMode) {
