@@ -410,9 +410,15 @@ window.Solver = (function() {
         return false;
       }
       
-      // Sort remaining pieces by effective count (forced pieces get count=1)
+      // Sort remaining pieces by count (most constrained first)
       const { counts: piecesWithCounts } = getEffectiveCounts(grid, remainingPieces);
       piecesWithCounts.sort((a, b) => a.count - b.count);
+      
+      // Forward-check: if any piece has count=0, prune immediately
+      if (piecesWithCounts[0].count === 0) {
+        return false;
+      }
+      
       const orderedRemaining = piecesWithCounts.map(p => p.name);
       
       // Pick the most constrained piece (first in sorted order)
