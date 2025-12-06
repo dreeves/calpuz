@@ -290,6 +290,7 @@ window.Solver = (function() {
     const deadCells = [];
     const unfillableSizes = [];
     const unfillableRegionSizes = [];
+    const forcedPieces = new Set();
     const remainingSet = new Set(remainingPieces);
     
     function floodFill(startR, startC) {
@@ -324,13 +325,15 @@ window.Solver = (function() {
             if (!matchingPiece || !remainingSet.has(matchingPiece)) {
               deadCells.push(...component);
               unfillableRegionSizes.push(size);
+            } else {
+              forcedPieces.add(matchingPiece);
             }
           }
         }
       }
     }
     
-    return { deadCells, unfillableSizes, unfillableRegionSizes };
+    return { deadCells, unfillableSizes, unfillableRegionSizes, forcedPieces };
   }
   
   function countValidPlacements(grid, pieceName) {
@@ -343,8 +346,11 @@ window.Solver = (function() {
   }
   
   function getEffectiveCounts(grid, remainingPieces) {
-    const { deadCells, unfillableSizes, unfillableRegionSizes } = analyzeRegions(grid, remainingPieces);
-    const counts = remainingPieces.map(name => ({ name, count: countValidPlacements(grid, name) }));
+    const { deadCells, unfillableSizes, unfillableRegionSizes, forcedPieces } = analyzeRegions(grid, remainingPieces);
+    const counts = remainingPieces.map(name => ({
+      name,
+      count: forcedPieces.has(name) ? 1 : countValidPlacements(grid, name)
+    }));
     return { counts, deadCells, unfillableSizes, unfillableRegionSizes };
   }
   
