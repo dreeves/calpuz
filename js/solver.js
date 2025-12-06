@@ -449,7 +449,7 @@ window.Solver = (function() {
       }
       
       // Sort remaining pieces by count (most constrained first)
-      const { counts: piecesWithCounts } = getEffectiveCounts(grid, remainingPieces);
+      const { counts: piecesWithCounts, forcedRegions } = getEffectiveCounts(grid, remainingPieces);
       piecesWithCounts.sort((a, b) => a.count - b.count);
       const orderedRemaining = piecesWithCounts.map(p => p.name);
       
@@ -458,6 +458,72 @@ window.Solver = (function() {
       const piece = pieceData[pieceName];
       const totalOrientations = piece.orientations.length;
       const depth = placedPieces.length;
+      
+      // Check if this piece has a forced placement
+      const forcedRegion = forcedRegions[pieceName];
+      if (forcedRegion) {
+        const forced = getForcedPlacement(pieceName, forcedRegion);
+        if (!forced) return false;
+        
+        const { orientationIndex, row, col, cells, rotation, flipped } = forced;
+        
+        setPiece(grid, cells, row, col, 3 + depth);
+        placementsByName[pieceName] = {
+          name: pieceName, row, col, cells, rotation, flipped,
+          orientationIndex, totalOrientations,
+          positionIndex: 0, totalPositions: 1
+        };
+        attempts++;
+        currentDepth = depth + 1;
+        
+        const newPlaced = [...placedPieces, pieceName];
+        const rawRemaining = orderedRemaining.slice(1);
+        const { counts: remainingCounts, deadCells, unfillableSizes, unfillableRegionSizes } = getEffectiveCounts(grid, rawRemaining);
+        remainingCounts.sort((a, b) => a.count - b.count);
+        const newRemaining = remainingCounts.map(x => x.name);
+        
+        const allPiecesProgress = [
+          ...placedPieces.map(name => {
+            const p = placementsByName[name];
+            return { name, status: 'placed',
+                orientation: p.orientationIndex + 1, totalOrientations: p.totalOrientations,
+                positionIndex: p.positionIndex + 1, totalPositions: p.totalPositions };
+          }),
+          { name: pieceName, status: 'current',
+              orientation: orientationIndex + 1, totalOrientations,
+              positionIndex: 1, totalPositions: 1 },
+          ...newRemaining.map(name => {
+            const pd = pieceData[name];
+            return { name, status: 'pending',
+                orientation: 0, totalOrientations: pd.orientations.length,
+                positionIndex: 0, totalPositions: 0 };
+          })
+        ];
+        
+        const nextPieceName = newRemaining.length > 0 ? newRemaining[0] : null;
+        placements = newPlaced.map(name => placementsByName[name]);
+        visualizeCallback(placements, attempts, allPiecesProgress, deadCells, unfillableSizes, unfillableRegionSizes, nextPieceName, false, newRemaining);
+        
+        if (stepMode) {
+          paused = true;
+          while (paused && solving) {
+            await new Promise(r => setTimeout(r, 50));
+          }
+        } else {
+          await delay(currentDelay);
+        }
+        
+        let result = false;
+        if (deadCells.length === 0) {
+          result = await backtrack(newRemaining, newPlaced);
+        }
+        
+        setPiece(grid, cells, row, col, 1);
+        delete placementsByName[pieceName];
+        backtracks++;
+        currentDepth = depth;
+        return result;
+      }
       
       // Track if any placement was ever possible
       let hadValidPlacement = false;
