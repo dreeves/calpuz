@@ -288,7 +288,8 @@ window.Solver = (function() {
   function analyzeRegions(grid, remainingPieces) {
     const visited = Array(7).fill(null).map(() => Array(7).fill(false));
     const deadCells = [];
-    const deadRegionSizes = [];
+    const unfillableSizes = [];      // Sizes that are inherently unfillable (1-4, 7-9, etc.)
+    const unfillableRegionSizes = []; // Sizes 5 or 6 where shape doesn't match any piece
     const forcedPieces = new Set();
     const remainingSet = new Set(remainingPieces);
     
@@ -316,10 +317,10 @@ window.Solver = (function() {
           const component = floodFill(r, c);
           const size = component.length;
           
-          // Check for unfillable size
+          // Check for inherently unfillable size (not 5k or 5k+1)
           if (!isFillableSize(size)) {
             deadCells.push(...component);
-            deadRegionSizes.push(size);
+            unfillableSizes.push(size);
             continue;
           }
           
@@ -328,17 +329,17 @@ window.Solver = (function() {
             const key = shapeKey(component);
             const matchingPiece = shapeToPiece[key];
             
-            // No piece matches this shape → unfillable
+            // No piece matches this shape → unfillable due to shape
             if (!matchingPiece) {
               deadCells.push(...component);
-              deadRegionSizes.push(size);
+              unfillableRegionSizes.push(size);
               continue;
             }
             
-            // Piece matches but already placed → unfillable
+            // Piece matches but already placed → unfillable due to shape
             if (!remainingSet.has(matchingPiece)) {
               deadCells.push(...component);
-              deadRegionSizes.push(size);
+              unfillableRegionSizes.push(size);
               continue;
             }
             
@@ -349,13 +350,17 @@ window.Solver = (function() {
       }
     }
     
-    return { deadCells, deadRegionSizes, forcedPieces };
+    return { deadCells, unfillableSizes, unfillableRegionSizes, forcedPieces };
   }
   
   // Backward compatibility wrapper
   function findDeadCells(grid) {
     const result = analyzeRegions(grid, []);
-    return { deadCells: result.deadCells, deadRegionSizes: result.deadRegionSizes };
+    return { 
+      deadCells: result.deadCells, 
+      unfillableSizes: result.unfillableSizes,
+      unfillableRegionSizes: result.unfillableRegionSizes
+    };
   }
   
   // Count total valid placements for a piece on current grid
@@ -370,14 +375,14 @@ window.Solver = (function() {
   
   // Compute effective counts for remaining pieces, accounting for forced placements
   function getEffectiveCounts(grid, remainingPieces) {
-    const { deadCells, deadRegionSizes, forcedPieces } = analyzeRegions(grid, remainingPieces);
+    const { deadCells, unfillableSizes, unfillableRegionSizes, forcedPieces } = analyzeRegions(grid, remainingPieces);
     
     const counts = remainingPieces.map(name => ({
       name,
       count: forcedPieces.has(name) ? 1 : countValidPlacements(grid, name)
     }));
     
-    return { counts, deadCells, deadRegionSizes };
+    return { counts, deadCells, unfillableSizes, unfillableRegionSizes };
   }
   
   // Main solve function
@@ -490,7 +495,7 @@ window.Solver = (function() {
           // Analyze regions: get dead cells AND recompute ordering with forced pieces
           const newPlaced = [...placedPieces, pieceName];
           const rawRemaining = orderedRemaining.slice(1);
-          const { counts: remainingCounts, deadCells, deadRegionSizes } = getEffectiveCounts(grid, rawRemaining);
+          const { counts: remainingCounts, deadCells, unfillableSizes, unfillableRegionSizes } = getEffectiveCounts(grid, rawRemaining);
           remainingCounts.sort((a, b) => a.count - b.count);
           const newRemaining = remainingCounts.map(x => x.name);
           
@@ -517,7 +522,7 @@ window.Solver = (function() {
           
           // Convert to array for visualization
           placements = newPlaced.map(name => placementsByName[name]);
-          visualizeCallback(placements, attempts, allPiecesProgress, deadCells, deadRegionSizes, nextPieceName, false, newRemaining);
+          visualizeCallback(placements, attempts, allPiecesProgress, deadCells, unfillableSizes, unfillableRegionSizes, nextPieceName, false, newRemaining);
           
           // Step mode: pause after each placement
           if (stepMode) {

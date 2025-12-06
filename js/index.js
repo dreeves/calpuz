@@ -521,7 +521,7 @@ function drawPendingPieces(progress, failedPieceName = null, orderedRemaining = 
 }
 
 // Visualize all placements (callback for solver)
-function visualizeAllPlacements(placements, attempts, progress, deadCells = [], deadRegionSizes = [], nextPiece = null, pieceFailed = false, orderedRemaining = []) {
+function visualizeAllPlacements(placements, attempts, progress, deadCells = [], unfillableSizes = [], unfillableRegionSizes = [], nextPiece = null, pieceFailed = false, orderedRemaining = []) {
   // Clear all pieces
   for (const [name, , ] of shapes) {
     const group = SVG.get(name);
@@ -550,7 +550,7 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
     }, Math.max(50, solverSpeed));
   }
   
-  // Draw red X's on dead cells and show unfillable sizes text
+  // Draw red X's on dead cells and show unfillable info
   if (deadCells.length > 0) {
     const deadGroup = svg.group().id('dead-cells');
     for (const [r, c] of deadCells) {
@@ -563,25 +563,29 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
         .stroke({ width: 3, color: '#ff0000' });
     }
     
-    // Show dead cells info - starts right of "31", extends as needed
+    // Show unfillable info - starts right of "31", extends as needed
     const textX = x0 + 3 * boxel + boxel * 0.2;
     const fontSize = Math.max(10, Math.min(16, boxel * 0.28));
     const lineHeight = fontSize * 1.4;
+    let lineNum = 0;
+    const textY = () => y0 + 6 * boxel + boxel / 2 - lineHeight * 0.7 + lineNum * lineHeight;
     
-    // Line 1: Dead cells count
-    const textY1 = y0 + 6 * boxel + boxel / 2 - lineHeight * 0.7;
-    deadGroup.text(`Dead cells: ${deadCells.length}`)
-      .font({ size: fontSize, weight: 'bold', family: 'Arial' })
-      .fill('#ff0000')
-      .move(textX, textY1);
-    
-    // Line 2: Sizes of unfillable regions
-    if (deadRegionSizes.length > 0) {
-      const textY2 = textY1 + lineHeight;
-      deadGroup.text(`Sizes of unfillable regions: ${deadRegionSizes.join(', ')}`)
+    // Line 1: Unfillable region sizes (inherently unfillable: 1-4, 7-9, etc.)
+    if (unfillableSizes.length > 0) {
+      deadGroup.text(`Unfillable region sizes: ${unfillableSizes.join(', ')}`)
         .font({ size: fontSize, weight: 'bold', family: 'Arial' })
         .fill('#ff0000')
-        .move(textX, textY2);
+        .move(textX, textY());
+      lineNum++;
+    }
+    
+    // Line 2: Sizes of unfillable regions (shape doesn't match any piece)
+    if (unfillableRegionSizes.length > 0) {
+      deadGroup.text(`Sizes of unfillable regions: ${unfillableRegionSizes.join(', ')}`)
+        .font({ size: fontSize, weight: 'bold', family: 'Arial' })
+        .fill('#ff0000')
+        .move(textX, textY());
+      lineNum++;
     }
   }
   
