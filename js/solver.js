@@ -124,11 +124,22 @@ window.Solver = (function() {
     "l-shape": [[0,0], [1,0], [2,0], [3,0], [3,1]],
   };
   
+  // Normalize cells to canonical form: translate to origin, sort, stringify
+  function normalizeCells(cells) {
+    const minR = Math.min(...cells.map(c => c[0]));
+    const minC = Math.min(...cells.map(c => c[1]));
+    const translated = cells.map(([r, c]) => [r - minR, c - minC]);
+    translated.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    return translated.map(([r, c]) => `${r},${c}`).join('|');
+  }
+  
   // Precompute piece data from shapes array
   let pieceData = null;
+  let shapeToPiece = {}; // Maps normalized shape key → piece name
   
   function initPieceData(shapes) {
     pieceData = {};
+    shapeToPiece = {};
     
     const chiralPieces = new Set(["stair", "z-shape", "chair", "stilt", "l-shape"]);
     
@@ -146,7 +157,11 @@ window.Solver = (function() {
         numCells: baseCells.length
       };
       
-      //console.log(`${name}: ${baseCells.length} cells, ${orientations.length} orientations`);
+      // Register all orientations in the shape lookup
+      for (const orientation of orientations) {
+        const key = normalizeCells(orientation.cells);
+        shapeToPiece[key] = name;
+      }
     }
   }
   
@@ -270,10 +285,12 @@ window.Solver = (function() {
     return remainder === 0 || remainder === 1;
   }
   
-  function findDeadCells(grid) {
+  function analyzeRegions(grid, remainingPieces) {
     const visited = Array(7).fill(null).map(() => Array(7).fill(false));
     const deadCells = [];
     const deadRegionSizes = [];
+    const forcedPieces = new Set();
+    const remainingSet = new Set(remainingPieces);
     
     function floodFill(startR, startC) {
       const component = [];
@@ -283,7 +300,7 @@ window.Solver = (function() {
         const [r, c] = stack.pop();
         if (r < 0 || r >= 7 || c < 0 || c >= 7) continue;
         if (visited[r][c]) continue;
-        if (grid[r][c] !== 1) continue; // Only empty cells (value 1)
+        if (grid[r][c] !== 1) continue;
         
         visited[r][c] = true;
         component.push([r, c]);
@@ -297,15 +314,48 @@ window.Solver = (function() {
       for (let c = 0; c < 7; c++) {
         if (grid[r][c] === 1 && !visited[r][c]) {
           const component = floodFill(r, c);
-          if (!isFillableSize(component.length)) {
+          const size = component.length;
+          
+          // Check for unfillable size
+          if (!isFillableSize(size)) {
             deadCells.push(...component);
-            deadRegionSizes.push(component.length);
+            deadRegionSizes.push(size);
+            continue;
+          }
+          
+          // For size-5 or size-6 regions, check if exactly one piece can fill it
+          if (size === 5 || size === 6) {
+            const key = normalizeCells(component);
+            const matchingPiece = shapeToPiece[key];
+            
+            // No piece matches this shape → unfillable
+            if (!matchingPiece) {
+              deadCells.push(...component);
+              deadRegionSizes.push(size);
+              continue;
+            }
+            
+            // Piece matches but already placed → unfillable
+            if (!remainingSet.has(matchingPiece)) {
+              deadCells.push(...component);
+              deadRegionSizes.push(size);
+              continue;
+            }
+            
+            // Piece matches and is available → forced
+            forcedPieces.add(matchingPiece);
           }
         }
       }
     }
     
-    return { deadCells, deadRegionSizes };
+    return { deadCells, deadRegionSizes, forcedPieces };
+  }
+  
+  // Backward compatibility wrapper
+  function findDeadCells(grid) {
+    const result = analyzeRegions(grid, []);
+    return { deadCells: result.deadCells, deadRegionSizes: result.deadRegionSizes };
   }
   
   // Count total valid placements for a piece on current grid
