@@ -333,23 +333,21 @@ document.addEventListener('DOMContentLoaded', () => {
 // Update speed button states
 function updateSpeedButtons(activeSpeed = null) {
   const exhausted = Solver.isExhausted();
+  const running = Solver.isSolving() && !Solver.isPaused();
   
   document.querySelectorAll('.speed-btn').forEach(btn => {
     btn.classList.toggle('disabled', exhausted);
     btn.classList.remove('active');
   });
   
-  // Step button: ⏸️ only when running at speed (not step mode, not paused)
+  // Step button emoji: ⏸️ only when running at speed
   const stepBtn = document.querySelector('.speed-btn[onclick="stepOnce()"]');
-  const showPause = Solver.isSolving() && !Solver.isPaused() && !Solver.isStepMode();
   if (stepBtn) {
-    stepBtn.textContent = showPause ? '⏸️' : '↩️';
+    stepBtn.textContent = (running && !Solver.isStepMode()) ? '⏸️' : '↩️';
   }
   
-  // Highlight active control
-  if (Solver.isPaused() || Solver.isStepMode()) {
-    stepBtn?.classList.add('active');
-  } else if (activeSpeed !== null) {
+  // Only highlight a speed button when actively running at that speed
+  if (running && activeSpeed !== null) {
     document.querySelectorAll('.speed-btn').forEach(btn => {
       const match = btn.getAttribute('onclick').match(/runSpeed\((\d+)\)/);
       if (match && parseInt(match[1]) === activeSpeed) {
@@ -554,8 +552,8 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
     if (p) visualizePlacement(p);
   }
   
-  // Update button states to show pause button active when paused
-  updateSpeedButtons();
+  // Update button states
+  updateSpeedButtons(solverSpeed);
   
   // Auto-resume after showing solution briefly (when pauseOnSolution is false)
   const allPlaced = placements.filter(p => p !== null).length === 8;
