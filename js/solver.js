@@ -285,27 +285,23 @@ window.Solver = (function() {
     return remainder === 0 || remainder === 1;
   }
   
-  function analyzeRegions(grid, remainingPieces) {
+  function analyzeRegions(grid, remainingPieces = []) {
     const visited = Array(7).fill(null).map(() => Array(7).fill(false));
     const deadCells = [];
-    const unfillableSizes = [];      // Sizes that are inherently unfillable (1-4, 7-9, etc.)
-    const unfillableRegionSizes = []; // Sizes 5 or 6 where shape doesn't match any piece
-    const forcedPieces = new Set();
+    const unfillableSizes = [];
+    const unfillableRegionSizes = [];
     const remainingSet = new Set(remainingPieces);
     
     function floodFill(startR, startC) {
       const component = [];
       const stack = [[startR, startC]];
-      
       while (stack.length > 0) {
         const [r, c] = stack.pop();
         if (r < 0 || r >= 7 || c < 0 || c >= 7) continue;
         if (visited[r][c]) continue;
         if (grid[r][c] !== 1) continue;
-        
         visited[r][c] = true;
         component.push([r, c]);
-        
         stack.push([r-1, c], [r+1, c], [r, c-1], [r, c+1]);
       }
       return component;
@@ -317,53 +313,26 @@ window.Solver = (function() {
           const component = floodFill(r, c);
           const size = component.length;
           
-          // Check for inherently unfillable size (not 5k or 5k+1)
           if (!isFillableSize(size)) {
             deadCells.push(...component);
             unfillableSizes.push(size);
             continue;
           }
           
-          // For size-5 or size-6 regions, check if exactly one piece can fill it
           if (size === 5 || size === 6) {
-            const key = shapeKey(component);
-            const matchingPiece = shapeToPiece[key];
-            
-            // No piece matches this shape → unfillable due to shape
-            if (!matchingPiece) {
+            const matchingPiece = shapeToPiece[shapeKey(component)];
+            if (!matchingPiece || !remainingSet.has(matchingPiece)) {
               deadCells.push(...component);
               unfillableRegionSizes.push(size);
-              continue;
             }
-            
-            // Piece matches but already placed → unfillable due to shape
-            if (!remainingSet.has(matchingPiece)) {
-              deadCells.push(...component);
-              unfillableRegionSizes.push(size);
-              continue;
-            }
-            
-            // Piece matches and is available → forced
-            forcedPieces.add(matchingPiece);
           }
         }
       }
     }
     
-    return { deadCells, unfillableSizes, unfillableRegionSizes, forcedPieces };
+    return { deadCells, unfillableSizes, unfillableRegionSizes };
   }
   
-  // Wrapper for backward compatibility
-  function findDeadCells(grid) {
-    const result = analyzeRegions(grid, []);
-    return { 
-      deadCells: result.deadCells, 
-      unfillableSizes: result.unfillableSizes,
-      unfillableRegionSizes: result.unfillableRegionSizes
-    };
-  }
-  
-  // Count total valid placements for a piece on current grid
   function countValidPlacements(grid, pieceName) {
     const piece = pieceData[pieceName];
     let count = 0;
@@ -373,17 +342,9 @@ window.Solver = (function() {
     return count;
   }
   
-  // Compute effective counts for remaining pieces
-  // Uses full shape-based dead cell detection for better pruning
-  // (forcedPieces is ignored - prioritization caused more attempts, not fewer)
   function getEffectiveCounts(grid, remainingPieces) {
     const { deadCells, unfillableSizes, unfillableRegionSizes } = analyzeRegions(grid, remainingPieces);
-    
-    const counts = remainingPieces.map(name => ({
-      name,
-      count: countValidPlacements(grid, name)
-    }));
-    
+    const counts = remainingPieces.map(name => ({ name, count: countValidPlacements(grid, name) }));
     return { counts, deadCells, unfillableSizes, unfillableRegionSizes };
   }
   
@@ -649,7 +610,7 @@ window.Solver = (function() {
           setPiece(grid, orientation.cells, row, col, 3 + pieceIndex);
           attempts++;
           
-          const { deadCells } = findDeadCells(grid);
+          const { deadCells } = analyzeRegions(grid);
           if (deadCells.length === 0 && backtrack(pieceIndex + 1)) {
             return true;
           }
@@ -723,7 +684,7 @@ window.Solver = (function() {
           attempts++;
           
           // Prune if dead cells exist
-          const { deadCells } = findDeadCells(grid);
+          const { deadCells } = analyzeRegions(grid);
           if (deadCells.length === 0) {
             backtrack(pieceIndex + 1);
           }

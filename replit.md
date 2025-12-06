@@ -49,9 +49,10 @@ Preferred communication style: Simple, everyday language.
    - Brute-force backtracking algorithm with visualization
    - Grid template (7x7 boolean matrix) defines valid placement cells
    - Piece cells defined manually in `manualPieceCells` for precise control
-   - Dead cell detection: identifies unfillable regions for early pruning
    - **Dynamic "most constrained first" ordering**: At each step, counts valid placements for remaining pieces and tries the most constrained piece first
-   - **Forced piece detection**: For size-5/6 regions, uses shape lookup (`shapeToPiece`) to identify if only one piece can fill it; forced pieces get count=1 for priority sorting
+   - **Shape-based pruning**: `analyzeRegions()` detects dead cells via:
+     - Size check: regions with unfillable sizes (not 5k or 5k+1)
+     - Shape check: size-5/6 regions that don't match any available piece shape (`shapeToPiece` lookup)
 
 6. **Solver Control Flow**
    - Solve button (key icon) only opens the control panel
