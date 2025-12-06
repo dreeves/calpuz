@@ -571,7 +571,7 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
     const textY1 = y0 + 6 * boxel + boxel / 2 - lineHeight * 0.7;
     const textY2 = textY1 + lineHeight;
     
-    deadGroup.text(`Unfillable region sizes: ${unfillableSizes.join(', ')}`)
+    deadGroup.text(`Unfillable region sizes: {${unfillableSizes.join(', ')}}`)
       .font({ size: fontSize, weight: 'bold', family: 'Arial' })
       .fill('#ff0000')
       .move(textX, textY1);
