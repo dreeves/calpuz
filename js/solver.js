@@ -497,9 +497,8 @@ window.Solver = (function() {
             await delay(currentDelay);
           }
           
-          // Prune if dead cells exist OR any remaining piece has count=0
-          const hasUnplaceablePiece = remainingCounts.length > 0 && remainingCounts[0].count === 0;
-          if (deadCells.length === 0 && !hasUnplaceablePiece) {
+          // Prune if dead cells exist
+          if (deadCells.length === 0) {
             // Recurse with updated lists
             if (await backtrack(newRemaining, newPlaced)) {
               return true;
