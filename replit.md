@@ -54,8 +54,8 @@ Preferred communication style: Simple, everyday language.
 
 6. **Solver Control Flow**
    - Solve button (key icon) only opens the control panel
-   - Speed emoji buttons control search: ⏸️ (step), 🐌 (1000ms), 🐢 (500ms), 🐇 (250ms), 🚀 (100ms), ⚡️ (0ms)
-   - Step mode (⏸️): executes one placement then pauses
+   - Speed emoji buttons control search: ↩️ (step), 🐌 (1000ms), 🐢 (500ms), 🐇 (250ms), 🚀 (100ms), ⚡️ (0ms)
+   - Step button displays ↩️ when idle/paused, changes to ⏸️ when solver is actively running
    - Speed buttons start a fresh search or resume if paused
    - When search exhausts all possibilities, buttons gray out but remain clickable to start new search
    - Docket and progress panel update dynamically to show solver's current piece ordering

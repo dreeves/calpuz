@@ -333,6 +333,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // Update speed button states
 function updateSpeedButtons(activeSpeed = null) {
   const exhausted = Solver.isExhausted();
+  const solving = Solver.isSolving();
   const paused = Solver.isPaused();
   
   document.querySelectorAll('.speed-btn').forEach(btn => {
@@ -340,9 +341,15 @@ function updateSpeedButtons(activeSpeed = null) {
     btn.classList.remove('active');
   });
   
+  // Update step button emoji: ⏸️ when actively running, ↩️ otherwise
+  const stepBtn = document.querySelector('.speed-btn[onclick="stepOnce()"]');
+  if (stepBtn) {
+    stepBtn.textContent = (solving && !paused) ? '⏸️' : '↩️';
+  }
+  
   // When paused, highlight the step button
   if (paused) {
-    document.querySelector('.speed-btn[onclick="stepOnce()"]')?.classList.add('active');
+    stepBtn?.classList.add('active');
   }
   // Otherwise highlight the active speed button
   else if (activeSpeed !== null) {
