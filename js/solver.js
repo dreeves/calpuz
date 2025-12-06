@@ -413,12 +413,6 @@ window.Solver = (function() {
       // Sort remaining pieces by count (most constrained first)
       const { counts: piecesWithCounts } = getEffectiveCounts(grid, remainingPieces);
       piecesWithCounts.sort((a, b) => a.count - b.count);
-      
-      // Forward-check: if any piece has count=0, prune immediately
-      if (piecesWithCounts[0].count === 0) {
-        return false;
-      }
-      
       const orderedRemaining = piecesWithCounts.map(p => p.name);
       
       // Pick the most constrained piece (first in sorted order)
@@ -503,8 +497,9 @@ window.Solver = (function() {
             await delay(currentDelay);
           }
           
-          // Prune if dead cells exist
-          if (deadCells.length === 0) {
+          // Prune if dead cells exist OR any remaining piece has count=0
+          const hasUnplaceablePiece = remainingCounts.length > 0 && remainingCounts[0].count === 0;
+          if (deadCells.length === 0 && !hasUnplaceablePiece) {
             // Recurse with updated lists
             if (await backtrack(newRemaining, newPlaced)) {
               return true;
