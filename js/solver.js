@@ -373,13 +373,16 @@ window.Solver = (function() {
     return count;
   }
   
-  // Compute effective counts for remaining pieces, accounting for forced placements
+  // Compute effective counts for remaining pieces
+  // Note: forcedPieces detection is used for pruning (unfillable regions),
+  // but we don't artificially set count=1 because without constraining to the
+  // specific forced placement, it causes more attempts, not fewer.
   function getEffectiveCounts(grid, remainingPieces) {
-    const { deadCells, unfillableSizes, unfillableRegionSizes, forcedPieces } = analyzeRegions(grid, remainingPieces);
+    const { deadCells, unfillableSizes, unfillableRegionSizes } = analyzeRegions(grid, remainingPieces);
     
     const counts = remainingPieces.map(name => ({
       name,
-      count: forcedPieces.has(name) ? 1 : countValidPlacements(grid, name)
+      count: countValidPlacements(grid, name)
     }));
     
     return { counts, deadCells, unfillableSizes, unfillableRegionSizes };
