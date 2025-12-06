@@ -353,42 +353,7 @@ window.Solver = (function() {
     return { deadCells, unfillableSizes, unfillableRegionSizes, forcedPieces };
   }
   
-  // Simple dead cell detection - only checks for unfillable sizes (no shape lookup)
-  function findDeadCellsSimple(grid) {
-    const visited = Array(7).fill(null).map(() => Array(7).fill(false));
-    const deadCells = [];
-    const unfillableSizes = [];
-    
-    function floodFill(startR, startC) {
-      const component = [];
-      const stack = [[startR, startC]];
-      while (stack.length > 0) {
-        const [r, c] = stack.pop();
-        if (r < 0 || r >= 7 || c < 0 || c >= 7) continue;
-        if (visited[r][c]) continue;
-        if (grid[r][c] !== 1) continue;
-        visited[r][c] = true;
-        component.push([r, c]);
-        stack.push([r-1, c], [r+1, c], [r, c-1], [r, c+1]);
-      }
-      return component;
-    }
-    
-    for (let r = 0; r < 7; r++) {
-      for (let c = 0; c < 7; c++) {
-        if (grid[r][c] === 1 && !visited[r][c]) {
-          const component = floodFill(r, c);
-          if (!isFillableSize(component.length)) {
-            deadCells.push(...component);
-            unfillableSizes.push(component.length);
-          }
-        }
-      }
-    }
-    return { deadCells, unfillableSizes, unfillableRegionSizes: [] };
-  }
-  
-  // Full analysis with shape lookup (for visualization/debugging, not hot path)
+  // Wrapper for backward compatibility
   function findDeadCells(grid) {
     const result = analyzeRegions(grid, []);
     return { 
@@ -409,9 +374,10 @@ window.Solver = (function() {
   }
   
   // Compute effective counts for remaining pieces
-  // Uses simple size-based dead cell detection (no shape lookup overhead)
+  // Uses full shape-based dead cell detection for better pruning
+  // (forcedPieces is ignored - prioritization caused more attempts, not fewer)
   function getEffectiveCounts(grid, remainingPieces) {
-    const { deadCells, unfillableSizes, unfillableRegionSizes } = findDeadCellsSimple(grid);
+    const { deadCells, unfillableSizes, unfillableRegionSizes } = analyzeRegions(grid, remainingPieces);
     
     const counts = remainingPieces.map(name => ({
       name,
