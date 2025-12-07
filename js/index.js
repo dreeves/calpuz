@@ -263,7 +263,9 @@ function initProgressPanel() {
   }
 }
 
-// Update progress panel with all pieces' state - rebuild rows in dynamic order
+// Update progress panel with all pieces' state - mutate existing rows for performance
+let lastRowOrder = [];  // Track row order to detect reordering
+
 function updateProgressPanel(attempts, allPiecesProgress) {
   const sols = Solver.getSolutionCount();
   document.getElementById('attempts-text').textContent = 
@@ -275,29 +277,47 @@ function updateProgressPanel(attempts, allPiecesProgress) {
   initProgressPanel();
   
   const container = document.getElementById('pieces-table');
-  const header = container.querySelector('.header-row');
+  const currentOrder = allPiecesProgress.map(p => p.name);
+  const orderChanged = currentOrder.join(',') !== lastRowOrder.join(',');
   
-  // Clear all rows except header
-  container.innerHTML = '';
-  if (header) container.appendChild(header);
+  // Only rebuild DOM if order changed
+  if (orderChanged) {
+    lastRowOrder = currentOrder;
+    const header = container.querySelector('.header-row');
+    container.innerHTML = '';
+    if (header) container.appendChild(header);
+    
+    for (const piece of allPiecesProgress) {
+      const color = shapes.find(s => s[0] === piece.name)?.[1] || '#999';
+      const row = document.createElement('div');
+      row.className = `piece-row ${piece.status}`;
+      row.id = `row-${piece.name}`;
+      row.innerHTML = `
+        <div class="progress-bar orient-bar"></div>
+        <div class="progress-bar pos-bar"></div>
+        <div class="piece-color" style="background-color: ${color}"></div>
+        <div class="piece-name">${piece.name}</div>
+        <div class="piece-orient"></div>
+        <div class="piece-pos"></div>
+      `;
+      container.appendChild(row);
+    }
+  }
   
-  // Rebuild rows in the order provided by allPiecesProgress
+  // Update values in existing rows (fast mutation, no DOM rebuild)
   for (const piece of allPiecesProgress) {
-    const color = shapes.find(s => s[0] === piece.name)?.[1] || '#999';
+    const row = document.getElementById(`row-${piece.name}`);
+    if (!row) continue;
+    
+    row.className = `piece-row ${piece.status}`;
+    
     const orientPct = piece.totalOrientations > 0 ? (piece.orientation / piece.totalOrientations * 100) : 0;
     const posPct = piece.totalPositions > 0 ? (piece.positionIndex / piece.totalPositions * 100) : 0;
-    const row = document.createElement('div');
-    row.className = `piece-row ${piece.status}`;
-    row.id = `row-${piece.name}`;
-    row.innerHTML = `
-      <div class="progress-bar orient-bar" style="width: ${orientPct}%"></div>
-      <div class="progress-bar pos-bar" style="width: ${posPct}%"></div>
-      <div class="piece-color" style="background-color: ${color}"></div>
-      <div class="piece-name">${piece.name}</div>
-      <div class="piece-orient">${piece.orientation}/${piece.totalOrientations}</div>
-      <div class="piece-pos">${piece.positionIndex}/${piece.totalPositions}</div>
-    `;
-    container.appendChild(row);
+    
+    row.querySelector('.orient-bar').style.width = orientPct + '%';
+    row.querySelector('.pos-bar').style.width = posPct + '%';
+    row.querySelector('.piece-orient').textContent = `${piece.orientation}/${piece.totalOrientations}`;
+    row.querySelector('.piece-pos').textContent = `${piece.positionIndex}/${piece.totalPositions}`;
   }
 }
 
@@ -396,6 +416,7 @@ window.stepOnce = async function() {
 // Start the solver for today's date
 async function startSolve() {
   resetDocket(); // Clear any manually taken pieces
+  lastRowOrder = []; // Reset progress panel row order cache
   
   const today = new Date();
   const month = today.getMonth();
