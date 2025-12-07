@@ -39,58 +39,70 @@
 </head>
 <body>
 
-  <div class="title">
-    <h1>Calendar Puzzle</h1>
-  </div>
+<div class="title">
+<h1>Calendar Puzzle</h1>
+</div>
 
-  <div class="gridpaper">
+<div class="gridpaper"></div>
+<div class="graph"></div>
 
-  </div>
-  <div class="graph"></div>
-  <div class="sidebar">
-    <div class="sidebar-item" title="Halp?" onclick="showTutorial()">
-      <span class="octicon octicon-question"></span>
-    </div>
-    <div class="sidebar-item" title="Source code on GitHub">
-      <a href="https://github.com/dreeves/calpuz" target="blank">
-        <span class="octicon octicon-octoface"></span>
-      </a>
-    </div>
-    <div class="sidebar-item" title="Physical versions of things like this on Etsy">
-      <a href="https://www.etsy.com/listing/1223897009/similar?ref=internal_similar_listing_bot" target="blank">
-        <span class="octicon octicon-light-bulb"></span>
-      </a>
-    </div>
-    <div class="sidebar-item" title="Tangram project on GitHub that Bee adapted this from">
-      <a href="https://github.com/IonicaBizau/tangram" target="blank">
-        <span class="octicon octicon-heart"></span>
-      </a>
-    </div>
-    <div class="sidebar-item colorChange" title="Change up the colors" onclick="colorChangeButton()">
-      <span class="octicon octicon-squirrel"></span>
-    </div>
-    <div id="solve-btn" class="sidebar-item solvePuzzle" title="Open the solver, if your puny human brain gives up (spoilers)" onclick="solvePuzzle()">
-      <span class="octicon octicon-key"></span>
-    </div>
-  </div>
+<div class="sidebar">
 
-  <div style="position: fixed; bottom: 10px; right: 80px; color: #999; font-size: 12px; z-index: 10;">v2025.12.06-u</div>
+<div class="sidebar-item" 
+  title="Halp?" 
+  onclick="showTutorial()">
+  <span class="octicon octicon-question"></span>
+</div>
+<div class="sidebar-item" 
+  title="Source code on GitHub">
+  <a href="https://github.com/dreeves/calpuz" target="blank">
+    <span class="octicon octicon-octoface"></span>
+  </a>
+</div>
+<div class="sidebar-item" 
+  title="Physical versions of things like this on Etsy">
+  <a href="https://www.etsy.com/listing/1223897009/similar?ref=internal_similar_listing_bot" target="blank">
+    <span class="octicon octicon-light-bulb"></span>
+  </a>
+</div>
+<div class="sidebar-item" 
+  title="Tangram project on GitHub that Bee adapted this from">
+  <a href="https://github.com/IonicaBizau/tangram" target="blank">
+    <span class="octicon octicon-heart"></span>
+  </a>
+</div>
+<div class="sidebar-item colorChange" 
+  title="Change up the colors" 
+  onclick="colorChangeButton()">
+  <span class="octicon octicon-squirrel"></span>
+</div>
+<div id="solve-btn" class="sidebar-item solvePuzzle" 
+  title="Open the solver, if your puny human brain gives up (spoilers)" 
+  onclick="solvePuzzle()">
+  <span class="octicon octicon-key"></span>
+</div>
 
-  <div id="solver-progress" class="solver-progress">
-    <button class="close-btn" onclick="showProgressPanel(false)">&times;</button>
-    <h3>Solver Progress</h3>
-    <div class="speed-controls">
-      <button class="speed-btn" data-speed="step" onclick="stepOnce()" title="Step">↩️</button>
-      <button class="speed-btn" data-speed="1000" onclick="runSpeed(1000)" title="1000ms">🐌</button>
-      <button class="speed-btn" data-speed="500" onclick="runSpeed(500)" title="500ms">🐢</button>
-      <button class="speed-btn" data-speed="250" onclick="runSpeed(250)" title="250ms">🐇</button>
-      <button class="speed-btn" data-speed="100" onclick="runSpeed(100)" title="100ms">🚀</button>
-      <button class="speed-btn" data-speed="0" onclick="runSpeed(0)" title="0ms">⚡️</button>
-    </div>
-    <div class="attempts" id="attempts-text">0 sol'ns in 0 tries</div>
-    <div class="pieces-table" id="pieces-table"></div>
-  </div>
+</div> <!-- sidebar -->
+
+<div style="position: fixed; bottom: 10px; right: 80px; color: #999; font-size: 12px; z-index: 10;"
+>v2025.12.06-v</div>
+
+<div id="solver-progress" class="solver-progress">
+  
+<button class="close-btn" onclick="showProgressPanel(false)">&times;</button>
+<h3>Solver Progress</h3>
+<div class="speed-controls">
+<button class="speed-btn" data-speed="step" onclick="stepOnce()"     title="Step">↩️</button>
+<button class="speed-btn" data-speed="1000" onclick="runSpeed(1000)" title="1000ms">🐌</button>
+<button class="speed-btn" data-speed="500"  onclick="runSpeed(500)"  title="500ms">🐢</button>
+<button class="speed-btn" data-speed="250"  onclick="runSpeed(250)"  title="250ms">🐇</button>
+<button class="speed-btn" data-speed="100"  onclick="runSpeed(100)"  title="100ms">🚀</button>
+<button class="speed-btn" data-speed="0"    onclick="runSpeed(0)"    title="0ms">⚡️</button>
+</div>
+<div class="attempts" id="attempts-text">0 sol'ns in 0 tries</div>
+<div class="pieces-table" id="pieces-table"></div>
+
+</div> <!-- solver-progress -->
 
 </body>
-
 </html>

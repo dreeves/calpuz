@@ -11,9 +11,9 @@ const DOCKET_SCALE = 0.35;    // Preview piece size as fraction of boxel
 const DOCKET_GAP = 0.3;       // Gap between pieces as fraction of boxel
 
 // Dead cell hazard stripes
-const HAZARD_COLOR_1 = '#ffffff';
+const HAZARD_COLOR_1 = '#ff0000';
 const HAZARD_COLOR_2 = '#000000';
-const HAZARD_OPACITY = 0.35;
+const HAZARD_OPACITY = 0.09;
 const HAZARD_STRIPE_WIDTH = 0.15;  // As fraction of boxel
 
 // Date circle highlighting
@@ -591,12 +591,16 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
       const stripeWidth = boxel * HAZARD_STRIPE_WIDTH;
       const offset = (idx * stripeWidth * 1.5) % (stripeWidth * 2);
       
-      // Create diagonal stripe pattern
-      const pattern = svg.pattern(stripeWidth * 2, stripeWidth * 2, function(add) {
-        add.rect(stripeWidth * 2, stripeWidth * 2).fill(HAZARD_COLOR_1);
-        add.line(0, 0, stripeWidth * 2, stripeWidth * 2).stroke({ width: stripeWidth, color: HAZARD_COLOR_2 });
-        add.line(-stripeWidth, stripeWidth, stripeWidth, stripeWidth * 3).stroke({ width: stripeWidth, color: HAZARD_COLOR_2 });
-        add.line(stripeWidth, -stripeWidth, stripeWidth * 3, stripeWidth).stroke({ width: stripeWidth, color: HAZARD_COLOR_2 });
+      // Create diagonal stripe pattern (equal widths)
+      // For 45° stripes, pattern repeats every stripeWidth * sqrt(2) along each axis
+      const patternSize = stripeWidth * Math.SQRT2 * 2;
+      const pattern = svg.pattern(patternSize, patternSize, function(add) {
+        add.rect(patternSize, patternSize).fill(HAZARD_COLOR_1);
+        // Draw diagonal band - stroke width = stripeWidth * sqrt(2) for equal visual width
+        const bandWidth = stripeWidth * Math.SQRT2;
+        add.line(0, 0, patternSize, patternSize).stroke({ width: bandWidth, color: HAZARD_COLOR_2 });
+        add.line(-patternSize/2, patternSize/2, patternSize/2, patternSize*1.5).stroke({ width: bandWidth, color: HAZARD_COLOR_2 });
+        add.line(patternSize/2, -patternSize/2, patternSize*1.5, patternSize/2).stroke({ width: bandWidth, color: HAZARD_COLOR_2 });
       }).id(patternId).attr({ patternTransform: `translate(${offset}, 0)` });
       
       // Draw striped rectangles for each cell in this region
