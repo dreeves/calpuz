@@ -1,5 +1,38 @@
 const TAU = 2*Math.PI;
 
+// ============ CONFIGURATION CONSTANTS ============
+
+// Layout
+const HEADER_HEIGHT = 63;
+const SIDEBAR_WIDTH = 68.5;
+const GRID_CELLS = 7;
+const CELL_SIZE_RATIO = 1/20;  // Cell size as fraction of window width
+
+// Piece rendering
+const PIECE_OPACITY = 0.8;
+const ROTATION_DEGREES = 90;
+
+// Docket (pending pieces row)
+const DOCKET_SCALE = 0.35;    // Preview piece size as fraction of boxel
+const DOCKET_GAP = 0.3;       // Gap between pieces as fraction of boxel
+
+// Dead cell hazard stripes
+const HAZARD_COLOR_1 = '#ffffff';
+const HAZARD_COLOR_2 = '#000000';
+const HAZARD_OPACITY = 0.35;
+const HAZARD_STRIPE_WIDTH = 0.15;  // As fraction of boxel
+
+// Date circle highlighting
+const DATE_CIRCLE_RADIUS = 0.85;   // As fraction of boxel
+const DATE_CIRCLE_STROKE = 3;
+const DATE_CIRCLE_COLOR = '#ff6b6b';
+
+// Touch gestures
+const LONG_PRESS_MS = 500;
+const MOVE_THRESHOLD_PX = 10;
+
+// ============ END CONFIGURATION ============
+
 // Singular or plural with comma formatting. Eg, splur(1000, "cat") returns "1,000 cats"
 // or for irregular plurals, eg, splur(1, "child", "children") returns "1 child".
 function splur(n, s, p=null) { 
@@ -11,11 +44,11 @@ function splur(n, s, p=null) {
 
 const w = window.innerWidth;
 const h = window.innerHeight;
-const boxel = w/20;           // size in pixels of a calendar cell
-const calw = boxel*7;         // width of the calendar
-const calh = boxel*7;         // height of the calendar
-const headh = 63;             // height of the header
-const sbarw = 68.5;           // width of the sidebar on the right
+const boxel = w * CELL_SIZE_RATIO;
+const calw = boxel * GRID_CELLS;
+const calh = boxel * GRID_CELLS;
+const headh = HEADER_HEIGHT;
+const sbarw = SIDEBAR_WIDTH;
 const x0 = (w-calw-sbarw)/2;  // (x0, y0) = left top corner of the calendar grid
 const y0 = Math.min((h-calh+headh)/2, headh + boxel*4);  // centered or near top, whichever is higher
 let svg;                      // this gets initialized when the page loads
@@ -69,8 +102,8 @@ function addTouchGestures(element, onRotate, onFlip) {
   let touchStartPos = { x: 0, y: 0 };
   let longPressTimer = null;
   let didLongPress = false;
-  const LONG_PRESS_DURATION = 500;
-  const MOVE_THRESHOLD = 10;
+  const LONG_PRESS_DURATION = LONG_PRESS_MS;
+  const MOVE_THRESHOLD = MOVE_THRESHOLD_PX;
   
   element.addEventListener('touchstart', (e) => {
     if (e.touches.length !== 1) return;
@@ -389,10 +422,10 @@ function drawDateCircles(targetCells) {
   for (const [r, c] of targetCells) {
     const cx = x0 + c * boxel + boxel / 2;
     const cy = y0 + r * boxel + boxel / 2;
-    circleGroup.circle(boxel * 0.85)
+    circleGroup.circle(boxel * DATE_CIRCLE_RADIUS)
       .center(cx, cy)
       .fill('none')
-      .stroke({ width: 3, color: '#ff6b6b', dasharray: '5,3' });
+      .stroke({ width: DATE_CIRCLE_STROKE, color: DATE_CIRCLE_COLOR, dasharray: '5,3' });
   }
 }
 
@@ -432,8 +465,8 @@ function drawPendingPieces(progress, failedPieceName = null, orderedRemaining = 
   const pendingGroup = svg.group().id('pending-pieces');
   
   // Calculate layout - pieces in a row ABOVE the grid
-  const previewScale = boxel * 0.35;
-  const gap = boxel * 0.3; // Tight gap between pieces
+  const previewScale = boxel * DOCKET_SCALE;
+  const gap = boxel * DOCKET_GAP;
   const startY = y0 - boxel * 0.8; // Above grid
   
   // Start at left edge of grid - first piece always in same position
@@ -561,22 +594,22 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
     // Create stripe patterns with different offsets per region
     regions.forEach((region, idx) => {
       const patternId = `hazard-${idx}`;
-      const stripeWidth = boxel * 0.15;
+      const stripeWidth = boxel * HAZARD_STRIPE_WIDTH;
       const offset = (idx * stripeWidth * 1.5) % (stripeWidth * 2);
       
-      // Create diagonal stripe pattern (orange-amber, distinct from z-shape yellow)
+      // Create diagonal stripe pattern
       const pattern = svg.pattern(stripeWidth * 2, stripeWidth * 2, function(add) {
-        add.rect(stripeWidth * 2, stripeWidth * 2).fill('#ff9500');
-        add.line(0, 0, stripeWidth * 2, stripeWidth * 2).stroke({ width: stripeWidth, color: '#000000' });
-        add.line(-stripeWidth, stripeWidth, stripeWidth, stripeWidth * 3).stroke({ width: stripeWidth, color: '#000000' });
-        add.line(stripeWidth, -stripeWidth, stripeWidth * 3, stripeWidth).stroke({ width: stripeWidth, color: '#000000' });
+        add.rect(stripeWidth * 2, stripeWidth * 2).fill(HAZARD_COLOR_1);
+        add.line(0, 0, stripeWidth * 2, stripeWidth * 2).stroke({ width: stripeWidth, color: HAZARD_COLOR_2 });
+        add.line(-stripeWidth, stripeWidth, stripeWidth, stripeWidth * 3).stroke({ width: stripeWidth, color: HAZARD_COLOR_2 });
+        add.line(stripeWidth, -stripeWidth, stripeWidth * 3, stripeWidth).stroke({ width: stripeWidth, color: HAZARD_COLOR_2 });
       }).id(patternId).attr({ patternTransform: `translate(${offset}, 0)` });
       
       // Draw striped rectangles for each cell in this region
       for (const [r, c] of region) {
         const cx = x0 + c * boxel;
         const cy = y0 + r * boxel;
-        deadGroup.rect(boxel, boxel).move(cx, cy).fill(pattern).opacity(0.5);
+        deadGroup.rect(boxel, boxel).move(cx, cy).fill(pattern).opacity(HAZARD_OPACITY);
       }
     });
     
