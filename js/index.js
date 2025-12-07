@@ -265,6 +265,7 @@ function initProgressPanel() {
 
 // Update progress panel with all pieces' state - mutate existing rows for performance
 let lastRowOrder = [];  // Track row order to detect reordering
+const rowCache = {};    // Cache DOM references per piece name
 
 function updateProgressPanel(attempts, allPiecesProgress) {
   const sols = Solver.getSolutionCount();
@@ -301,23 +302,31 @@ function updateProgressPanel(attempts, allPiecesProgress) {
         <div class="piece-pos"></div>
       `;
       container.appendChild(row);
+      // Cache DOM references for fast updates
+      rowCache[piece.name] = {
+        row,
+        orientBar: row.children[0],
+        posBar: row.children[1],
+        orientText: row.children[4],
+        posText: row.children[5]
+      };
     }
   }
   
-  // Update values in existing rows (fast mutation, no DOM rebuild)
+  // Update values in existing rows (fast mutation, no DOM queries)
   for (const piece of allPiecesProgress) {
-    const row = document.getElementById(`row-${piece.name}`);
-    if (!row) continue;
+    const cached = rowCache[piece.name];
+    if (!cached) continue;
     
-    row.className = `piece-row ${piece.status}`;
+    cached.row.className = `piece-row ${piece.status}`;
     
     const orientPct = piece.totalOrientations > 0 ? (piece.orientation / piece.totalOrientations * 100) : 0;
     const posPct = piece.totalPositions > 0 ? (piece.positionIndex / piece.totalPositions * 100) : 0;
     
-    row.querySelector('.orient-bar').style.width = orientPct + '%';
-    row.querySelector('.pos-bar').style.width = posPct + '%';
-    row.querySelector('.piece-orient').textContent = `${piece.orientation}/${piece.totalOrientations}`;
-    row.querySelector('.piece-pos').textContent = `${piece.positionIndex}/${piece.totalPositions}`;
+    cached.orientBar.style.width = orientPct + '%';
+    cached.posBar.style.width = posPct + '%';
+    cached.orientText.textContent = `${piece.orientation}/${piece.totalOrientations}`;
+    cached.posText.textContent = `${piece.positionIndex}/${piece.totalPositions}`;
   }
 }
 
