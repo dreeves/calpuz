@@ -11,11 +11,11 @@ const DOCKET_SCALE = 0.35;    // Preview piece size as fraction of boxel
 const DOCKET_GAP = 0.3;       // Gap between pieces as fraction of boxel
 
 // Dead cell hazard stripes (widths as fraction of boxel)
-const HAZARD_COLOR_1 = '#ff0000';
+const HAZARD_COLOR_1 = '#000000';
 const HAZARD_WIDTH_1 = 0.1;
-const HAZARD_COLOR_2 = '#0000ff';
+const HAZARD_COLOR_2 = '#ffffff';
 const HAZARD_WIDTH_2 = 0.1;
-const HAZARD_OPACITY = 0.99;
+const HAZARD_OPACITY = 0.09;
 
 // Date circle highlighting
 const DATE_CIRCLE_RADIUS = 0.85;   // As fraction of boxel
@@ -591,9 +591,9 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
       const patternId = `hazard-${idx}`;
       const w1 = boxel * HAZARD_WIDTH_1;  // width of color 1 stripe
       const w2 = boxel * HAZARD_WIDTH_2;  // width of color 2 stripe
-      const period = w1 + w2;             // pattern repeats every period
+      const period = w1 + w2;             // pattern repeats every (w1 + w2) perpendicular to stripes
       const offset = idx * period * 0.4;  // offset per region for visual distinction
-      
+
       // Simple stripe pattern: rectangles rotated 45° (widths are exactly as specified)
       const pattern = svg.pattern(period, period, function(add) {
         add.rect(period, w1).fill(HAZARD_COLOR_1);
