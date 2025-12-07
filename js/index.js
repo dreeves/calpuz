@@ -2,12 +2,6 @@ const TAU = 2*Math.PI;
 
 // ============ CONFIGURATION CONSTANTS ============
 
-// Layout
-const HEADER_HEIGHT = 63;
-const SIDEBAR_WIDTH = 68.5;
-const GRID_CELLS = 7;
-const CELL_SIZE_RATIO = 1/20;  // Cell size as fraction of window width
-
 // Piece rendering
 const PIECE_OPACITY = 0.8;
 const ROTATION_DEGREES = 90;
@@ -44,11 +38,11 @@ function splur(n, s, p=null) {
 
 const w = window.innerWidth;
 const h = window.innerHeight;
-const boxel = w * CELL_SIZE_RATIO;
-const calw = boxel * GRID_CELLS;
-const calh = boxel * GRID_CELLS;
-const headh = HEADER_HEIGHT;
-const sbarw = SIDEBAR_WIDTH;
+const boxel = w/20;           // size in pixels of a calendar cell
+const calw = boxel*7;         // width of the calendar
+const calh = boxel*7;         // height of the calendar
+const headh = 63;             // height of the header
+const sbarw = 68.5;           // width of the sidebar on the right
 const x0 = (w-calw-sbarw)/2;  // (x0, y0) = left top corner of the calendar grid
 const y0 = Math.min((h-calh+headh)/2, headh + boxel*4);  // centered or near top, whichever is higher
 let svg;                      // this gets initialized when the page loads
