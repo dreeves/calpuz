@@ -10,11 +10,12 @@ const ROTATION_DEGREES = 90;
 const DOCKET_SCALE = 0.35;    // Preview piece size as fraction of boxel
 const DOCKET_GAP = 0.3;       // Gap between pieces as fraction of boxel
 
-// Dead cell hazard stripes
-const HAZARD_COLOR_1 = '#ff0000';
+// Dead cell hazard stripes (widths as fraction of boxel)
+const HAZARD_COLOR_1 = '#ffffff';
+const HAZARD_WIDTH_1 = 0.1;
 const HAZARD_COLOR_2 = '#000000';
+const HAZARD_WIDTH_2 = 0.1;
 const HAZARD_OPACITY = 0.09;
-const HAZARD_STRIPE_WIDTH = 0.15;  // As fraction of boxel
 
 // Date circle highlighting
 const DATE_CIRCLE_RADIUS = 0.85;   // As fraction of boxel
@@ -588,19 +589,20 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
     // Create stripe patterns with different offsets per region
     regions.forEach((region, idx) => {
       const patternId = `hazard-${idx}`;
-      const stripeWidth = boxel * HAZARD_STRIPE_WIDTH;
-      const offset = (idx * stripeWidth * 1.5) % (stripeWidth * 2);
+      const w1 = boxel * HAZARD_WIDTH_1;  // width of color 1 stripe
+      const w2 = boxel * HAZARD_WIDTH_2;  // width of color 2 stripe
+      const period = w1 + w2;             // pattern repeats every (w1 + w2) perpendicular to stripes
+      const patternSize = period * Math.SQRT2;  // 45° diagonal adjustment
+      const offset = (idx * patternSize * 0.37) % patternSize;
       
-      // Create diagonal stripe pattern (equal widths)
-      // For 45° stripes, pattern repeats every stripeWidth * sqrt(2) along each axis
-      const patternSize = stripeWidth * Math.SQRT2 * 2;
+      // Create diagonal stripe pattern with explicit widths
       const pattern = svg.pattern(patternSize, patternSize, function(add) {
         add.rect(patternSize, patternSize).fill(HAZARD_COLOR_1);
-        // Draw diagonal band - stroke width = stripeWidth * sqrt(2) for equal visual width
-        const bandWidth = stripeWidth * Math.SQRT2;
-        add.line(0, 0, patternSize, patternSize).stroke({ width: bandWidth, color: HAZARD_COLOR_2 });
-        add.line(-patternSize/2, patternSize/2, patternSize/2, patternSize*1.5).stroke({ width: bandWidth, color: HAZARD_COLOR_2 });
-        add.line(patternSize/2, -patternSize/2, patternSize*1.5, patternSize/2).stroke({ width: bandWidth, color: HAZARD_COLOR_2 });
+        // Stroke width adjusted for 45° angle so visual width = w2
+        const strokeW = w2 * Math.SQRT2;
+        add.line(0, 0, patternSize, patternSize).stroke({ width: strokeW, color: HAZARD_COLOR_2 });
+        add.line(-patternSize/2, patternSize/2, patternSize/2, patternSize*1.5).stroke({ width: strokeW, color: HAZARD_COLOR_2 });
+        add.line(patternSize/2, -patternSize/2, patternSize*1.5, patternSize/2).stroke({ width: strokeW, color: HAZARD_COLOR_2 });
       }).id(patternId).attr({ patternTransform: `translate(${offset}, 0)` });
       
       // Draw striped rectangles for each cell in this region
