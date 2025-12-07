@@ -532,18 +532,53 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
     }, Math.max(50, solverSpeed));
   }
   
-  // Draw red X's on dead cells and show unfillable info
+  // Draw hazard stripes on dead cells (distinct pattern per region)
   if (deadCells.length > 0) {
     const deadGroup = svg.group().id('dead-cells');
+    
+    // Group cells into connected regions
+    const cellSet = new Set(deadCells.map(([r, c]) => `${r},${c}`));
+    const visited = new Set();
+    const regions = [];
+    
     for (const [r, c] of deadCells) {
-      const cx = x0 + c * boxel + boxel / 2;
-      const cy = y0 + r * boxel + boxel / 2;
-      const size = boxel * 0.3;
-      deadGroup.line(cx - size, cy - size, cx + size, cy + size)
-        .stroke({ width: 3, color: '#ff0000' });
-      deadGroup.line(cx - size, cy + size, cx + size, cy - size)
-        .stroke({ width: 3, color: '#ff0000' });
+      const key = `${r},${c}`;
+      if (visited.has(key)) continue;
+      
+      const region = [];
+      const stack = [[r, c]];
+      while (stack.length > 0) {
+        const [cr, cc] = stack.pop();
+        const ck = `${cr},${cc}`;
+        if (visited.has(ck) || !cellSet.has(ck)) continue;
+        visited.add(ck);
+        region.push([cr, cc]);
+        stack.push([cr-1, cc], [cr+1, cc], [cr, cc-1], [cr, cc+1]);
+      }
+      if (region.length > 0) regions.push(region);
     }
+    
+    // Create stripe patterns with different offsets per region
+    regions.forEach((region, idx) => {
+      const patternId = `hazard-${idx}`;
+      const stripeWidth = boxel * 0.15;
+      const offset = (idx * stripeWidth * 1.5) % (stripeWidth * 2);
+      
+      // Create diagonal stripe pattern
+      const pattern = svg.pattern(stripeWidth * 2, stripeWidth * 2, function(add) {
+        add.rect(stripeWidth * 2, stripeWidth * 2).fill('#ffcc00');
+        add.line(0, 0, stripeWidth * 2, stripeWidth * 2).stroke({ width: stripeWidth, color: '#000000' });
+        add.line(-stripeWidth, stripeWidth, stripeWidth, stripeWidth * 3).stroke({ width: stripeWidth, color: '#000000' });
+        add.line(stripeWidth, -stripeWidth, stripeWidth * 3, stripeWidth).stroke({ width: stripeWidth, color: '#000000' });
+      }).id(patternId).attr({ patternTransform: `translate(${offset}, 0)` });
+      
+      // Draw striped rectangles for each cell in this region
+      for (const [r, c] of region) {
+        const cx = x0 + c * boxel;
+        const cy = y0 + r * boxel;
+        deadGroup.rect(boxel, boxel).move(cx, cy).fill(pattern).opacity(0.7);
+      }
+    });
     
     // Show unfillable info - starts right of "31", extends as needed
     // Always show both lines when dead cells exist (anti-magic: no conditional display)
