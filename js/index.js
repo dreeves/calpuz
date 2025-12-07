@@ -11,11 +11,11 @@ const DOCKET_SCALE = 0.35;    // Preview piece size as fraction of boxel
 const DOCKET_GAP = 0.3;       // Gap between pieces as fraction of boxel
 
 // Dead cell hazard stripes (widths as fraction of boxel)
-const HAZARD_COLOR_1 = '#ffffff';
+const HAZARD_COLOR_1 = '#ff0000';
 const HAZARD_WIDTH_1 = 0.1;
-const HAZARD_COLOR_2 = '#000000';
+const HAZARD_COLOR_2 = '#0000ff';
 const HAZARD_WIDTH_2 = 0.1;
-const HAZARD_OPACITY = 0.09;
+const HAZARD_OPACITY = 0.99;
 
 // Date circle highlighting
 const DATE_CIRCLE_RADIUS = 0.85;   // As fraction of boxel
@@ -591,19 +591,17 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
       const patternId = `hazard-${idx}`;
       const w1 = boxel * HAZARD_WIDTH_1;  // width of color 1 stripe
       const w2 = boxel * HAZARD_WIDTH_2;  // width of color 2 stripe
-      const period = w1 + w2;             // pattern repeats every (w1 + w2) perpendicular to stripes
-      const patternSize = period * Math.SQRT2;  // 45° diagonal adjustment
-      const offset = (idx * patternSize * 0.37) % patternSize;
+      const period = w1 + w2;             // pattern repeats every period
+      const offset = idx * period * 0.4;  // offset per region for visual distinction
       
-      // Create diagonal stripe pattern with explicit widths
-      const pattern = svg.pattern(patternSize, patternSize, function(add) {
-        add.rect(patternSize, patternSize).fill(HAZARD_COLOR_1);
-        // Stroke width adjusted for 45° angle so visual width = w2
-        const strokeW = w2 * Math.SQRT2;
-        add.line(0, 0, patternSize, patternSize).stroke({ width: strokeW, color: HAZARD_COLOR_2 });
-        add.line(-patternSize/2, patternSize/2, patternSize/2, patternSize*1.5).stroke({ width: strokeW, color: HAZARD_COLOR_2 });
-        add.line(patternSize/2, -patternSize/2, patternSize*1.5, patternSize/2).stroke({ width: strokeW, color: HAZARD_COLOR_2 });
-      }).id(patternId).attr({ patternTransform: `translate(${offset}, 0)` });
+      // Simple stripe pattern: rectangles rotated 45° (widths are exactly as specified)
+      const pattern = svg.pattern(period, period, function(add) {
+        add.rect(period, w1).fill(HAZARD_COLOR_1);
+        add.rect(period, w2).move(0, w1).fill(HAZARD_COLOR_2);
+      }).id(patternId).attr({
+        patternUnits: 'userSpaceOnUse',
+        patternTransform: `rotate(45) translate(${offset}, 0)`
+      });
       
       // Draw striped rectangles for each cell in this region
       for (const [r, c] of region) {
