@@ -284,10 +284,14 @@ function updateProgressPanel(attempts, allPiecesProgress) {
   // Rebuild rows in the order provided by allPiecesProgress
   for (const piece of allPiecesProgress) {
     const color = shapes.find(s => s[0] === piece.name)?.[1] || '#999';
+    const orientPct = piece.totalOrientations > 0 ? (piece.orientation / piece.totalOrientations * 100) : 0;
+    const posPct = piece.totalPositions > 0 ? (piece.positionIndex / piece.totalPositions * 100) : 0;
     const row = document.createElement('div');
     row.className = `piece-row ${piece.status}`;
     row.id = `row-${piece.name}`;
     row.innerHTML = `
+      <div class="progress-bar orient-bar" style="width: ${orientPct}%"></div>
+      <div class="progress-bar pos-bar" style="width: ${posPct}%"></div>
       <div class="piece-color" style="background-color: ${color}"></div>
       <div class="piece-name">${piece.name}</div>
       <div class="piece-orient">${piece.orientation}/${piece.totalOrientations}</div>

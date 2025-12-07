@@ -170,6 +170,7 @@ ul {
 }
 
 .solver-progress .piece-row {
+  position: relative;
   display: grid;
   grid-template-columns: 20px 70px 50px 50px;
   gap: 8px;
@@ -177,6 +178,27 @@ ul {
   padding: 6px 8px;
   border-radius: 4px;
   background: rgba(255,255,255,0.05);
+  overflow: hidden;
+}
+
+.solver-progress .progress-bar {
+  position: absolute;
+  left: 0;
+  height: 2px;
+  border-radius: 1px;
+  transition: width 0.15s ease-out;
+}
+
+.solver-progress .orient-bar {
+  top: 0;
+  background: #4ecdc4;
+  opacity: 0.6;
+}
+
+.solver-progress .pos-bar {
+  bottom: 0;
+  background: #f0ad4e;
+  opacity: 0.6;
 }
 
 .solver-progress .piece-row.current {
