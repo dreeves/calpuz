@@ -67,62 +67,7 @@ window.Solver = (function() {
     return orientations;
   }
   
-  // (This is presumably redundant with the shapes array in index.js)
-  // Manually defined cell patterns for each piece
-  // These are verified to match the actual puzzle pieces
-  // Format: [row, col] relative to top-left of bounding box
-  const manualPieceCells = {
-    // Red Corner: L-shape, 5 cells, non-chiral
-    //  X
-    //  X
-    //  X X X
-    "corner": [[0,0], [1,0], [2,0], [2,1], [2,2]],
-    
-    // Orange Stair: 3x1 plus 2x1 pattern, 5 cells, chiral
-    //    X
-    //    X
-    //  X X
-    //  X
-    "stair": [[0,1], [1,1], [2,0], [2,1], [3,0]],
-    
-    // Yellow Z-shape: 3x1 w/ bumps, 5 cells, chiral
-    //  X X
-    //    X
-    //    X X
-    "z-shape": [[0,0], [0,1], [1,1], [2,1], [2,2]],
-    
-    // Green Rectangle: 2x3, 6 cells, non-chiral
-    //  X X
-    //  X X
-    //  X X
-    "rectangle": [[0,0], [0,1], [1,0], [1,1], [2,0], [2,1]],
-    
-    // Cyan C-shape: C/U pattern, 5 cells, non-chiral
-    //  X X
-    //  X
-    //  X X
-    "c-shape": [[0,0], [0,1], [1,0], [2,0], [2,1]],
-    
-    // Purple Chair: 2x2 plus a bump, 5 cells, chiral
-    //    X
-    //  X X
-    //  X X
-    "chair": [[0,1], [1,0], [1,1], [2,0], [2,1]],
-    
-    // Pink Stilt: T-like pattern, 5 cells, chiral
-    //  X
-    //  X X
-    //  X
-    //  X
-    "stilt": [[0,0], [1,0], [1,1], [2,0], [3,0]],
-    
-    // Blue L-shape: 5 cells, chiral
-    //  X
-    //  X
-    //  X
-    //  X X
-    "l-shape": [[0,0], [1,0], [2,0], [3,0], [3,1]],
-  };
+  const pieceCells = getPieceCells();
   
   // Create canonical shape key: translate to origin, sort, stringify
   function shapeKey(cells) {
@@ -141,11 +86,10 @@ window.Solver = (function() {
     pieceData = {};
     shapeToPiece = {};
     
-    const chiralPieces = new Set(["stair", "z-shape", "chair", "stilt", "l-shape"]);
+    const chiralPieces = getChiralPieces();
     
     for (const [name, color, vertices] of shapes) {
-      // Use manually defined cells instead of computing from polygon
-      const baseCells = manualPieceCells[name];
+      const baseCells = pieceCells[name];
       const isChiral = chiralPieces.has(name);
       const orientations = getAllOrientations(baseCells, isChiral);
       

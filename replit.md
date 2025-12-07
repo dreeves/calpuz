@@ -39,16 +39,17 @@ Preferred communication style: Simple, everyday language.
    - Centering logic accounts for header and sidebar, with fallback positioning
    - Ensures puzzle remains playable across different screen sizes
 
-4. **Shape Representation**
-   - Shapes defined as polygon vertex arrays with metadata (name, color, vertices)
-   - Format: `[name, color, [[x1,y1], [x2,y2], ...]]`
+4. **Shape Representation (DRY Single Source)**
+   - All piece data defined once in `js/pieces.js` via `PIECE_DEFINITIONS`
+   - Each piece has: name, color, grid cells, chiral flag
+   - Polygon vertices for SVG rendering are auto-generated from cells via `cellsToPolygon()`
+   - Helper functions: `getShapesArray()`, `getPieceCells()`, `getChiralPieces()`
    - 8 total pieces with varying symmetry properties (chiral vs. non-chiral)
-   - Enables easy rotation/flipping through coordinate transformation
 
 5. **Solver Architecture**
    - Brute-force backtracking algorithm with visualization
    - Grid template (7x7 boolean matrix) defines valid placement cells
-   - Piece cells defined manually in `manualPieceCells` for precise control
+   - Piece cells come from shared `PIECE_DEFINITIONS` via `getPieceCells()`
    - **Dynamic "most constrained first" ordering**: At each step, counts valid placements for remaining pieces and tries the most constrained piece first
    - **Shape-based pruning**: `analyzeRegions()` detects dead cells via:
      - Size check: regions with unfillable sizes (not 5k or 5k+1)
