@@ -564,9 +564,9 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
       const stripeWidth = boxel * 0.15;
       const offset = (idx * stripeWidth * 1.5) % (stripeWidth * 2);
       
-      // Create diagonal stripe pattern
+      // Create diagonal stripe pattern (orange-amber, distinct from z-shape yellow)
       const pattern = svg.pattern(stripeWidth * 2, stripeWidth * 2, function(add) {
-        add.rect(stripeWidth * 2, stripeWidth * 2).fill('#ffcc00');
+        add.rect(stripeWidth * 2, stripeWidth * 2).fill('#ff9500');
         add.line(0, 0, stripeWidth * 2, stripeWidth * 2).stroke({ width: stripeWidth, color: '#000000' });
         add.line(-stripeWidth, stripeWidth, stripeWidth, stripeWidth * 3).stroke({ width: stripeWidth, color: '#000000' });
         add.line(stripeWidth, -stripeWidth, stripeWidth * 3, stripeWidth).stroke({ width: stripeWidth, color: '#000000' });
@@ -576,7 +576,7 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
       for (const [r, c] of region) {
         const cx = x0 + c * boxel;
         const cy = y0 + r * boxel;
-        deadGroup.rect(boxel, boxel).move(cx, cy).fill(pattern).opacity(0.7);
+        deadGroup.rect(boxel, boxel).move(cx, cy).fill(pattern).opacity(0.5);
       }
     });
     
