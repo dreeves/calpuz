@@ -516,16 +516,93 @@ window.Solver = (function() {
         return false;
       }
       
+      // Check for forced placements and dead cells BEFORE choosing which piece to branch on
+      let currentRemaining = [...remainingPieces];
+      let currentPlaced = [...placedPieces];
+      let analysis = getEffectiveCounts(grid, currentRemaining);
+      
+      // Auto-place any forced pieces at the start of this backtrack level
+      while (analysis.forcedPlacements.length > 0 && analysis.deadCells.length === 0) {
+        const forced = analysis.forcedPlacements[0];
+        // Place the forced piece
+        setPiece(grid, forced.cells, forced.row, forced.col, 3 + currentPlaced.length);
+        placementsByName[forced.name] = {
+          name: forced.name,
+          row: forced.row,
+          col: forced.col,
+          cells: forced.cells,
+          rotation: 0,
+          flipped: false,
+          orientationIndex: forced.orientationIndex,
+          totalOrientations: forced.totalOrientations,
+          positionIndex: 0,
+          totalPositions: 1,
+          forced: true
+        };
+        currentPlaced = [...currentPlaced, forced.name];
+        currentRemaining = currentRemaining.filter(n => n !== forced.name);
+        // Re-analyze with updated state
+        analysis = getEffectiveCounts(grid, currentRemaining);
+      }
+      
+      // If we hit dead cells during forced placement, undo and return false
+      if (analysis.deadCells.length > 0) {
+        // Undo all forced placements made at this level
+        const forcedAtThisLevel = currentPlaced.slice(placedPieces.length);
+        for (let i = forcedAtThisLevel.length - 1; i >= 0; i--) {
+          const forcedName = forcedAtThisLevel[i];
+          const fp = placementsByName[forcedName];
+          setPiece(grid, fp.cells, fp.row, fp.col, 1);
+          delete placementsByName[forcedName];
+        }
+        return false;
+      }
+      
+      // If all pieces placed via forced moves, check for solution
+      if (currentRemaining.length === 0) {
+        // Found a solution via forced placements!
+        solutionCount++;
+        foundSolution = true;
+        paused = true;
+        
+        const allPiecesProgress = currentPlaced.map(name => {
+          const p = placementsByName[name];
+          return { name, status: p.forced ? 'forced' : 'placed',
+              orientation: p.orientationIndex + 1, totalOrientations: p.totalOrientations,
+              positionIndex: p.positionIndex + 1, totalPositions: p.totalPositions };
+        });
+        placements = currentPlaced.map(name => placementsByName[name]);
+        const emptyPruning = { cells: [], sizes: [] };
+        visualizeCallback(placements, attempts, allPiecesProgress, [], emptyPruning, emptyPruning, emptyPruning, null, false, []);
+        
+        while (paused && solving) {
+          await new Promise(r => setTimeout(r, 50));
+        }
+        foundSolution = false;
+        
+        // Undo forced placements before returning
+        const forcedAtThisLevel = currentPlaced.slice(placedPieces.length);
+        for (let i = forcedAtThisLevel.length - 1; i >= 0; i--) {
+          const forcedName = forcedAtThisLevel[i];
+          const fp = placementsByName[forcedName];
+          setPiece(grid, fp.cells, fp.row, fp.col, 1);
+          delete placementsByName[forcedName];
+        }
+        
+        if (!solving) return true;
+        return false;
+      }
+      
       // Sort remaining pieces by count (most constrained first)
-      const { counts: piecesWithCounts } = getEffectiveCounts(grid, remainingPieces);
-      piecesWithCounts.sort((a, b) => a.count - b.count);
-      const orderedRemaining = piecesWithCounts.map(p => p.name);
+      analysis.counts.sort((a, b) => a.count - b.count);
+      const orderedRemaining = analysis.counts.map(p => p.name);
       
       // Pick the most constrained piece (first in sorted order)
       const pieceName = orderedRemaining[0];
       const piece = pieceData[pieceName];
       const totalOrientations = piece.orientations.length;
-      const depth = placedPieces.length;
+      const depth = currentPlaced.length;  // Use currentPlaced (includes forced pieces)
+      const forcedAtThisLevel = currentPlaced.slice(placedPieces.length);  // Track forced pieces for cleanup
       
       // Track if any placement was ever possible
       let hadValidPlacement = false;
@@ -562,7 +639,7 @@ window.Solver = (function() {
           currentDepth = depth + 1;
           
           // Analyze regions: get dead cells, forced placements, and recompute ordering
-          let newPlaced = [...placedPieces, pieceName];
+          let newPlaced = [...currentPlaced, pieceName];
           let rawRemaining = orderedRemaining.slice(1);
           let analysis = getEffectiveCounts(grid, rawRemaining);
           
@@ -645,7 +722,7 @@ window.Solver = (function() {
           }
           
           // Backtrack: undo forced placements first (in reverse order), then undo this piece
-          const forcedToUndo = newPlaced.slice(placedPieces.length + 1); // All pieces after pieceName are forced
+          const forcedToUndo = newPlaced.slice(currentPlaced.length + 1); // All pieces after pieceName are forced
           for (let i = forcedToUndo.length - 1; i >= 0; i--) {
             const forcedName = forcedToUndo[i];
             const fp = placementsByName[forcedName];
@@ -662,9 +739,9 @@ window.Solver = (function() {
       // Only show failure X if this piece had ZERO valid placements
       if (!hadValidPlacement && depth > 0) {
         const allPiecesProgress = [
-          ...placedPieces.map(name => {
+          ...currentPlaced.map(name => {
             const p = placementsByName[name];
-            return { name, status: 'placed',
+            return { name, status: p.forced ? 'forced' : 'placed',
                 orientation: p.orientationIndex + 1, totalOrientations: p.totalOrientations,
                 positionIndex: p.positionIndex + 1, totalPositions: p.totalPositions };
           }),
@@ -675,7 +752,7 @@ window.Solver = (function() {
                 positionIndex: 0, totalPositions: 0 };
           })
         ];
-        placements = placedPieces.map(name => placementsByName[name]);
+        placements = currentPlaced.map(name => placementsByName[name]);
         const emptyPruning2 = { cells: [], sizes: [] };
         visualizeCallback(placements, attempts, allPiecesProgress, [], emptyPruning2, emptyPruning2, emptyPruning2, pieceName, true, orderedRemaining);
         
@@ -688,6 +765,14 @@ window.Solver = (function() {
         } else {
           await delay(currentDelay);
         }
+      }
+      
+      // Undo forced placements made at the start of this backtrack level
+      for (let i = forcedAtThisLevel.length - 1; i >= 0; i--) {
+        const forcedName = forcedAtThisLevel[i];
+        const fp = placementsByName[forcedName];
+        setPiece(grid, fp.cells, fp.row, fp.col, 1);
+        delete placementsByName[forcedName];
       }
       
       return false;
