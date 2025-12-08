@@ -10,12 +10,27 @@ const ROTATION_DEGREES = 90;
 const DOCKET_SCALE = 0.35;    // Preview piece size as fraction of boxel
 const DOCKET_GAP = 0.3;       // Gap between pieces as fraction of boxel
 
-// Dead cell hazard stripes (widths as fraction of boxel)
-const HAZARD_COLOR_1 = '#000000';
-const HAZARD_WIDTH_1 = 0.1;
-const HAZARD_COLOR_2 = '#ffffff';
-const HAZARD_WIDTH_2 = 0.1;
-const HAZARD_OPACITY = 0.09;
+// Pruning visualization (distinct stripes for each type)
+// Type 1: Unfillable SIZE (region size can't be covered by piece combos)
+const SIZE_PRUNE_COLOR_1 = '#000000';
+const SIZE_PRUNE_COLOR_2 = '#ffff00';  // Black/yellow = classic hazard
+const SIZE_PRUNE_WIDTH = 0.1;          // Stripe width as fraction of boxel
+const SIZE_PRUNE_ANGLE = 45;           // Stripe angle in degrees
+const SIZE_PRUNE_OPACITY = 0.15;
+
+// Type 2: Unfillable SHAPE (size-5/6 region doesn't match any available piece)
+const SHAPE_PRUNE_COLOR_1 = '#ff0000';
+const SHAPE_PRUNE_COLOR_2 = '#ffffff';  // Red/white = danger
+const SHAPE_PRUNE_WIDTH = 0.1;
+const SHAPE_PRUNE_ANGLE = -45;          // Opposite angle for distinction
+const SHAPE_PRUNE_OPACITY = 0.15;
+
+// Type 3: Unfillable TUNNEL (dead-end corridor can't be filled)
+const TUNNEL_PRUNE_COLOR_1 = '#0000ff';
+const TUNNEL_PRUNE_COLOR_2 = '#ffffff';  // Blue/white = tunnel
+const TUNNEL_PRUNE_WIDTH = 0.1;
+const TUNNEL_PRUNE_ANGLE = 0;            // Horizontal stripes
+const TUNNEL_PRUNE_OPACITY = 0.15;
 
 // Date circle highlighting
 const DATE_CIRCLE_RADIUS = 0.85;   // As fraction of boxel
@@ -566,7 +581,8 @@ function drawPendingPieces(progress, failedPieceName = null, orderedRemaining = 
 }
 
 // Visualize all placements (callback for solver)
-function visualizeAllPlacements(placements, attempts, progress, deadCells = [], unfillableSizes = [], unfillableRegionSizes = [], nextPiece = null, pieceFailed = false, orderedRemaining = []) {
+// sizePruning, shapePruning, tunnelPruning are { cells: [[r,c],...], sizes: [n,...] }
+function visualizeAllPlacements(placements, attempts, progress, deadCells = [], sizePruning = {cells:[], sizes:[]}, shapePruning = {cells:[], sizes:[]}, tunnelPruning = {cells:[], sizes:[]}, nextPiece = null, pieceFailed = false, orderedRemaining = []) {
   // Clear all pieces
   for (const [name, , ] of shapes) {
     const group = SVG.get(name);
@@ -578,7 +594,7 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
   if (oldDeadMarkers) oldDeadMarkers.remove();
   
   // Remove old hazard patterns from defs to prevent memory leak
-  document.querySelectorAll('pattern[id^="hazard-"]').forEach(p => p.remove());
+  document.querySelectorAll('pattern[id^="prune-"]').forEach(p => p.remove());
   
   // Draw all placements
   for (const p of placements) {
@@ -598,74 +614,75 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
     }, Math.max(50, solverSpeed));
   }
   
-  // Draw hazard stripes on dead cells (distinct pattern per region)
-  if (deadCells.length > 0) {
-    const deadGroup = svg.group().id('dead-cells');
-    
-    // Group cells into connected regions
-    const cellSet = new Set(deadCells.map(([r, c]) => `${r},${c}`));
-    const visited = new Set();
-    const regions = [];
-    
-    for (const [r, c] of deadCells) {
-      const key = `${r},${c}`;
-      if (visited.has(key)) continue;
-      
-      const region = [];
-      const stack = [[r, c]];
-      while (stack.length > 0) {
-        const [cr, cc] = stack.pop();
-        const ck = `${cr},${cc}`;
-        if (visited.has(ck) || !cellSet.has(ck)) continue;
-        visited.add(ck);
-        region.push([cr, cc]);
-        stack.push([cr-1, cc], [cr+1, cc], [cr, cc-1], [cr, cc+1]);
-      }
-      if (region.length > 0) regions.push(region);
-    }
-    
-    // Create stripe patterns with different offsets per region
+  // Helper to draw striped regions with configurable style
+  function drawPrunedRegions(group, regions, color1, color2, width, angle, opacity, patternPrefix) {
     regions.forEach((region, idx) => {
-      const patternId = `hazard-${idx}`;
-      const w1 = boxel * HAZARD_WIDTH_1;  // width of color 1 stripe
-      const w2 = boxel * HAZARD_WIDTH_2;  // width of color 2 stripe
-      const period = w1 + w2;             // pattern repeats every (w1 + w2) perpendicular to stripes
+      const patternId = `${patternPrefix}-${idx}`;
+      const stripeWidth = boxel * width;
+      const period = stripeWidth * 2;
       const offset = idx * period * 0.4;  // offset per region for visual distinction
 
-      // Simple stripe pattern: rectangles rotated 45° (widths are exactly as specified)
       const pattern = svg.pattern(period, period, function(add) {
-        add.rect(period, w1).fill(HAZARD_COLOR_1);
-        add.rect(period, w2).move(0, w1).fill(HAZARD_COLOR_2);
+        add.rect(period, stripeWidth).fill(color1);
+        add.rect(period, stripeWidth).move(0, stripeWidth).fill(color2);
       }).id(patternId).attr({
         patternUnits: 'userSpaceOnUse',
-        patternTransform: `rotate(45) translate(${offset}, 0)`
+        patternTransform: `rotate(${angle}) translate(${offset}, 0)`
       });
       
-      // Draw striped rectangles for each cell in this region
       for (const [r, c] of region) {
         const cx = x0 + c * boxel;
         const cy = y0 + r * boxel;
-        deadGroup.rect(boxel, boxel).move(cx, cy).fill(pattern).opacity(HAZARD_OPACITY);
+        group.rect(boxel, boxel).move(cx, cy).fill(pattern).opacity(opacity);
       }
     });
+  }
+  
+  // Draw pruned regions if any exist
+  const hasPruning = deadCells.length > 0;
+  if (hasPruning) {
+    const deadGroup = svg.group().id('dead-cells');
     
-    // Show unfillable info - starts right of "31", extends as needed
-    // Always show both lines when dead cells exist (anti-magic: no conditional display)
+    // Draw each pruning type with its distinct style
+    if (sizePruning.cells.length > 0) {
+      drawPrunedRegions(deadGroup, sizePruning.cells,
+        SIZE_PRUNE_COLOR_1, SIZE_PRUNE_COLOR_2, SIZE_PRUNE_WIDTH, SIZE_PRUNE_ANGLE, SIZE_PRUNE_OPACITY, 'prune-size');
+    }
+    if (shapePruning.cells.length > 0) {
+      drawPrunedRegions(deadGroup, shapePruning.cells,
+        SHAPE_PRUNE_COLOR_1, SHAPE_PRUNE_COLOR_2, SHAPE_PRUNE_WIDTH, SHAPE_PRUNE_ANGLE, SHAPE_PRUNE_OPACITY, 'prune-shape');
+    }
+    if (tunnelPruning.cells.length > 0) {
+      drawPrunedRegions(deadGroup, tunnelPruning.cells,
+        TUNNEL_PRUNE_COLOR_1, TUNNEL_PRUNE_COLOR_2, TUNNEL_PRUNE_WIDTH, TUNNEL_PRUNE_ANGLE, TUNNEL_PRUNE_OPACITY, 'prune-tunnel');
+    }
+    
+    // Build descriptive text for each pruning type
     const textX = x0 + 3 * boxel + boxel * 0.2;
     const fontSize = Math.max(10, Math.min(16, boxel * 0.28));
     const lineHeight = fontSize * 1.4;
-    const textY1 = y0 + 6 * boxel + boxel / 2 - lineHeight * 0.7;
-    const textY2 = textY1 + lineHeight;
+    let textY = y0 + 6 * boxel + boxel / 2 - lineHeight * 1.5;
     
-    deadGroup.text(`Unfillable region sizes: {${unfillableSizes.join(', ')}}`)
-      .font({ size: fontSize, weight: 'bold', family: 'Arial' })
-      .fill('#ff0000')
-      .move(textX, textY1);
-    
-    deadGroup.text(splur(unfillableRegionSizes.length, "other unfillable region"))
-      .font({ size: fontSize, weight: 'bold', family: 'Arial' })
-      .fill('#ff0000')
-      .move(textX, textY2);
+    if (sizePruning.sizes.length > 0) {
+      deadGroup.text(`${splur(sizePruning.sizes.length, "region")} of unfillable size -- {${sizePruning.sizes.join(', ')}}`)
+        .font({ size: fontSize, weight: 'bold', family: 'Arial' })
+        .fill(SIZE_PRUNE_COLOR_2)
+        .move(textX, textY);
+      textY += lineHeight;
+    }
+    if (shapePruning.sizes.length > 0) {
+      deadGroup.text(`${splur(shapePruning.sizes.length, "region")} of unfillable shape -- {${shapePruning.sizes.join(', ')}}`)
+        .font({ size: fontSize, weight: 'bold', family: 'Arial' })
+        .fill(SHAPE_PRUNE_COLOR_1)
+        .move(textX, textY);
+      textY += lineHeight;
+    }
+    if (tunnelPruning.sizes.length > 0) {
+      deadGroup.text(`${splur(tunnelPruning.sizes.length, "unfillable tunnel")} -- {${tunnelPruning.sizes.join(', ')}}`)
+        .font({ size: fontSize, weight: 'bold', family: 'Arial' })
+        .fill(TUNNEL_PRUNE_COLOR_1)
+        .move(textX, textY);
+    }
   }
   
   // Draw all pending pieces in dynamic order

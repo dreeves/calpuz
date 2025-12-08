@@ -232,8 +232,10 @@ window.Solver = (function() {
   function analyzeRegions(grid, remainingPieces = []) {
     const visited = Array(7).fill(null).map(() => Array(7).fill(false));
     const deadCells = [];
-    const unfillableSizes = [];
-    const unfillableRegionSizes = [];
+    // Three distinct pruning types with their cell arrays and sizes
+    const sizePruning = { cells: [], sizes: [] };      // (1) unfillable size
+    const shapePruning = { cells: [], sizes: [] };     // (2) unfillable shape
+    const tunnelPruning = { cells: [], sizes: [] };    // (3) unfillable tunnels
     const remainingSet = new Set(remainingPieces);
     
     // Check for uniform queue size (all remaining pieces same size)
@@ -356,28 +358,33 @@ window.Solver = (function() {
           const component = floodFill(r, c);
           const size = component.length;
           
+          // (1) Size pruning: region size not fillable by any combo of pieces
           if (!isFillableSize(size)) {
             deadCells.push(...component);
-            unfillableSizes.push(size);
+            sizePruning.cells.push(component);
+            sizePruning.sizes.push(size);
             continue;
           }
           
+          // (2) Shape pruning: size-5 or size-6 region doesn't match any available piece
           if (size === 5 || size === 6) {
             const matchingPiece = shapeToPiece[shapeKey(component)];
             if (!matchingPiece || !remainingSet.has(matchingPiece)) {
               deadCells.push(...component);
-              unfillableRegionSizes.push(size);
+              shapePruning.cells.push(component);
+              shapePruning.sizes.push(size);
             }
           }
           
-          // Tunnel detection: only if uniform queue and component is larger than uq
+          // (3) Tunnel pruning: only if uniform queue and component is larger than uq
           if (uniformQueueSize && size > uniformQueueSize) {
             const tunnels = findTunnels(component, uniformQueueSize);
             for (const tunnel of tunnels) {
               const matchingPiece = shapeToPiece[shapeKey(tunnel)];
               if (!matchingPiece || !remainingSet.has(matchingPiece)) {
                 deadCells.push(...tunnel);
-                unfillableRegionSizes.push(tunnel.length);
+                tunnelPruning.cells.push(tunnel);
+                tunnelPruning.sizes.push(tunnel.length);
               }
             }
           }
@@ -385,7 +392,7 @@ window.Solver = (function() {
       }
     }
     
-    return { deadCells, unfillableSizes, unfillableRegionSizes };
+    return { deadCells, sizePruning, shapePruning, tunnelPruning };
   }
   
   function countValidPlacements(grid, pieceName) {
@@ -398,9 +405,9 @@ window.Solver = (function() {
   }
   
   function getEffectiveCounts(grid, remainingPieces) {
-    const { deadCells, unfillableSizes, unfillableRegionSizes } = analyzeRegions(grid, remainingPieces);
+    const { deadCells, sizePruning, shapePruning, tunnelPruning } = analyzeRegions(grid, remainingPieces);
     const counts = remainingPieces.map(name => ({ name, count: countValidPlacements(grid, name) }));
-    return { counts, deadCells, unfillableSizes, unfillableRegionSizes };
+    return { counts, deadCells, sizePruning, shapePruning, tunnelPruning };
   }
   
   // Main solve function
@@ -450,7 +457,8 @@ window.Solver = (function() {
         });
         // Convert to array format for visualization
         placements = placedPieces.map(name => placementsByName[name]);
-        visualizeCallback(placements, attempts, allPiecesProgress, [], [], null, false, []);
+        const emptyPruning = { cells: [], sizes: [] };
+        visualizeCallback(placements, attempts, allPiecesProgress, [], emptyPruning, emptyPruning, emptyPruning, null, false, []);
         
         // Wait while paused (user can resume to find next solution)
         while (paused && solving) {
@@ -513,7 +521,7 @@ window.Solver = (function() {
           // Analyze regions: get dead cells AND recompute ordering with forced pieces
           const newPlaced = [...placedPieces, pieceName];
           const rawRemaining = orderedRemaining.slice(1);
-          const { counts: remainingCounts, deadCells, unfillableSizes, unfillableRegionSizes } = getEffectiveCounts(grid, rawRemaining);
+          const { counts: remainingCounts, deadCells, sizePruning, shapePruning, tunnelPruning } = getEffectiveCounts(grid, rawRemaining);
           remainingCounts.sort((a, b) => a.count - b.count);
           const newRemaining = remainingCounts.map(x => x.name);
           
@@ -540,7 +548,7 @@ window.Solver = (function() {
           
           // Convert to array for visualization
           placements = newPlaced.map(name => placementsByName[name]);
-          visualizeCallback(placements, attempts, allPiecesProgress, deadCells, unfillableSizes, unfillableRegionSizes, nextPieceName, false, newRemaining);
+          visualizeCallback(placements, attempts, allPiecesProgress, deadCells, sizePruning, shapePruning, tunnelPruning, nextPieceName, false, newRemaining);
           
           // Step mode: pause after each placement
           if (stepMode) {
@@ -585,7 +593,8 @@ window.Solver = (function() {
           })
         ];
         placements = placedPieces.map(name => placementsByName[name]);
-        visualizeCallback(placements, attempts, allPiecesProgress, [], [], [], pieceName, true, orderedRemaining);
+        const emptyPruning2 = { cells: [], sizes: [] };
+        visualizeCallback(placements, attempts, allPiecesProgress, [], emptyPruning2, emptyPruning2, emptyPruning2, pieceName, true, orderedRemaining);
         
         // Step mode or normal delay
         if (stepMode) {
