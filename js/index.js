@@ -684,7 +684,7 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
       const sizesStr = sizes.length > 0 ? ` — {${sizes.join(', ')}}` : '';
       const text = deadGroup.text(function(add) {
         add.tspan(`${count} ${label} `);
-        add.tspan(italicWord).font({ style: 'italic' });
+        add.tspan(italicWord).attr('font-style', 'italic');
         add.tspan(sizesStr);
       });
       text.font({ size: fontSize, weight: 'bold', family: 'Arial' }).fill('#000000').move(textX, y);
