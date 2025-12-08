@@ -419,15 +419,22 @@ window.Solver = (function() {
             }
           }
           
-          // (3) Tunnel pruning: only if uniform queue and component is larger than uq
+          // (3) Tunnel check: only if uniform queue and component is larger than uq
           if (uniformQueueSize && size > uniformQueueSize) {
             const tunnels = findTunnels(component, uniformQueueSize);
             for (const tunnel of tunnels) {
               const matchingPiece = shapeToPiece[shapeKey(tunnel)];
               if (!matchingPiece || !remainingSet.has(matchingPiece)) {
+                // Pruning: tunnel doesn't match any available piece
                 deadCells.push(...tunnel);
                 tunnelPruning.cells.push(tunnel);
                 tunnelPruning.sizes.push(tunnel.length);
+              } else {
+                // Forced placement: tunnel matches exactly one piece shape
+                const placement = findForcedPlacement(tunnel, matchingPiece);
+                if (placement) {
+                  forcedPlacements.push(placement);
+                }
               }
             }
           }
