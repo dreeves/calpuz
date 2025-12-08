@@ -51,11 +51,13 @@ Preferred communication style: Simple, everyday language.
    - Grid template (7x7 boolean matrix) defines valid placement cells
    - Piece cells come from shared `PIECE_DEFINITIONS` via `getPieceCells()`
    - **Dynamic "most constrained first" ordering**: At each step, counts valid placements for remaining pieces and tries the most constrained piece first
+   - **Forced piece placement**: When a region of exactly 5 or 6 cells matches an available piece shape, that piece is auto-placed immediately (no search required)
    - **Three-tier pruning system** via `analyzeRegions()`:
      1. **Size pruning**: Regions with unfillable sizes (not 5k or 5k+1) - black/yellow stripes at 45°
      2. **Shape pruning**: Size-5/6 regions that don't match any available piece shape - red/white stripes at -45°
      3. **Tunnel pruning**: Dead-end corridors in uniform-size queues that can't be filled - blue/white horizontal stripes
    - Each pruning type has configurable colors, angles, widths, and opacity in index.js constants
+   - **Shape lookup via `shapeKeyToOrientation`**: Maps normalized shape keys to piece name + orientation index for O(1) forced placement lookup
 
 6. **Solver Control Flow**
    - Solve button (key icon) only opens the control panel

@@ -210,6 +210,11 @@ ul {
   background: rgba(100, 200, 100, 0.15);
 }
 
+.solver-progress .piece-row.forced {
+  background: rgba(255, 215, 0, 0.25);
+  box-shadow: inset 0 0 0 1px rgba(255, 215, 0, 0.5);
+}
+
 .solver-progress .piece-row.pending {
   opacity: 0.4;
 }

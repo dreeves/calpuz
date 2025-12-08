@@ -81,10 +81,12 @@ window.Solver = (function() {
   // Precompute piece data from shapes array
   let pieceData = null;
   let shapeToPiece = {}; // Maps normalized shape key → piece name
+  let shapeKeyToOrientation = {}; // Maps shape key → { pieceName, orientationIndex }
   
   function initPieceData(shapes) {
     pieceData = {};
     shapeToPiece = {};
+    shapeKeyToOrientation = {};
     
     const chiralPieces = getChiralPieces();
     
@@ -102,11 +104,44 @@ window.Solver = (function() {
       };
       
       // Register all orientations in the shape lookup
-      for (const orientation of orientations) {
+      for (let i = 0; i < orientations.length; i++) {
+        const orientation = orientations[i];
         const key = shapeKey(orientation.cells);
         shapeToPiece[key] = name;
+        shapeKeyToOrientation[key] = { pieceName: name, orientationIndex: i };
       }
     }
+  }
+  
+  // Find the exact placement for a forced piece given the region it must fill
+  function findForcedPlacement(regionCells, pieceName) {
+    const regionKey = shapeKey(regionCells);
+    const orientationInfo = shapeKeyToOrientation[regionKey];
+    
+    if (!orientationInfo || orientationInfo.pieceName !== pieceName) {
+      return null; // Shape doesn't match this piece
+    }
+    
+    const piece = pieceData[pieceName];
+    const orientation = piece.orientations[orientationInfo.orientationIndex];
+    
+    // Calculate position offset: region's min corner - piece's min corner
+    const regionMinR = Math.min(...regionCells.map(c => c[0]));
+    const regionMinC = Math.min(...regionCells.map(c => c[1]));
+    const pieceMinR = Math.min(...orientation.cells.map(c => c[0]));
+    const pieceMinC = Math.min(...orientation.cells.map(c => c[1]));
+    
+    const offsetR = regionMinR - pieceMinR;
+    const offsetC = regionMinC - pieceMinC;
+    
+    return {
+      name: pieceName,
+      orientationIndex: orientationInfo.orientationIndex,
+      totalOrientations: piece.orientations.length,
+      cells: orientation.cells,
+      row: offsetR,
+      col: offsetC
+    };
   }
   
   // Check if piece can be placed at position
@@ -236,6 +271,7 @@ window.Solver = (function() {
     const sizePruning = { cells: [], sizes: [] };      // (1) unfillable size
     const shapePruning = { cells: [], sizes: [] };     // (2) unfillable shape
     const tunnelPruning = { cells: [], sizes: [] };    // (3) unfillable tunnels
+    const forcedPlacements = [];                       // Pieces that must be placed in specific regions
     const remainingSet = new Set(remainingPieces);
     
     // Check for uniform queue size (all remaining pieces same size)
@@ -366,13 +402,20 @@ window.Solver = (function() {
             continue;
           }
           
-          // (2) Shape pruning: size-5 or size-6 region doesn't match any available piece
+          // (2) Shape check: size-5 or size-6 region
           if (size === 5 || size === 6) {
             const matchingPiece = shapeToPiece[shapeKey(component)];
             if (!matchingPiece || !remainingSet.has(matchingPiece)) {
+              // Pruning: region doesn't match any available piece
               deadCells.push(...component);
               shapePruning.cells.push(component);
               shapePruning.sizes.push(size);
+            } else {
+              // Forced placement: region matches exactly one piece shape
+              const placement = findForcedPlacement(component, matchingPiece);
+              if (placement) {
+                forcedPlacements.push(placement);
+              }
             }
           }
           
@@ -392,7 +435,7 @@ window.Solver = (function() {
       }
     }
     
-    return { deadCells, sizePruning, shapePruning, tunnelPruning };
+    return { deadCells, sizePruning, shapePruning, tunnelPruning, forcedPlacements };
   }
   
   function countValidPlacements(grid, pieceName) {
@@ -405,9 +448,9 @@ window.Solver = (function() {
   }
   
   function getEffectiveCounts(grid, remainingPieces) {
-    const { deadCells, sizePruning, shapePruning, tunnelPruning } = analyzeRegions(grid, remainingPieces);
+    const { deadCells, sizePruning, shapePruning, tunnelPruning, forcedPlacements } = analyzeRegions(grid, remainingPieces);
     const counts = remainingPieces.map(name => ({ name, count: countValidPlacements(grid, name) }));
-    return { counts, deadCells, sizePruning, shapePruning, tunnelPruning };
+    return { counts, deadCells, sizePruning, shapePruning, tunnelPruning, forcedPlacements };
   }
   
   // Main solve function
@@ -518,23 +561,56 @@ window.Solver = (function() {
           attempts++;
           currentDepth = depth + 1;
           
-          // Analyze regions: get dead cells AND recompute ordering with forced pieces
-          const newPlaced = [...placedPieces, pieceName];
-          const rawRemaining = orderedRemaining.slice(1);
-          const { counts: remainingCounts, deadCells, sizePruning, shapePruning, tunnelPruning } = getEffectiveCounts(grid, rawRemaining);
+          // Analyze regions: get dead cells, forced placements, and recompute ordering
+          let newPlaced = [...placedPieces, pieceName];
+          let rawRemaining = orderedRemaining.slice(1);
+          let analysis = getEffectiveCounts(grid, rawRemaining);
+          
+          // Auto-place any forced pieces (regions that exactly match a remaining piece)
+          while (analysis.forcedPlacements.length > 0 && analysis.deadCells.length === 0) {
+            const forced = analysis.forcedPlacements[0];
+            // Place the forced piece
+            setPiece(grid, forced.cells, forced.row, forced.col, 3 + newPlaced.length);
+            placementsByName[forced.name] = {
+              name: forced.name,
+              row: forced.row,
+              col: forced.col,
+              cells: forced.cells,
+              rotation: 0,
+              flipped: false,
+              orientationIndex: forced.orientationIndex,
+              totalOrientations: forced.totalOrientations,
+              positionIndex: 0,
+              totalPositions: 1,
+              forced: true
+            };
+            newPlaced = [...newPlaced, forced.name];
+            rawRemaining = rawRemaining.filter(n => n !== forced.name);
+            // Re-analyze with updated state
+            analysis = getEffectiveCounts(grid, rawRemaining);
+          }
+          
+          const { counts: remainingCounts, deadCells, sizePruning, shapePruning, tunnelPruning } = analysis;
           remainingCounts.sort((a, b) => a.count - b.count);
           const newRemaining = remainingCounts.map(x => x.name);
           
           const allPiecesProgress = [
             ...placedPieces.map(name => {
               const p = placementsByName[name];
-              return { name, status: 'placed',
+              return { name, status: p.forced ? 'forced' : 'placed',
                   orientation: p.orientationIndex + 1, totalOrientations: p.totalOrientations,
                   positionIndex: p.positionIndex + 1, totalPositions: p.totalPositions };
             }),
             { name: pieceName, status: 'current',
                 orientation: orientIdx + 1, totalOrientations,
                 positionIndex: posIdx + 1, totalPositions },
+            // Show forced pieces that were just auto-placed
+            ...newPlaced.slice(placedPieces.length + 1).map(name => {
+              const p = placementsByName[name];
+              return { name, status: 'forced',
+                  orientation: p.orientationIndex + 1, totalOrientations: p.totalOrientations,
+                  positionIndex: 1, totalPositions: 1 };
+            }),
             ...newRemaining.map(name => {
               const pd = pieceData[name];
               return { name, status: 'pending',
@@ -568,7 +644,14 @@ window.Solver = (function() {
             }
           }
           
-          // Backtrack
+          // Backtrack: undo forced placements first (in reverse order), then undo this piece
+          const forcedToUndo = newPlaced.slice(placedPieces.length + 1); // All pieces after pieceName are forced
+          for (let i = forcedToUndo.length - 1; i >= 0; i--) {
+            const forcedName = forcedToUndo[i];
+            const fp = placementsByName[forcedName];
+            setPiece(grid, fp.cells, fp.row, fp.col, 1);
+            delete placementsByName[forcedName];
+          }
           setPiece(grid, orientation.cells, row, col, 1);
           delete placementsByName[pieceName];
           backtracks++;
