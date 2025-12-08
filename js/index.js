@@ -50,7 +50,8 @@ let svg;                      // this gets initialized when the page loads
 let solverSpeed = 50;         // animation delay in ms (adjustable via speed buttons)
 window.pauseOnSolution = true;  // set to false in console to skip pausing on solutions
 
-const shapes = getShapesArray(); 
+const shapes = getShapesArray();
+const shapeMap = new Map(shapes.map(s => [s[0], s]));  // O(1) lookup by name
 
 function getRandomColor() {
   const hexdigs = '0123456789ABCDEF';
@@ -173,7 +174,7 @@ function snapToGrid(group) {
 function visualizePlacement(placement) {
   if (!placement) return;
   
-  const [nom, hue, fig] = shapes.find(shape => shape[0] === placement.name);
+  const [nom, hue, fig] = shapeMap.get(placement.name);
   const targetGroup = SVG.get(placement.name);
   if (targetGroup) targetGroup.remove();
   
@@ -289,7 +290,7 @@ function updateProgressPanel(attempts, allPiecesProgress) {
     if (header) container.appendChild(header);
     
     for (const piece of allPiecesProgress) {
-      const color = shapes.find(s => s[0] === piece.name)?.[1] || '#999';
+      const color = shapeMap.get(piece.name)?.[1] || '#999';
       const row = document.createElement('div');
       row.className = `piece-row ${piece.status}`;
       row.id = `row-${piece.name}`;
@@ -503,7 +504,7 @@ function drawPendingPieces(progress, failedPieceName = null, orderedRemaining = 
   
   // Draw each pending piece
   pendingPieces.forEach((piece) => {
-    const shape = shapes.find(s => s[0] === piece.name);
+    const shape = shapeMap.get(piece.name);
     if (!shape) return;
     
     const [name, color, vertices] = shape;
@@ -680,7 +681,7 @@ window.solvePuzzle = function() {
 }
 
 function movePoly(polyId, x, y, angle = 0, flip = false) {
-  const [nom, hue, fig] = shapes.find(shape => shape[0] === polyId);
+  const [nom, hue, fig] = shapeMap.get(polyId);
   const targetGroup = SVG.get(polyId);
   if (targetGroup) { targetGroup.remove() }
   const newGroup = svg.group().id("elements").group().id(nom);
