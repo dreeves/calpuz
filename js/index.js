@@ -638,76 +638,68 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
     });
   }
   
-  // Draw pruned regions if any exist
-  const hasPruning = deadCells.length > 0;
-  if (hasPruning) {
-    const deadGroup = svg.group().id('dead-cells');
-    
-    // Draw each pruning type with its distinct style
-    if (sizePruning.cells.length > 0) {
-      drawPrunedRegions(deadGroup, sizePruning.cells,
-        SIZE_PRUNE_COLOR_1, SIZE_PRUNE_COLOR_2, SIZE_PRUNE_WIDTH, SIZE_PRUNE_ANGLE, SIZE_PRUNE_OPACITY, 'prune-size');
-    }
-    if (shapePruning.cells.length > 0) {
-      drawPrunedRegions(deadGroup, shapePruning.cells,
-        SHAPE_PRUNE_COLOR_1, SHAPE_PRUNE_COLOR_2, SHAPE_PRUNE_WIDTH, SHAPE_PRUNE_ANGLE, SHAPE_PRUNE_OPACITY, 'prune-shape');
-    }
-    if (tunnelPruning.cells.length > 0) {
-      drawPrunedRegions(deadGroup, tunnelPruning.cells,
-        TUNNEL_PRUNE_COLOR_1, TUNNEL_PRUNE_COLOR_2, TUNNEL_PRUNE_WIDTH, TUNNEL_PRUNE_ANGLE, TUNNEL_PRUNE_OPACITY, 'prune-tunnel');
-    }
-    
-    // Legend with color swatches and black text (anti-magic: no conditionals, always show all 3)
-    const fontSize = Math.max(10, Math.min(16, boxel * 0.28));
-    const lineHeight = fontSize * 1.5;
-    const swatchSize = fontSize * 0.9;
-    const swatchX = x0;  // Left-align with grid
-    const textX = swatchX + swatchSize + fontSize * 0.4;
-    let textY = y0 + 7 * boxel + fontSize;  // Below the grid
-    
-    // Helper to draw a striped swatch
-    function drawSwatch(y, color1, color2, angle, patternId) {
-      const stripeWidth = swatchSize * 0.15;
-      const period = stripeWidth * 2;
-      const pattern = svg.pattern(period, period, function(add) {
-        add.rect(period, stripeWidth).fill(color1);
-        add.rect(period, stripeWidth).move(0, stripeWidth).fill(color2);
-      }).id(patternId).attr({
-        patternUnits: 'userSpaceOnUse',
-        patternTransform: `rotate(${angle})`
-      });
-      deadGroup.rect(swatchSize, swatchSize).move(swatchX, y).fill(pattern).stroke({ width: 1, color: '#666' });
-    }
-    
-    // Helper to draw text with italic portion (SVG tspan for styling)
-    function drawLegendText(y, count, label, italicWord, sizes) {
-      const sizesStr = sizes.length > 0 ? ` — {${sizes.join(', ')}}` : '';
-      const text = deadGroup.text(function(add) {
-        add.tspan(`${count} ${label} `);
-        add.tspan(italicWord).attr('font-style', 'italic');
-        add.tspan(sizesStr);
-      });
-      text.font({ size: fontSize, weight: 'bold', family: 'Arial' }).fill('#000000').move(textX, y);
-    }
-    
-    // Size pruning legend (always shown)
-    drawSwatch(textY, SIZE_PRUNE_COLOR_1, SIZE_PRUNE_COLOR_2, SIZE_PRUNE_ANGLE, 'swatch-size');
-    drawLegendText(textY, sizePruning.sizes.length, 'regions of unfillable', 'size', sizePruning.sizes);
-    textY += lineHeight;
-    
-    // Shape pruning legend (always shown)
-    drawSwatch(textY, SHAPE_PRUNE_COLOR_1, SHAPE_PRUNE_COLOR_2, SHAPE_PRUNE_ANGLE, 'swatch-shape');
-    drawLegendText(textY, shapePruning.sizes.length, 'regions of unfillable', 'shape', shapePruning.sizes);
-    textY += lineHeight;
-    
-    // Tunnel pruning legend (always shown)
-    drawSwatch(textY, TUNNEL_PRUNE_COLOR_1, TUNNEL_PRUNE_COLOR_2, TUNNEL_PRUNE_ANGLE, 'swatch-tunnel');
-    const tunnelSizesStr = tunnelPruning.sizes.length > 0 ? ` — {${tunnelPruning.sizes.join(', ')}}` : '';
-    deadGroup.text(`${tunnelPruning.sizes.length} unfillable tunnels${tunnelSizesStr}`)
-      .font({ size: fontSize, weight: 'bold', family: 'Arial' })
-      .fill('#000000')
-      .move(textX, textY);
+  // Draw pruned regions and legend (legend hidden only when solution found)
+  const deadGroup = svg.group().id('dead-cells');
+  
+  // Draw striped overlays on pruned cells
+  drawPrunedRegions(deadGroup, sizePruning.cells,
+    SIZE_PRUNE_COLOR_1, SIZE_PRUNE_COLOR_2, SIZE_PRUNE_WIDTH, SIZE_PRUNE_ANGLE, SIZE_PRUNE_OPACITY, 'prune-size');
+  drawPrunedRegions(deadGroup, shapePruning.cells,
+    SHAPE_PRUNE_COLOR_1, SHAPE_PRUNE_COLOR_2, SHAPE_PRUNE_WIDTH, SHAPE_PRUNE_ANGLE, SHAPE_PRUNE_OPACITY, 'prune-shape');
+  drawPrunedRegions(deadGroup, tunnelPruning.cells,
+    TUNNEL_PRUNE_COLOR_1, TUNNEL_PRUNE_COLOR_2, TUNNEL_PRUNE_WIDTH, TUNNEL_PRUNE_ANGLE, TUNNEL_PRUNE_OPACITY, 'prune-tunnel');
+  
+  // Legend with color swatches (anti-magic: always show all 3 lines, hide only on solution)
+  const showLegend = !allPlaced;
+  const fontSize = Math.max(10, Math.min(16, boxel * 0.28));
+  const lineHeight = fontSize * 1.5;
+  const swatchSize = fontSize * 0.9;
+  const swatchX = x0;  // Left-align with grid
+  const textX = swatchX + swatchSize + fontSize * 0.4;
+  let textY = y0 + 7 * boxel + fontSize;  // Below the grid
+  
+  // Helper to draw a striped swatch
+  function drawSwatch(y, color1, color2, angle, patternId) {
+    const stripeWidth = swatchSize * 0.15;
+    const period = stripeWidth * 2;
+    const pattern = svg.pattern(period, period, function(add) {
+      add.rect(period, stripeWidth).fill(color1);
+      add.rect(period, stripeWidth).move(0, stripeWidth).fill(color2);
+    }).id(patternId).attr({
+      patternUnits: 'userSpaceOnUse',
+      patternTransform: `rotate(${angle})`
+    });
+    deadGroup.rect(swatchSize, swatchSize).move(swatchX, y).fill(pattern).stroke({ width: 1, color: '#666' });
   }
+  
+  // Helper to draw text with italic portion
+  function drawLegendText(y, count, label, italicWord, sizes) {
+    const text = deadGroup.text(function(add) {
+      add.tspan(`${count} ${label} `);
+      add.tspan(italicWord).attr('font-style', 'italic');
+      add.tspan(` — {${sizes.join(', ')}}`);
+    });
+    text.font({ size: fontSize, weight: 'bold', family: 'Arial' }).fill('#000000').move(textX, y);
+  }
+  
+  // All 3 legend lines unconditionally (opacity 0 when solution found to hide without conditionals)
+  const legendOpacity = showLegend ? 1 : 0;
+  
+  drawSwatch(textY, SIZE_PRUNE_COLOR_1, SIZE_PRUNE_COLOR_2, SIZE_PRUNE_ANGLE, 'swatch-size');
+  drawLegendText(textY, sizePruning.sizes.length, 'regions of unfillable', 'size', sizePruning.sizes);
+  textY += lineHeight;
+  
+  drawSwatch(textY, SHAPE_PRUNE_COLOR_1, SHAPE_PRUNE_COLOR_2, SHAPE_PRUNE_ANGLE, 'swatch-shape');
+  drawLegendText(textY, shapePruning.sizes.length, 'regions of unfillable', 'shape', shapePruning.sizes);
+  textY += lineHeight;
+  
+  drawSwatch(textY, TUNNEL_PRUNE_COLOR_1, TUNNEL_PRUNE_COLOR_2, TUNNEL_PRUNE_ANGLE, 'swatch-tunnel');
+  deadGroup.text(`${tunnelPruning.sizes.length} unfillable tunnels — {${tunnelPruning.sizes.join(', ')}}`)
+    .font({ size: fontSize, weight: 'bold', family: 'Arial' })
+    .fill('#000000')
+    .move(textX, textY);
+  
+  deadGroup.opacity(legendOpacity);
   
   // Draw all pending pieces in dynamic order
   drawPendingPieces(progress, pieceFailed ? nextPiece : null, orderedRemaining);
