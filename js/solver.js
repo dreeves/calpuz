@@ -236,6 +236,15 @@ window.Solver = (function() {
     const unfillableRegionSizes = [];
     const remainingSet = new Set(remainingPieces);
     
+    // Check for uniform queue size (all remaining pieces same size)
+    let uniformQueueSize = null;
+    if (remainingPieces.length > 0) {
+      const sizes = remainingPieces.map(name => pieceData[name]?.numCells || 0);
+      if (sizes.every(s => s === sizes[0])) {
+        uniformQueueSize = sizes[0];
+      }
+    }
+    
     function floodFill(startR, startC) {
       const component = [];
       const stack = [[startR, startC]];
@@ -249,6 +258,96 @@ window.Solver = (function() {
         stack.push([r-1, c], [r+1, c], [r, c-1], [r, c+1]);
       }
       return component;
+    }
+    
+    // Count vacant neighbors for a cell within a component
+    function countVacantNeighbors(r, c, vacantSet) {
+      let count = 0;
+      for (const [dr, dc] of [[0,1],[0,-1],[1,0],[-1,0]]) {
+        if (vacantSet.has(`${r+dr},${c+dc}`)) count++;
+      }
+      return count;
+    }
+    
+    // Find tunnels in a component (cavities that form dead-end corridors)
+    function findTunnels(component, uq) {
+      if (component.length < uq) return [];
+      
+      const vacantSet = new Set(component.map(([r,c]) => `${r},${c}`));
+      const tunnels = [];
+      
+      // Find initial cavities: cells with ≤1 vacant neighbor
+      const cavitySet = new Set();
+      for (const [r, c] of component) {
+        if (countVacantNeighbors(r, c, vacantSet) <= 1) {
+          cavitySet.add(`${r},${c}`);
+        }
+      }
+      
+      // Grow tunnels by adding cells with exactly 1 non-cavity vacant neighbor
+      // Stop when any tunnel reaches size uq
+      let changed = true;
+      while (changed && cavitySet.size < component.length) {
+        changed = false;
+        
+        // Check if we have a tunnel of size uq
+        const tunnelComponents = findConnectedCavities(cavitySet);
+        for (const tunnel of tunnelComponents) {
+          if (tunnel.length === uq) {
+            tunnels.push(tunnel);
+            return tunnels; // Found one, return immediately
+          }
+        }
+        
+        // Grow: mark cells with exactly 1 non-cavity vacant neighbor as cavity
+        for (const [r, c] of component) {
+          const key = `${r},${c}`;
+          if (cavitySet.has(key)) continue;
+          
+          // Count non-cavity vacant neighbors
+          let nonCavityNeighbors = 0;
+          for (const [dr, dc] of [[0,1],[0,-1],[1,0],[-1,0]]) {
+            const nkey = `${r+dr},${c+dc}`;
+            if (vacantSet.has(nkey) && !cavitySet.has(nkey)) {
+              nonCavityNeighbors++;
+            }
+          }
+          
+          // If exactly 1 non-cavity neighbor, this cell is at the edge of a tunnel
+          if (nonCavityNeighbors <= 1) {
+            cavitySet.add(key);
+            changed = true;
+          }
+        }
+      }
+      
+      return tunnels;
+    }
+    
+    // Find connected components within cavity set
+    function findConnectedCavities(cavitySet) {
+      const visited = new Set();
+      const components = [];
+      
+      for (const key of cavitySet) {
+        if (visited.has(key)) continue;
+        
+        const component = [];
+        const stack = [key];
+        while (stack.length > 0) {
+          const k = stack.pop();
+          if (visited.has(k) || !cavitySet.has(k)) continue;
+          visited.add(k);
+          const [r, c] = k.split(',').map(Number);
+          component.push([r, c]);
+          for (const [dr, dc] of [[0,1],[0,-1],[1,0],[-1,0]]) {
+            stack.push(`${r+dr},${c+dc}`);
+          }
+        }
+        if (component.length > 0) components.push(component);
+      }
+      
+      return components;
     }
     
     for (let r = 0; r < 7; r++) {
@@ -268,6 +367,18 @@ window.Solver = (function() {
             if (!matchingPiece || !remainingSet.has(matchingPiece)) {
               deadCells.push(...component);
               unfillableRegionSizes.push(size);
+            }
+          }
+          
+          // Tunnel detection: only if uniform queue and component is larger than uq
+          if (uniformQueueSize && size > uniformQueueSize) {
+            const tunnels = findTunnels(component, uniformQueueSize);
+            for (const tunnel of tunnels) {
+              const matchingPiece = shapeToPiece[shapeKey(tunnel)];
+              if (!matchingPiece || !remainingSet.has(matchingPiece)) {
+                deadCells.push(...tunnel);
+                unfillableRegionSizes.push(tunnel.length);
+              }
             }
           }
         }
