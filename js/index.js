@@ -593,8 +593,8 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
   const oldDeadMarkers = SVG.get('dead-cells');
   if (oldDeadMarkers) oldDeadMarkers.remove();
   
-  // Remove old hazard patterns from defs to prevent memory leak
-  document.querySelectorAll('pattern[id^="prune-"]').forEach(p => p.remove());
+  // Remove old patterns from defs to prevent memory leak
+  document.querySelectorAll('pattern[id^="prune-"], pattern[id^="swatch-"]').forEach(p => p.remove());
   
   // Draw all placements
   for (const p of placements) {
