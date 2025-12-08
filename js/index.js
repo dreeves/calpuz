@@ -29,7 +29,7 @@ const SHAPE_PRUNE_OPACITY = 0.15;
 const TUNNEL_PRUNE_COLOR_1 = '#0000ff';
 const TUNNEL_PRUNE_COLOR_2 = '#ffffff';  // Blue/white = tunnel
 const TUNNEL_PRUNE_WIDTH = 0.1;
-const TUNNEL_PRUNE_ANGLE = 90;           // Vertical stripes (perpendicular to shape)
+const TUNNEL_PRUNE_ANGLE = 45;           // Same angle as size, different colors
 const TUNNEL_PRUNE_OPACITY = 0.15;
 
 // Date circle highlighting
@@ -657,13 +657,13 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
         TUNNEL_PRUNE_COLOR_1, TUNNEL_PRUNE_COLOR_2, TUNNEL_PRUNE_WIDTH, TUNNEL_PRUNE_ANGLE, TUNNEL_PRUNE_OPACITY, 'prune-tunnel');
     }
     
-    // Legend with color swatches and black text (anti-magic: always show all 3 lines)
+    // Legend with color swatches and black text (anti-magic: no conditionals, always show all 3)
     const fontSize = Math.max(10, Math.min(16, boxel * 0.28));
     const lineHeight = fontSize * 1.5;
     const swatchSize = fontSize * 0.9;
-    const swatchX = x0 + 3 * boxel + boxel * 0.2;
+    const swatchX = x0;  // Left-align with grid
     const textX = swatchX + swatchSize + fontSize * 0.4;
-    let textY = y0 + 6 * boxel + boxel / 2 - lineHeight * 1.5;
+    let textY = y0 + 7 * boxel + fontSize;  // Below the grid
     
     // Helper to draw a striped swatch
     function drawSwatch(y, color1, color2, angle, patternId) {
@@ -679,34 +679,31 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
       deadGroup.rect(swatchSize, swatchSize).move(swatchX, y).fill(pattern).stroke({ width: 1, color: '#666' });
     }
     
-    // Size pruning legend
+    // Helper to draw text with italic portion (SVG tspan for styling)
+    function drawLegendText(y, count, label, italicWord, sizes) {
+      const sizesStr = sizes.length > 0 ? ` — {${sizes.join(', ')}}` : '';
+      const text = deadGroup.text(function(add) {
+        add.tspan(`${count} ${label} `);
+        add.tspan(italicWord).font({ style: 'italic' });
+        add.tspan(sizesStr);
+      });
+      text.font({ size: fontSize, weight: 'bold', family: 'Arial' }).fill('#000000').move(textX, y);
+    }
+    
+    // Size pruning legend (always shown)
     drawSwatch(textY, SIZE_PRUNE_COLOR_1, SIZE_PRUNE_COLOR_2, SIZE_PRUNE_ANGLE, 'swatch-size');
-    const sizeText = sizePruning.sizes.length > 0
-      ? `${splur(sizePruning.sizes.length, "region")} of unfillable size — {${sizePruning.sizes.join(', ')}}`
-      : '0 regions of unfillable size';
-    deadGroup.text(sizeText)
-      .font({ size: fontSize, weight: 'bold', family: 'Arial' })
-      .fill('#000000')
-      .move(textX, textY);
+    drawLegendText(textY, sizePruning.sizes.length, 'regions of unfillable', 'size', sizePruning.sizes);
     textY += lineHeight;
     
-    // Shape pruning legend
+    // Shape pruning legend (always shown)
     drawSwatch(textY, SHAPE_PRUNE_COLOR_1, SHAPE_PRUNE_COLOR_2, SHAPE_PRUNE_ANGLE, 'swatch-shape');
-    const shapeText = shapePruning.sizes.length > 0
-      ? `${splur(shapePruning.sizes.length, "region")} of unfillable shape — {${shapePruning.sizes.join(', ')}}`
-      : '0 regions of unfillable shape';
-    deadGroup.text(shapeText)
-      .font({ size: fontSize, weight: 'bold', family: 'Arial' })
-      .fill('#000000')
-      .move(textX, textY);
+    drawLegendText(textY, shapePruning.sizes.length, 'regions of unfillable', 'shape', shapePruning.sizes);
     textY += lineHeight;
     
-    // Tunnel pruning legend
+    // Tunnel pruning legend (always shown)
     drawSwatch(textY, TUNNEL_PRUNE_COLOR_1, TUNNEL_PRUNE_COLOR_2, TUNNEL_PRUNE_ANGLE, 'swatch-tunnel');
-    const tunnelText = tunnelPruning.sizes.length > 0
-      ? `${splur(tunnelPruning.sizes.length, "unfillable tunnel")} — {${tunnelPruning.sizes.join(', ')}}`
-      : '0 unfillable tunnels';
-    deadGroup.text(tunnelText)
+    const tunnelSizesStr = tunnelPruning.sizes.length > 0 ? ` — {${tunnelPruning.sizes.join(', ')}}` : '';
+    deadGroup.text(`${tunnelPruning.sizes.length} unfillable tunnels${tunnelSizesStr}`)
       .font({ size: fontSize, weight: 'bold', family: 'Arial' })
       .fill('#000000')
       .move(textX, textY);
