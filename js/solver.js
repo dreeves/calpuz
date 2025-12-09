@@ -308,53 +308,55 @@ window.Solver = (function() {
     }
     
     // Find tunnels in a component (cavities that form dead-end corridors)
+    // A tunnel is the deepest `uq` cells starting from a dead-end (nadir)
     function findTunnels(component, uq) {
       if (component.length < uq) return [];
       
       const vacantSet = new Set(component.map(([r,c]) => `${r},${c}`));
       const tunnels = [];
       
-      // Find initial cavities: cells with ≤1 vacant neighbor
-      const cavitySet = new Set();
+      // Find all dead-ends: cells with exactly 1 vacant neighbor (nadirs)
+      const deadEnds = [];
       for (const [r, c] of component) {
-        if (countVacantNeighbors(r, c, vacantSet) <= 1) {
-          cavitySet.add(`${r},${c}`);
+        if (countVacantNeighbors(r, c, vacantSet) === 1) {
+          deadEnds.push([r, c]);
         }
       }
       
-      // Grow tunnels by adding cells with exactly 1 non-cavity vacant neighbor
-      // Stop when any tunnel reaches size uq
-      let changed = true;
-      while (changed && cavitySet.size < component.length) {
-        changed = false;
+      // For each dead-end, grow outward and collect the first `uq` cells
+      const usedCells = new Set(); // Avoid returning overlapping tunnels
+      
+      for (const [startR, startC] of deadEnds) {
+        const startKey = `${startR},${startC}`;
+        if (usedCells.has(startKey)) continue;
         
-        // Check if we have a tunnel of size uq
-        const tunnelComponents = findConnectedCavities(cavitySet);
-        for (const tunnel of tunnelComponents) {
-          if (tunnel.length === uq) {
-            tunnels.push(tunnel);
-            return tunnels; // Found one, return immediately
+        // BFS from this dead-end
+        const tunnel = [];
+        const visited = new Set();
+        const queue = [[startR, startC]];
+        
+        while (queue.length > 0 && tunnel.length < uq) {
+          const [r, c] = queue.shift();
+          const key = `${r},${c}`;
+          if (visited.has(key) || !vacantSet.has(key)) continue;
+          visited.add(key);
+          tunnel.push([r, c]);
+          
+          // Add neighbors to queue
+          for (const [dr, dc] of [[0,1],[0,-1],[1,0],[-1,0]]) {
+            const nkey = `${r+dr},${c+dc}`;
+            if (vacantSet.has(nkey) && !visited.has(nkey)) {
+              queue.push([r+dr, c+dc]);
+            }
           }
         }
         
-        // Grow: mark cells with exactly 1 non-cavity vacant neighbor as cavity
-        for (const [r, c] of component) {
-          const key = `${r},${c}`;
-          if (cavitySet.has(key)) continue;
-          
-          // Count non-cavity vacant neighbors
-          let nonCavityNeighbors = 0;
-          for (const [dr, dc] of [[0,1],[0,-1],[1,0],[-1,0]]) {
-            const nkey = `${r+dr},${c+dc}`;
-            if (vacantSet.has(nkey) && !cavitySet.has(nkey)) {
-              nonCavityNeighbors++;
-            }
-          }
-          
-          // If exactly 1 non-cavity neighbor, this cell is at the edge of a tunnel
-          if (nonCavityNeighbors <= 1) {
-            cavitySet.add(key);
-            changed = true;
+        // Only return tunnels that reached exactly `uq` cells
+        if (tunnel.length === uq) {
+          tunnels.push(tunnel);
+          // Mark these cells as used
+          for (const [r, c] of tunnel) {
+            usedCells.add(`${r},${c}`);
           }
         }
       }
