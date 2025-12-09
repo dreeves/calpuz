@@ -423,45 +423,19 @@ window.Solver = (function() {
           if (uniformQueueSize && size > uniformQueueSize) {
             const tunnels = findTunnels(component, uniformQueueSize);
             for (const tunnel of tunnels) {
-              // Find all placements that cover ALL tunnel cells
-              const tunnelSet = new Set(tunnel.map(([r,c]) => `${r},${c}`));
-              const viablePlacements = [];
-              
-              for (const pieceName of remainingPieces) {
-                const piece = pieceData[pieceName];
-                for (let oi = 0; oi < piece.orientations.length; oi++) {
-                  const orientation = piece.orientations[oi];
-                  const positions = getValidPositions(grid, orientation.cells);
-                  for (const [row, col] of positions) {
-                    // Check if this placement covers all tunnel cells
-                    const placedCells = orientation.cells.map(([dr, dc]) => `${row+dr},${col+dc}`);
-                    const coversAll = [...tunnelSet].every(tc => placedCells.includes(tc));
-                    if (coversAll) {
-                      viablePlacements.push({ pieceName, orientationIndex: oi, row, col, cells: orientation.cells });
-                    }
-                  }
-                }
-              }
-              
-              if (viablePlacements.length === 0) {
-                // Pruning: no piece can cover this tunnel
+              const matchingPiece = shapeToPiece[shapeKey(tunnel)];
+              if (!matchingPiece || !remainingSet.has(matchingPiece)) {
+                // Pruning: tunnel doesn't match any available piece
                 deadCells.push(...tunnel);
                 tunnelPruning.cells.push(tunnel);
                 tunnelPruning.sizes.push(tunnel.length);
-              } else if (viablePlacements.length === 1) {
-                // Forced placement: exactly one way to cover this tunnel
-                const vp = viablePlacements[0];
-                const piece = pieceData[vp.pieceName];
-                forcedPlacements.push({
-                  name: vp.pieceName,
-                  orientationIndex: vp.orientationIndex,
-                  totalOrientations: piece.orientations.length,
-                  row: vp.row,
-                  col: vp.col,
-                  cells: vp.cells
-                });
+              } else {
+                // Forced placement: tunnel matches exactly one piece shape
+                const placement = findForcedPlacement(tunnel, matchingPiece);
+                if (placement) {
+                  forcedPlacements.push(placement);
+                }
               }
-              // else: multiple placements possible, no forcing or pruning
             }
           }
         }
