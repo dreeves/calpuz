@@ -37,6 +37,9 @@ const FORCED_REGION_WIDTH = 0.1;
 const FORCED_REGION_ANGLE = -45;          // Same as red (opposite to blue/yellow)
 const FORCED_REGION_OPACITY = 0.2;
 
+// Legend swatches (small pattern previews next to text)
+const LEGEND_SWATCH_OPACITY = 0.5;
+
 // Date circle highlighting
 const DATE_CIRCLE_RADIUS = 0.85;   // As fraction of boxel
 const DATE_CIRCLE_STROKE = 3;
@@ -698,7 +701,7 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
       patternUnits: 'userSpaceOnUse',
       patternTransform: `rotate(${angle})`
     });
-    deadGroup.rect(swatchSize, swatchSize).move(swatchX, y).fill(pattern).opacity(0.6).stroke({ width: 1, color: '#666' });
+    deadGroup.rect(swatchSize, swatchSize).move(swatchX, y).fill(pattern).opacity(LEGEND_SWATCH_OPACITY).stroke({ width: 1, color: '#666' });
   }
   
   // Helper to draw a checkerboard swatch
@@ -711,7 +714,7 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
       add.rect(cellSize, cellSize).move(0, cellSize).fill(color2);
       add.rect(cellSize, cellSize).move(cellSize, cellSize).fill(color1);
     }).id(patternId).attr({ patternUnits: 'userSpaceOnUse' });
-    deadGroup.rect(swatchSize, swatchSize).move(swatchX, y).fill(pattern).opacity(0.6).stroke({ width: 1, color: '#666' });
+    deadGroup.rect(swatchSize, swatchSize).move(swatchX, y).fill(pattern).opacity(LEGEND_SWATCH_OPACITY).stroke({ width: 1, color: '#666' });
   }
   
   // Helper to draw text with italic portion
