@@ -423,7 +423,9 @@ window.Solver = (function() {
           if (uniformQueueSize && size > uniformQueueSize) {
             const tunnels = findTunnels(component, uniformQueueSize);
             for (const tunnel of tunnels) {
-              const matchingPiece = shapeToPiece[shapeKey(tunnel)];
+              const tunnelKey = shapeKey(tunnel);
+              const matchingPiece = shapeToPiece[tunnelKey];
+              console.log('TUNNEL DEBUG:', { tunnelKey, matchingPiece, inQueue: matchingPiece ? remainingSet.has(matchingPiece) : false, tunnel });
               if (!matchingPiece || !remainingSet.has(matchingPiece)) {
                 // Pruning: tunnel doesn't match any available piece
                 deadCells.push(...tunnel);
@@ -432,6 +434,7 @@ window.Solver = (function() {
               } else {
                 // Forced placement: tunnel matches exactly one piece shape
                 const placement = findForcedPlacement(tunnel, matchingPiece);
+                console.log('TUNNEL FORCED:', { matchingPiece, placement });
                 if (placement) {
                   forcedPlacements.push(placement);
                 }
