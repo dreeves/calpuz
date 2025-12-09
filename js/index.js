@@ -1,5 +1,3 @@
-const TAU = 2*Math.PI;
-
 // ============ CONFIGURATION CONSTANTS ============
 
 // Piece rendering
@@ -673,9 +671,10 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
   }
   
   // Helper to draw text with italic portion
-  function drawLegendText(y, count, label, italicWord, sizes) {
+  function drawLegendText(y, count, noun, italicWord, sizes) {
+    const pluralNoun = count === 1 ? noun : noun + 's';
     const text = deadGroup.text(function(add) {
-      add.tspan(`${count} ${label} `);
+      add.tspan(`${count} ${pluralNoun} of unfillable `);
       add.tspan(italicWord).attr('font-style', 'italic');
       add.tspan(` — {${sizes.join(', ')}}`);
     });
@@ -686,15 +685,17 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
   const legendOpacity = showLegend ? 1 : 0;
   
   drawSwatch(textY, SIZE_PRUNE_COLOR_1, SIZE_PRUNE_COLOR_2, SIZE_PRUNE_ANGLE, 'swatch-size');
-  drawLegendText(textY, sizePruning.sizes.length, 'regions of unfillable', 'size', sizePruning.sizes);
+  drawLegendText(textY, sizePruning.sizes.length, 'region', 'size', sizePruning.sizes);
   textY += lineHeight;
   
   drawSwatch(textY, SHAPE_PRUNE_COLOR_1, SHAPE_PRUNE_COLOR_2, SHAPE_PRUNE_ANGLE, 'swatch-shape');
-  drawLegendText(textY, shapePruning.sizes.length, 'regions of unfillable', 'shape', shapePruning.sizes);
+  drawLegendText(textY, shapePruning.sizes.length, 'region', 'shape', shapePruning.sizes);
   textY += lineHeight;
   
+  const tunnelCount = tunnelPruning.sizes.length;
+  const tunnelNoun = tunnelCount === 1 ? 'tunnel' : 'tunnels';
   drawSwatch(textY, TUNNEL_PRUNE_COLOR_1, TUNNEL_PRUNE_COLOR_2, TUNNEL_PRUNE_ANGLE, 'swatch-tunnel');
-  deadGroup.text(`${tunnelPruning.sizes.length} unfillable tunnels — {${tunnelPruning.sizes.join(', ')}}`)
+  deadGroup.text(`${tunnelCount} unfillable ${tunnelNoun} — {${tunnelPruning.sizes.join(', ')}}`)
     .font({ size: fontSize, weight: 'bold', family: 'Arial' })
     .fill('#000000')
     .move(textX, textY);
