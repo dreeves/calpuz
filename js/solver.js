@@ -251,17 +251,34 @@ window.Solver = (function() {
     return positions;
   }
   
-  // Find connected components of empty cells and return any "dead" cells
-  // (cells in components too small to be filled by any remaining piece)
-  // Check if a region size can be filled with pieces
-  // With 7 pentominoes (5 cells) and 1 hexomino (6 cells), valid sizes are:
-  // - 5k (all pentominoes): 5, 10, 15, 20, 25, 30, 35
-  // - 5k + 1 (pentominoes + hexomino): 6, 11, 16, 21, 26, 31, 36, 41
-  // Invalid: 1-4, 7-9, 12-14, 17-19, 22-24, 27-29, 32-34, 37-39, 42+
-  function isFillableSize(size) {
-    if (size < 5) return false;
-    const remainder = size % 5;
-    return remainder === 0 || remainder === 1;
+  // Check if a region size can be filled with remaining pieces (bounded subset-sum)
+  // pieceSizes is array of sizes of remaining pieces (with duplicates for each piece)
+  function isFillableSize(size, pieceSizes) {
+    if (pieceSizes.length === 0) return size === 0;
+    if (size <= 0) return size === 0;
+    
+    const minSize = Math.min(...pieceSizes);
+    if (size < minSize) return false;
+    
+    // Check if all pieces are same size (uniform queue - fast path)
+    if (pieceSizes.every(s => s === pieceSizes[0])) {
+      const uq = pieceSizes[0];
+      return size % uq === 0 && size / uq <= pieceSizes.length;
+    }
+    
+    // General case: bounded subset-sum DP
+    // dp[i] = true if size i is reachable using some subset of pieces
+    const dp = new Array(size + 1).fill(false);
+    dp[0] = true;
+    
+    for (const pieceSize of pieceSizes) {
+      // Iterate backwards to avoid using same piece twice
+      for (let s = size; s >= pieceSize; s--) {
+        if (dp[s - pieceSize]) dp[s] = true;
+      }
+    }
+    
+    return dp[size];
   }
   
   function analyzeRegions(grid, remainingPieces = []) {
@@ -274,13 +291,14 @@ window.Solver = (function() {
     const forcedPlacements = [];                       // Pieces that must be placed in specific regions
     const remainingSet = new Set(remainingPieces);
     
+    // Compute piece sizes for generalized pruning
+    const pieceSizes = remainingPieces.map(name => pieceData[name]?.numCells || 0);
+    const distinctSizes = [...new Set(pieceSizes)];
+    
     // Check for uniform queue size (all remaining pieces same size)
     let uniformQueueSize = null;
-    if (remainingPieces.length > 0) {
-      const sizes = remainingPieces.map(name => pieceData[name]?.numCells || 0);
-      if (sizes.every(s => s === sizes[0])) {
-        uniformQueueSize = sizes[0];
-      }
+    if (distinctSizes.length === 1 && distinctSizes[0] > 0) {
+      uniformQueueSize = distinctSizes[0];
     }
     
     function floodFill(startR, startC) {
@@ -406,16 +424,16 @@ window.Solver = (function() {
           const component = floodFill(r, c);
           const size = component.length;
           
-          // (1) Size pruning: region size not fillable by any combo of pieces
-          if (!isFillableSize(size)) {
+          // (1) Size pruning: region size not fillable by any combo of remaining pieces
+          if (!isFillableSize(size, pieceSizes)) {
             deadCells.push(...component);
             sizePruning.cells.push(component);
             sizePruning.sizes.push(size);
             continue;
           }
           
-          // (2) Shape check: size-5 or size-6 region
-          if (size === 5 || size === 6) {
+          // (2) Shape check: region size matches a piece size in queue
+          if (distinctSizes.includes(size)) {
             const matchingPiece = shapeToPiece[shapeKey(component)];
             if (!matchingPiece || !remainingSet.has(matchingPiece)) {
               // Pruning: region doesn't match any available piece
@@ -437,7 +455,6 @@ window.Solver = (function() {
             for (const tunnel of tunnels) {
               const tunnelKey = shapeKey(tunnel);
               const matchingPiece = shapeToPiece[tunnelKey];
-              console.log('TUNNEL DEBUG:', { tunnelKey, matchingPiece, inQueue: matchingPiece ? remainingSet.has(matchingPiece) : false, tunnel });
               if (!matchingPiece || !remainingSet.has(matchingPiece)) {
                 // Pruning: tunnel doesn't match any available piece
                 deadCells.push(...tunnel);
@@ -446,7 +463,6 @@ window.Solver = (function() {
               } else {
                 // Forced placement: tunnel matches exactly one piece shape
                 const placement = findForcedPlacement(tunnel, matchingPiece);
-                console.log('TUNNEL FORCED:', { matchingPiece, placement });
                 if (placement) {
                   forcedPlacements.push(placement);
                 }
