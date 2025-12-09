@@ -27,14 +27,14 @@ const SHAPE_PRUNE_OPACITY = 0.15;
 const TUNNEL_PRUNE_COLOR_1 = '#0000ff';
 const TUNNEL_PRUNE_COLOR_2 = '#ffffff';  // Blue/white = tunnel
 const TUNNEL_PRUNE_WIDTH = 0.1;
-const TUNNEL_PRUNE_ANGLE = 0;            // Horizontal for distinction
+const TUNNEL_PRUNE_ANGLE = 45;           // Perpendicular to red (-45)
 const TUNNEL_PRUNE_OPACITY = 0.15;
 
 // Type 4: FORCED regions (regions that force a specific piece placement)
 const FORCED_REGION_COLOR_1 = '#00cc00';
 const FORCED_REGION_COLOR_2 = '#ffffff';  // Green/white = go/forced
 const FORCED_REGION_WIDTH = 0.1;
-const FORCED_REGION_ANGLE = 90;           // Vertical for distinction
+const FORCED_REGION_ANGLE = -45;          // Same as red (opposite to blue/yellow)
 const FORCED_REGION_OPACITY = 0.2;
 
 // Date circle highlighting
@@ -711,7 +711,7 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
   textY += lineHeight;
   
   const forcedCount = forcedRegions.sizes.length;
-  const forcedNoun = forcedCount === 1 ? 'region' : 'regions';
+  const forcedNoun = forcedCount === 1 ? 'placement' : 'placements';
   drawSwatch(textY, FORCED_REGION_COLOR_1, FORCED_REGION_COLOR_2, FORCED_REGION_ANGLE, 'swatch-forced');
   deadGroup.text(`${forcedCount} forced ${forcedNoun} — {${forcedRegions.sizes.join(', ')}}`)
     .font({ size: fontSize, weight: 'bold', family: 'Arial' })
