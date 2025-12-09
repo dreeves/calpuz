@@ -38,7 +38,7 @@ const FORCED_REGION_ANGLE = -45;          // Same as red (opposite to blue/yello
 const FORCED_REGION_OPACITY = 0.2;
 
 // Legend swatches (small pattern previews next to text)
-const LEGEND_SWATCH_OPACITY = 0.5;
+const LEGEND_SWATCH_OPACITY = 0.33;
 
 // Date circle highlighting
 const DATE_CIRCLE_RADIUS = 0.85;   // As fraction of boxel
