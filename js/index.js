@@ -27,8 +27,15 @@ const SHAPE_PRUNE_OPACITY = 0.15;
 const TUNNEL_PRUNE_COLOR_1 = '#0000ff';
 const TUNNEL_PRUNE_COLOR_2 = '#ffffff';  // Blue/white = tunnel
 const TUNNEL_PRUNE_WIDTH = 0.1;
-const TUNNEL_PRUNE_ANGLE = 45;           // Same angle as size, different colors
+const TUNNEL_PRUNE_ANGLE = 0;            // Horizontal for distinction
 const TUNNEL_PRUNE_OPACITY = 0.15;
+
+// Type 4: FORCED regions (regions that force a specific piece placement)
+const FORCED_REGION_COLOR_1 = '#00cc00';
+const FORCED_REGION_COLOR_2 = '#ffffff';  // Green/white = go/forced
+const FORCED_REGION_WIDTH = 0.1;
+const FORCED_REGION_ANGLE = 90;           // Vertical for distinction
+const FORCED_REGION_OPACITY = 0.2;
 
 // Date circle highlighting
 const DATE_CIRCLE_RADIUS = 0.85;   // As fraction of boxel
@@ -579,8 +586,8 @@ function drawPendingPieces(progress, failedPieceName = null, orderedRemaining = 
 }
 
 // Visualize all placements (callback for solver)
-// sizePruning, shapePruning, tunnelPruning are { cells: [[r,c],...], sizes: [n,...] }
-function visualizeAllPlacements(placements, attempts, progress, deadCells = [], sizePruning = {cells:[], sizes:[]}, shapePruning = {cells:[], sizes:[]}, tunnelPruning = {cells:[], sizes:[]}, nextPiece = null, pieceFailed = false, orderedRemaining = []) {
+// sizePruning, shapePruning, tunnelPruning, forcedRegions are { cells: [[r,c],...], sizes: [n,...] }
+function visualizeAllPlacements(placements, attempts, progress, deadCells = [], sizePruning = {cells:[], sizes:[]}, shapePruning = {cells:[], sizes:[]}, tunnelPruning = {cells:[], sizes:[]}, forcedRegions = {cells:[], sizes:[]}, nextPiece = null, pieceFailed = false, orderedRemaining = []) {
   // Clear all pieces
   for (const [name, , ] of shapes) {
     const group = SVG.get(name);
@@ -639,13 +646,15 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
   // Draw pruned regions and legend (legend hidden only when solution found)
   const deadGroup = svg.group().id('dead-cells');
   
-  // Draw striped overlays on pruned cells
+  // Draw striped overlays on pruned cells and forced regions
   drawPrunedRegions(deadGroup, sizePruning.cells,
     SIZE_PRUNE_COLOR_1, SIZE_PRUNE_COLOR_2, SIZE_PRUNE_WIDTH, SIZE_PRUNE_ANGLE, SIZE_PRUNE_OPACITY, 'prune-size');
   drawPrunedRegions(deadGroup, shapePruning.cells,
     SHAPE_PRUNE_COLOR_1, SHAPE_PRUNE_COLOR_2, SHAPE_PRUNE_WIDTH, SHAPE_PRUNE_ANGLE, SHAPE_PRUNE_OPACITY, 'prune-shape');
   drawPrunedRegions(deadGroup, tunnelPruning.cells,
     TUNNEL_PRUNE_COLOR_1, TUNNEL_PRUNE_COLOR_2, TUNNEL_PRUNE_WIDTH, TUNNEL_PRUNE_ANGLE, TUNNEL_PRUNE_OPACITY, 'prune-tunnel');
+  drawPrunedRegions(deadGroup, forcedRegions.cells,
+    FORCED_REGION_COLOR_1, FORCED_REGION_COLOR_2, FORCED_REGION_WIDTH, FORCED_REGION_ANGLE, FORCED_REGION_OPACITY, 'prune-forced');
   
   // Legend with color swatches (anti-magic: always show all 3 lines, hide only on solution)
   const showLegend = !allPlaced;
@@ -696,6 +705,15 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
   const tunnelNoun = tunnelCount === 1 ? 'tunnel' : 'tunnels';
   drawSwatch(textY, TUNNEL_PRUNE_COLOR_1, TUNNEL_PRUNE_COLOR_2, TUNNEL_PRUNE_ANGLE, 'swatch-tunnel');
   deadGroup.text(`${tunnelCount} unfillable ${tunnelNoun} — {${tunnelPruning.sizes.join(', ')}}`)
+    .font({ size: fontSize, weight: 'bold', family: 'Arial' })
+    .fill('#000000')
+    .move(textX, textY);
+  textY += lineHeight;
+  
+  const forcedCount = forcedRegions.sizes.length;
+  const forcedNoun = forcedCount === 1 ? 'region' : 'regions';
+  drawSwatch(textY, FORCED_REGION_COLOR_1, FORCED_REGION_COLOR_2, FORCED_REGION_ANGLE, 'swatch-forced');
+  deadGroup.text(`${forcedCount} forced ${forcedNoun} — {${forcedRegions.sizes.join(', ')}}`)
     .font({ size: fontSize, weight: 'bold', family: 'Arial' })
     .fill('#000000')
     .move(textX, textY);
