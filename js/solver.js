@@ -451,9 +451,11 @@ window.Solver = (function() {
               } else if (viablePlacements.length === 1) {
                 // Forced placement: exactly one way to cover this tunnel
                 const vp = viablePlacements[0];
+                const piece = pieceData[vp.pieceName];
                 forcedPlacements.push({
-                  pieceName: vp.pieceName,
+                  name: vp.pieceName,
                   orientationIndex: vp.orientationIndex,
+                  totalOrientations: piece.orientations.length,
                   row: vp.row,
                   col: vp.col,
                   cells: vp.cells
