@@ -643,6 +643,28 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
     });
   }
   
+  // Helper to draw checkerboard regions
+  function drawCheckerboardRegions(group, regions, color1, color2, cellSize, opacity, patternPrefix) {
+    regions.forEach((region, idx) => {
+      const patternId = `${patternPrefix}-${idx}`;
+      const size = boxel * cellSize;
+      const period = size * 2;
+
+      const pattern = svg.pattern(period, period, function(add) {
+        add.rect(size, size).move(0, 0).fill(color1);
+        add.rect(size, size).move(size, 0).fill(color2);
+        add.rect(size, size).move(0, size).fill(color2);
+        add.rect(size, size).move(size, size).fill(color1);
+      }).id(patternId).attr({ patternUnits: 'userSpaceOnUse' });
+      
+      for (const [r, c] of region) {
+        const cx = x0 + c * boxel;
+        const cy = y0 + r * boxel;
+        group.rect(boxel, boxel).move(cx, cy).fill(pattern).opacity(opacity);
+      }
+    });
+  }
+  
   // Draw pruned regions and legend (legend hidden only when solution found)
   const deadGroup = svg.group().id('dead-cells');
   
@@ -653,8 +675,8 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
     SHAPE_PRUNE_COLOR_1, SHAPE_PRUNE_COLOR_2, SHAPE_PRUNE_WIDTH, SHAPE_PRUNE_ANGLE, SHAPE_PRUNE_OPACITY, 'prune-shape');
   drawPrunedRegions(deadGroup, tunnelPruning.cells,
     TUNNEL_PRUNE_COLOR_1, TUNNEL_PRUNE_COLOR_2, TUNNEL_PRUNE_WIDTH, TUNNEL_PRUNE_ANGLE, TUNNEL_PRUNE_OPACITY, 'prune-tunnel');
-  drawPrunedRegions(deadGroup, forcedRegions.cells,
-    FORCED_REGION_COLOR_1, FORCED_REGION_COLOR_2, FORCED_REGION_WIDTH, FORCED_REGION_ANGLE, FORCED_REGION_OPACITY, 'prune-forced');
+  drawCheckerboardRegions(deadGroup, forcedRegions.cells,
+    FORCED_REGION_COLOR_1, FORCED_REGION_COLOR_2, FORCED_REGION_WIDTH, FORCED_REGION_OPACITY, 'prune-forced');
   
   // Legend with color swatches (anti-magic: always show all 3 lines, hide only on solution)
   const showLegend = !allPlaced;
@@ -676,6 +698,19 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
       patternUnits: 'userSpaceOnUse',
       patternTransform: `rotate(${angle})`
     });
+    deadGroup.rect(swatchSize, swatchSize).move(swatchX, y).fill(pattern).stroke({ width: 1, color: '#666' });
+  }
+  
+  // Helper to draw a checkerboard swatch
+  function drawCheckerboardSwatch(y, color1, color2, patternId) {
+    const cellSize = swatchSize * 0.15;
+    const period = cellSize * 2;
+    const pattern = svg.pattern(period, period, function(add) {
+      add.rect(cellSize, cellSize).move(0, 0).fill(color1);
+      add.rect(cellSize, cellSize).move(cellSize, 0).fill(color2);
+      add.rect(cellSize, cellSize).move(0, cellSize).fill(color2);
+      add.rect(cellSize, cellSize).move(cellSize, cellSize).fill(color1);
+    }).id(patternId).attr({ patternUnits: 'userSpaceOnUse' });
     deadGroup.rect(swatchSize, swatchSize).move(swatchX, y).fill(pattern).stroke({ width: 1, color: '#666' });
   }
   
@@ -712,7 +747,7 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
   
   const forcedCount = forcedRegions.sizes.length;
   const forcedNoun = forcedCount === 1 ? 'placement' : 'placements';
-  drawSwatch(textY, FORCED_REGION_COLOR_1, FORCED_REGION_COLOR_2, FORCED_REGION_ANGLE, 'swatch-forced');
+  drawCheckerboardSwatch(textY, FORCED_REGION_COLOR_1, FORCED_REGION_COLOR_2, 'swatch-forced');
   deadGroup.text(`${forcedCount} forced ${forcedNoun} — {${forcedRegions.sizes.join(', ')}}`)
     .font({ size: fontSize, weight: 'bold', family: 'Arial' })
     .fill('#000000')
