@@ -274,15 +274,13 @@ window.Solver = (function() {
     const forcedPlacements = [];                       // Pieces that must be placed in specific regions
     const remainingSet = new Set(remainingPieces);
     
-    // Get distinct piece sizes in the queue for tunnel detection
-    const distinctSizes = remainingPieces.length > 0 
-      ? [...new Set(remainingPieces.map(name => pieceData[name]?.numCells || 0))]
-      : [];
-    
     // Check for uniform queue size (all remaining pieces same size)
     let uniformQueueSize = null;
-    if (distinctSizes.length === 1) {
-      uniformQueueSize = distinctSizes[0];
+    if (remainingPieces.length > 0) {
+      const sizes = remainingPieces.map(name => pieceData[name]?.numCells || 0);
+      if (sizes.every(s => s === sizes[0])) {
+        uniformQueueSize = sizes[0];
+      }
     }
     
     function floodFill(startR, startC) {
@@ -421,25 +419,47 @@ window.Solver = (function() {
             }
           }
           
-          // (3) Tunnel check: for each distinct piece size in the queue
-          for (const tunnelSize of distinctSizes) {
-            if (size > tunnelSize) {
-              const tunnels = findTunnels(component, tunnelSize);
-              for (const tunnel of tunnels) {
-                const matchingPiece = shapeToPiece[shapeKey(tunnel)];
-                if (!matchingPiece || !remainingSet.has(matchingPiece)) {
-                  // Pruning: tunnel doesn't match any available piece
-                  deadCells.push(...tunnel);
-                  tunnelPruning.cells.push(tunnel);
-                  tunnelPruning.sizes.push(tunnel.length);
-                } else {
-                  // Forced placement: tunnel matches exactly one piece shape
-                  const placement = findForcedPlacement(tunnel, matchingPiece);
-                  if (placement) {
-                    forcedPlacements.push(placement);
+          // (3) Tunnel check: only if uniform queue (all remaining pieces same size)
+          if (uniformQueueSize && size > uniformQueueSize) {
+            const tunnels = findTunnels(component, uniformQueueSize);
+            for (const tunnel of tunnels) {
+              // Find all placements that cover ALL tunnel cells
+              const tunnelSet = new Set(tunnel.map(([r,c]) => `${r},${c}`));
+              const viablePlacements = [];
+              
+              for (const pieceName of remainingPieces) {
+                const piece = pieceData[pieceName];
+                for (let oi = 0; oi < piece.orientations.length; oi++) {
+                  const orientation = piece.orientations[oi];
+                  const positions = getValidPositions(grid, orientation.cells);
+                  for (const [row, col] of positions) {
+                    // Check if this placement covers all tunnel cells
+                    const placedCells = orientation.cells.map(([dr, dc]) => `${row+dr},${col+dc}`);
+                    const coversAll = [...tunnelSet].every(tc => placedCells.includes(tc));
+                    if (coversAll) {
+                      viablePlacements.push({ pieceName, orientationIndex: oi, row, col, cells: orientation.cells });
+                    }
                   }
                 }
               }
+              
+              if (viablePlacements.length === 0) {
+                // Pruning: no piece can cover this tunnel
+                deadCells.push(...tunnel);
+                tunnelPruning.cells.push(tunnel);
+                tunnelPruning.sizes.push(tunnel.length);
+              } else if (viablePlacements.length === 1) {
+                // Forced placement: exactly one way to cover this tunnel
+                const vp = viablePlacements[0];
+                forcedPlacements.push({
+                  pieceName: vp.pieceName,
+                  orientationIndex: vp.orientationIndex,
+                  row: vp.row,
+                  col: vp.col,
+                  cells: vp.cells
+                });
+              }
+              // else: multiple placements possible, no forcing or pruning
             }
           }
         }
