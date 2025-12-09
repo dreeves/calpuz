@@ -565,15 +565,21 @@ window.Solver = (function() {
       }
       
       // Check for forced placements and dead cells BEFORE choosing which piece to branch on
-      let currentRemaining = [...remainingPieces];
-      let currentPlaced = [...placedPieces];
-      let analysis = getEffectiveCounts(grid, currentRemaining);
+      const analysis = getEffectiveCounts(grid, remainingPieces);
       
-      // Auto-place any forced pieces at the start of this backtrack level
-      while (analysis.forcedPlacements.length > 0 && analysis.deadCells.length === 0) {
+      // If dead cells exist at this level, prune immediately
+      if (analysis.deadCells.length > 0) {
+        return false;
+      }
+      
+      // If a forced placement exists, treat it as "the try" for this level
+      // This routes forced placements through the same visualization path as normal tries
+      if (analysis.forcedPlacements.length > 0) {
         const forced = analysis.forcedPlacements[0];
+        const depth = placedPieces.length;
+        
         // Place the forced piece
-        setPiece(grid, forced.cells, forced.row, forced.col, 3 + currentPlaced.length);
+        setPiece(grid, forced.cells, forced.row, forced.col, 3 + depth);
         placementsByName[forced.name] = {
           name: forced.name,
           row: forced.row,
@@ -587,63 +593,71 @@ window.Solver = (function() {
           totalPositions: 1,
           forced: true
         };
-        currentPlaced = [...currentPlaced, forced.name];
-        currentRemaining = currentRemaining.filter(n => n !== forced.name);
-        // Re-analyze with updated state
-        analysis = getEffectiveCounts(grid, currentRemaining);
-      }
-      
-      // If we hit dead cells during forced placement, undo and return false
-      if (analysis.deadCells.length > 0) {
-        // Undo all forced placements made at this level
-        const forcedAtThisLevel = currentPlaced.slice(placedPieces.length);
-        for (let i = forcedAtThisLevel.length - 1; i >= 0; i--) {
-          const forcedName = forcedAtThisLevel[i];
-          const fp = placementsByName[forcedName];
-          setPiece(grid, fp.cells, fp.row, fp.col, 1);
-          delete placementsByName[forcedName];
-        }
-        return false;
-      }
-      
-      // If all pieces placed via forced moves, check for solution
-      if (currentRemaining.length === 0) {
-        // Found a solution via forced placements!
-        solutionCount++;
-        foundSolution = true;
-        paused = true;
+        attempts++;
+        currentDepth = depth + 1;
         
-        const allPiecesProgress = currentPlaced.map(name => {
-          const p = placementsByName[name];
-          return { name, status: p.forced ? 'forced' : 'placed',
-              orientation: p.orientationIndex + 1, totalOrientations: p.totalOrientations,
-              positionIndex: p.positionIndex + 1, totalPositions: p.totalPositions };
-        });
-        placements = currentPlaced.map(name => placementsByName[name]);
-        const emptyPruning = { cells: [], sizes: [] };
-        visualizeCallback(placements, attempts, allPiecesProgress, [], emptyPruning, emptyPruning, emptyPruning, null, false, []);
+        const newPlaced = [...placedPieces, forced.name];
+        const newRemaining = remainingPieces.filter(n => n !== forced.name);
         
-        while (paused && solving) {
-          await new Promise(r => setTimeout(r, 50));
-        }
-        foundSolution = false;
+        // Reanalyze after forced placement for visualization
+        const newAnalysis = getEffectiveCounts(grid, newRemaining);
+        newAnalysis.counts.sort((a, b) => a.count - b.count);
+        const orderedNewRemaining = newAnalysis.counts.map(x => x.name);
         
-        // Undo forced placements before returning
-        const forcedAtThisLevel = currentPlaced.slice(placedPieces.length);
-        for (let i = forcedAtThisLevel.length - 1; i >= 0; i--) {
-          const forcedName = forcedAtThisLevel[i];
-          const fp = placementsByName[forcedName];
-          setPiece(grid, fp.cells, fp.row, fp.col, 1);
-          delete placementsByName[forcedName];
+        const allPiecesProgress = [
+          ...placedPieces.map(name => {
+            const p = placementsByName[name];
+            return { name, status: p.forced ? 'forced' : 'placed',
+                orientation: p.orientationIndex + 1, totalOrientations: p.totalOrientations,
+                positionIndex: p.positionIndex + 1, totalPositions: p.totalPositions };
+          }),
+          { name: forced.name, status: 'forced',
+              orientation: forced.orientationIndex + 1, totalOrientations: forced.totalOrientations,
+              positionIndex: 1, totalPositions: 1 },
+          ...orderedNewRemaining.map(name => {
+            const pd = pieceData[name];
+            return { name, status: 'pending',
+                orientation: 0, totalOrientations: pd.orientations.length,
+                positionIndex: 0, totalPositions: 0 };
+          })
+        ];
+        
+        const nextPieceName = orderedNewRemaining.length > 0 ? orderedNewRemaining[0] : null;
+        placements = newPlaced.map(name => placementsByName[name]);
+        visualizeCallback(placements, attempts, allPiecesProgress, newAnalysis.deadCells,
+            newAnalysis.sizePruning, newAnalysis.shapePruning, newAnalysis.tunnelPruning,
+            nextPieceName, false, orderedNewRemaining);
+        
+        // Step mode or delay
+        if (stepMode) {
+          paused = true;
+          while (paused && solving) {
+            await new Promise(r => setTimeout(r, 50));
+          }
+        } else {
+          await delay(currentDelay);
         }
         
-        if (!solving) return true;
+        // Recurse (next level will handle next forced placement or normal search)
+        if (newAnalysis.deadCells.length === 0) {
+          if (await backtrack(newRemaining, newPlaced)) {
+            return true;
+          }
+        }
+        
+        // Backtrack: undo forced placement
+        setPiece(grid, forced.cells, forced.row, forced.col, 1);
+        delete placementsByName[forced.name];
+        backtracks++;
+        currentDepth = depth;
         return false;
       }
       
       // Sort remaining pieces by count (most constrained first)
       analysis.counts.sort((a, b) => a.count - b.count);
       const orderedRemaining = analysis.counts.map(p => p.name);
+      const currentRemaining = orderedRemaining;
+      const currentPlaced = placedPieces;
       
       // Pick the most constrained piece (first in sorted order)
       const pieceName = orderedRemaining[0];
@@ -686,36 +700,12 @@ window.Solver = (function() {
           attempts++;
           currentDepth = depth + 1;
           
-          // Analyze regions: get dead cells, forced placements, and recompute ordering
-          let newPlaced = [...currentPlaced, pieceName];
-          let rawRemaining = orderedRemaining.slice(1);
-          let analysis = getEffectiveCounts(grid, rawRemaining);
+          // Analyze regions for this placement (forced placements handled by recursion)
+          const newPlaced = [...currentPlaced, pieceName];
+          const rawRemaining = orderedRemaining.slice(1);
+          const tryAnalysis = getEffectiveCounts(grid, rawRemaining);
           
-          // Auto-place any forced pieces (regions that exactly match a remaining piece)
-          while (analysis.forcedPlacements.length > 0 && analysis.deadCells.length === 0) {
-            const forced = analysis.forcedPlacements[0];
-            // Place the forced piece
-            setPiece(grid, forced.cells, forced.row, forced.col, 3 + newPlaced.length);
-            placementsByName[forced.name] = {
-              name: forced.name,
-              row: forced.row,
-              col: forced.col,
-              cells: forced.cells,
-              rotation: 0,
-              flipped: false,
-              orientationIndex: forced.orientationIndex,
-              totalOrientations: forced.totalOrientations,
-              positionIndex: 0,
-              totalPositions: 1,
-              forced: true
-            };
-            newPlaced = [...newPlaced, forced.name];
-            rawRemaining = rawRemaining.filter(n => n !== forced.name);
-            // Re-analyze with updated state
-            analysis = getEffectiveCounts(grid, rawRemaining);
-          }
-          
-          const { counts: remainingCounts, deadCells, sizePruning, shapePruning, tunnelPruning } = analysis;
+          const { counts: remainingCounts, deadCells, sizePruning, shapePruning, tunnelPruning } = tryAnalysis;
           remainingCounts.sort((a, b) => a.count - b.count);
           const newRemaining = remainingCounts.map(x => x.name);
           
@@ -729,13 +719,6 @@ window.Solver = (function() {
             { name: pieceName, status: 'current',
                 orientation: orientIdx + 1, totalOrientations,
                 positionIndex: posIdx + 1, totalPositions },
-            // Show forced pieces that were just auto-placed
-            ...newPlaced.slice(placedPieces.length + 1).map(name => {
-              const p = placementsByName[name];
-              return { name, status: 'forced',
-                  orientation: p.orientationIndex + 1, totalOrientations: p.totalOrientations,
-                  positionIndex: 1, totalPositions: 1 };
-            }),
             ...newRemaining.map(name => {
               const pd = pieceData[name];
               return { name, status: 'pending',
@@ -761,22 +744,14 @@ window.Solver = (function() {
             await delay(currentDelay);
           }
           
-          // Prune if dead cells exist
+          // Prune if dead cells exist, otherwise recurse
           if (deadCells.length === 0) {
-            // Recurse with updated lists
             if (await backtrack(newRemaining, newPlaced)) {
               return true;
             }
           }
           
-          // Backtrack: undo forced placements first (in reverse order), then undo this piece
-          const forcedToUndo = newPlaced.slice(currentPlaced.length + 1); // All pieces after pieceName are forced
-          for (let i = forcedToUndo.length - 1; i >= 0; i--) {
-            const forcedName = forcedToUndo[i];
-            const fp = placementsByName[forcedName];
-            setPiece(grid, fp.cells, fp.row, fp.col, 1);
-            delete placementsByName[forcedName];
-          }
+          // Backtrack: undo this piece
           setPiece(grid, orientation.cells, row, col, 1);
           delete placementsByName[pieceName];
           backtracks++;
