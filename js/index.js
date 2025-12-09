@@ -698,7 +698,7 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
       patternUnits: 'userSpaceOnUse',
       patternTransform: `rotate(${angle})`
     });
-    deadGroup.rect(swatchSize, swatchSize).move(swatchX, y).fill(pattern).stroke({ width: 1, color: '#666' });
+    deadGroup.rect(swatchSize, swatchSize).move(swatchX, y).fill(pattern).opacity(0.6).stroke({ width: 1, color: '#666' });
   }
   
   // Helper to draw a checkerboard swatch
@@ -711,7 +711,7 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
       add.rect(cellSize, cellSize).move(0, cellSize).fill(color2);
       add.rect(cellSize, cellSize).move(cellSize, cellSize).fill(color1);
     }).id(patternId).attr({ patternUnits: 'userSpaceOnUse' });
-    deadGroup.rect(swatchSize, swatchSize).move(swatchX, y).fill(pattern).stroke({ width: 1, color: '#666' });
+    deadGroup.rect(swatchSize, swatchSize).move(swatchX, y).fill(pattern).opacity(0.6).stroke({ width: 1, color: '#666' });
   }
   
   // Helper to draw text with italic portion
