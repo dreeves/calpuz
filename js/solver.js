@@ -261,12 +261,16 @@ window.Solver = (function() {
     if (size < minSize) return false;
     
     // Check if all pieces are same size (uniform queue - fast path)
+    // NOTE: For this puzzle, the hexomino (6 cells, only 2 orientations) is always
+    // placed first due to "most constrained first" ordering. This means the queue
+    // quickly becomes uniform (all pentominoes), so the fast path is used almost
+    // exclusively. The DP slow path below is correct but effectively untested.
     if (pieceSizes.every(s => s === pieceSizes[0])) {
       const uq = pieceSizes[0];
       return size % uq === 0 && size / uq <= pieceSizes.length;
     }
     
-    // General case: bounded subset-sum DP
+    // General case: bounded subset-sum DP (rarely exercised - see note above)
     // dp[i] = true if size i is reachable using some subset of pieces
     const dp = new Array(size + 1).fill(false);
     dp[0] = true;
@@ -281,6 +285,12 @@ window.Solver = (function() {
     return dp[size];
   }
   
+  // Analyze all regions for pruning opportunities and forced placements.
+  // DESIGN NOTE: We find ALL unfillable regions of each type rather than stopping
+  // at the first one found. This is intentional for visualization purposes - it's
+  // more educational and interesting when watching the solver to see all the
+  // unfillable regions highlighted simultaneously. The performance cost is trivial
+  // since we're already doing flood-fill on all components anyway.
   function analyzeRegions(grid, remainingPieces = []) {
     const visited = Array(7).fill(null).map(() => Array(7).fill(false));
     const deadCells = [];
