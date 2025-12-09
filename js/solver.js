@@ -307,63 +307,66 @@ window.Solver = (function() {
       return count;
     }
     
-    // Find tunnels using cavity-growth algorithm:
-    // 1. A cell is "vacant" if in component and not yet marked as cavity
-    // 2. A cell is a "cavity" if it has ≤1 vacant neighbor
-    // 3. Grow cavities iteratively until a connected set reaches size uq
+    // Find tunnels using per-nadir cavity-growth algorithm:
+    // 1. Find all nadirs (cells with ≤1 vacant neighbor)
+    // 2. For each nadir, grow outward independently until size reaches uq
+    // 3. Return the first tunnel that reaches exactly uq cells
     function findTunnels(component, uq) {
       if (component.length < uq) return [];
       
       const componentSet = new Set(component.map(([r,c]) => `${r},${c}`));
-      const cavitySet = new Set();
       
-      // Count vacant (non-cavity) neighbors within component
-      function countVacantNeighbors(r, c) {
+      // Count vacant neighbors within component (not considering any cavity set)
+      function countComponentNeighbors(r, c) {
         let count = 0;
         for (const [dr, dc] of [[0,1],[0,-1],[1,0],[-1,0]]) {
-          const nkey = `${r+dr},${c+dc}`;
-          if (componentSet.has(nkey) && !cavitySet.has(nkey)) {
-            count++;
-          }
+          if (componentSet.has(`${r+dr},${c+dc}`)) count++;
         }
         return count;
       }
       
-      // Step 5: Find initial cavities (cells with ≤1 vacant neighbor)
+      // Find all nadirs: cells with ≤1 neighbor in component (dead-ends)
+      const nadirs = [];
       for (const [r, c] of component) {
-        if (countVacantNeighbors(r, c) <= 1) {
-          cavitySet.add(`${r},${c}`);
+        if (countComponentNeighbors(r, c) <= 1) {
+          nadirs.push([r, c]);
         }
       }
       
-      // Step 7-8: Grow cavities until we find a tunnel of size uq
-      let changed = true;
-      while (changed) {
-        // Check for tunnel of size uq
-        const tunnelComponents = findConnectedCavities(cavitySet);
-        for (const tunnel of tunnelComponents) {
-          if (tunnel.length === uq) {
-            return [tunnel]; // Found one, return immediately
-          }
-        }
+      // For each nadir, grow a tunnel independently
+      for (const [startR, startC] of nadirs) {
+        const tunnelSet = new Set([`${startR},${startC}`]);
+        const tunnel = [[startR, startC]];
         
-        // Grow: for each cavity cell with exactly 1 vacant neighbor, mark that neighbor as cavity
-        changed = false;
-        for (const cavityKey of cavitySet) {
-          const [r, c] = cavityKey.split(',').map(Number);
-          // Find vacant neighbors of this cavity cell
-          const vacantNeighbors = [];
-          for (const [dr, dc] of [[0,1],[0,-1],[1,0],[-1,0]]) {
-            const nkey = `${r+dr},${c+dc}`;
-            if (componentSet.has(nkey) && !cavitySet.has(nkey)) {
-              vacantNeighbors.push(nkey);
+        // Grow until we reach uq cells or can't grow anymore
+        while (tunnel.length < uq) {
+          // Find a frontier cell that has exactly 1 non-tunnel neighbor
+          let grew = false;
+          for (const key of tunnelSet) {
+            const [r, c] = key.split(',').map(Number);
+            // Find non-tunnel neighbors in component
+            const nonTunnelNeighbors = [];
+            for (const [dr, dc] of [[0,1],[0,-1],[1,0],[-1,0]]) {
+              const nkey = `${r+dr},${c+dc}`;
+              if (componentSet.has(nkey) && !tunnelSet.has(nkey)) {
+                nonTunnelNeighbors.push({ key: nkey, r: r+dr, c: c+dc });
+              }
+            }
+            // If this cell has exactly 1 non-tunnel neighbor, add that neighbor
+            if (nonTunnelNeighbors.length === 1) {
+              const n = nonTunnelNeighbors[0];
+              tunnelSet.add(n.key);
+              tunnel.push([n.r, n.c]);
+              grew = true;
+              break; // Restart search from beginning
             }
           }
-          // If exactly 1 vacant neighbor, mark it as cavity
-          if (vacantNeighbors.length === 1) {
-            cavitySet.add(vacantNeighbors[0]);
-            changed = true;
-          }
+          if (!grew) break; // Can't grow anymore
+        }
+        
+        // If this tunnel reached exactly uq, return it
+        if (tunnel.length === uq) {
+          return [tunnel];
         }
       }
       
