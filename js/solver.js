@@ -347,13 +347,21 @@ window.Solver = (function() {
           }
         }
         
-        // Grow: mark cells with ≤1 vacant neighbor as cavity
+        // Grow: for each cavity cell with exactly 1 vacant neighbor, mark that neighbor as cavity
         changed = false;
-        for (const [r, c] of component) {
-          const key = `${r},${c}`;
-          if (cavitySet.has(key)) continue;
-          if (countVacantNeighbors(r, c) <= 1) {
-            cavitySet.add(key);
+        for (const cavityKey of cavitySet) {
+          const [r, c] = cavityKey.split(',').map(Number);
+          // Find vacant neighbors of this cavity cell
+          const vacantNeighbors = [];
+          for (const [dr, dc] of [[0,1],[0,-1],[1,0],[-1,0]]) {
+            const nkey = `${r+dr},${c+dc}`;
+            if (componentSet.has(nkey) && !cavitySet.has(nkey)) {
+              vacantNeighbors.push(nkey);
+            }
+          }
+          // If exactly 1 vacant neighbor, mark it as cavity
+          if (vacantNeighbors.length === 1) {
+            cavitySet.add(vacantNeighbors[0]);
             changed = true;
           }
         }
