@@ -307,61 +307,60 @@ window.Solver = (function() {
       return count;
     }
     
-    // Find tunnels in a component (cavities that form dead-end corridors)
-    // A tunnel is the deepest `uq` cells starting from a dead-end (nadir)
+    // Find tunnels using cavity-growth algorithm:
+    // 1. A cell is "vacant" if in component and not yet marked as cavity
+    // 2. A cell is a "cavity" if it has ≤1 vacant neighbor
+    // 3. Grow cavities iteratively until a connected set reaches size uq
     function findTunnels(component, uq) {
       if (component.length < uq) return [];
       
-      const vacantSet = new Set(component.map(([r,c]) => `${r},${c}`));
-      const tunnels = [];
+      const componentSet = new Set(component.map(([r,c]) => `${r},${c}`));
+      const cavitySet = new Set();
       
-      // Find all dead-ends: cells with exactly 1 vacant neighbor (nadirs)
-      const deadEnds = [];
+      // Count vacant (non-cavity) neighbors within component
+      function countVacantNeighbors(r, c) {
+        let count = 0;
+        for (const [dr, dc] of [[0,1],[0,-1],[1,0],[-1,0]]) {
+          const nkey = `${r+dr},${c+dc}`;
+          if (componentSet.has(nkey) && !cavitySet.has(nkey)) {
+            count++;
+          }
+        }
+        return count;
+      }
+      
+      // Step 5: Find initial cavities (cells with ≤1 vacant neighbor)
       for (const [r, c] of component) {
-        if (countVacantNeighbors(r, c, vacantSet) === 1) {
-          deadEnds.push([r, c]);
+        if (countVacantNeighbors(r, c) <= 1) {
+          cavitySet.add(`${r},${c}`);
         }
       }
       
-      // For each dead-end, grow outward and collect the first `uq` cells
-      const usedCells = new Set(); // Avoid returning overlapping tunnels
-      
-      for (const [startR, startC] of deadEnds) {
-        const startKey = `${startR},${startC}`;
-        if (usedCells.has(startKey)) continue;
+      // Step 7-8: Grow cavities until we find a tunnel of size uq
+      let changed = true;
+      while (changed) {
+        // Check for tunnel of size uq
+        const tunnelComponents = findConnectedCavities(cavitySet);
+        for (const tunnel of tunnelComponents) {
+          if (tunnel.length === uq) {
+            return [tunnel]; // Found one, return immediately
+          }
+        }
         
-        // BFS from this dead-end
-        const tunnel = [];
-        const visited = new Set();
-        const queue = [[startR, startC]];
-        
-        while (queue.length > 0 && tunnel.length < uq) {
-          const [r, c] = queue.shift();
+        // Grow: mark cells with ≤1 vacant neighbor as cavity
+        changed = false;
+        for (const [r, c] of component) {
           const key = `${r},${c}`;
-          if (visited.has(key) || !vacantSet.has(key)) continue;
-          visited.add(key);
-          tunnel.push([r, c]);
-          
-          // Add neighbors to queue
-          for (const [dr, dc] of [[0,1],[0,-1],[1,0],[-1,0]]) {
-            const nkey = `${r+dr},${c+dc}`;
-            if (vacantSet.has(nkey) && !visited.has(nkey)) {
-              queue.push([r+dr, c+dc]);
-            }
-          }
-        }
-        
-        // Only return tunnels that reached exactly `uq` cells
-        if (tunnel.length === uq) {
-          tunnels.push(tunnel);
-          // Mark these cells as used
-          for (const [r, c] of tunnel) {
-            usedCells.add(`${r},${c}`);
+          if (cavitySet.has(key)) continue;
+          if (countVacantNeighbors(r, c) <= 1) {
+            cavitySet.add(key);
+            changed = true;
           }
         }
       }
       
-      return tunnels;
+      // No tunnel of size uq found
+      return [];
     }
     
     // Find connected components within cavity set
