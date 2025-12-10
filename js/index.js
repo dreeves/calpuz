@@ -1,5 +1,8 @@
 // ============ CONFIGURATION CONSTANTS ============
 
+// Global priming queue - serializes piece priming one at a time
+let primingQueue = Promise.resolve();
+
 // Piece rendering
 const PIECE_OPACITY = 0.8;
 const ROTATION_DEGREES = 90;
@@ -267,11 +270,11 @@ function visualizePlacement(placement) {
     }
   );
   
-  // Prime rotation by dispatching 4 real mouseup events with huge delays
-  (async () => {
-    await new Promise(r => setTimeout(r, 100)); // initial delay
+  // Prime rotation by dispatching mousedown+mouseup pairs - one piece at a time
+  primingQueue = primingQueue.then(async () => {
+    await new Promise(r => setTimeout(r, 300)); // delay before this piece
     for (let i = 0; i < 4; i++) {
-      await new Promise(r => setTimeout(r, 100)); // 100ms between each click
+      await new Promise(r => setTimeout(r, 150)); // 150ms between each click
       innerGroup.node.getBoundingClientRect(); // force reflow
       const ctm = innerGroup.node.getScreenCTM();
       if (!ctm) return;
@@ -280,11 +283,17 @@ function visualizePlacement(placement) {
       const centerY = bbox.y + bbox.height / 2;
       const clientX = ctm.a * centerX + ctm.c * centerY + ctm.e;
       const clientY = ctm.b * centerX + ctm.d * centerY + ctm.f;
+      // Dispatch mousedown on outer group to prime dragStartPos
+      newGroup.node.dispatchEvent(new MouseEvent('mousedown', {
+        clientX, clientY, button: 0, bubbles: true
+      }));
+      await new Promise(r => setTimeout(r, 50));
+      // Then mouseup on inner group to trigger rotation
       innerGroup.node.dispatchEvent(new MouseEvent('mouseup', {
         clientX, clientY, button: 0, bubbles: true
       }));
     }
-  })();
+  });
 }
 
 // Initialize progress panel with table rows for each piece (runs once)
@@ -867,11 +876,11 @@ function movePoly(polyId, x, y, angle = 0, flip = false) {
     }
   );
   
-  // Prime rotation by dispatching 4 real mouseup events with huge delays
-  (async () => {
-    await new Promise(r => setTimeout(r, 100)); // initial delay
+  // Prime rotation by dispatching mousedown+mouseup pairs - one piece at a time
+  primingQueue = primingQueue.then(async () => {
+    await new Promise(r => setTimeout(r, 300)); // delay before this piece
     for (let i = 0; i < 4; i++) {
-      await new Promise(r => setTimeout(r, 100)); // 100ms between each click
+      await new Promise(r => setTimeout(r, 150)); // 150ms between each click
       cPol.node.getBoundingClientRect(); // force reflow
       const ctm = cPol.node.getScreenCTM();
       if (!ctm) return;
@@ -880,11 +889,17 @@ function movePoly(polyId, x, y, angle = 0, flip = false) {
       const centerY = bbox.y + bbox.height / 2;
       const clientX = ctm.a * centerX + ctm.c * centerY + ctm.e;
       const clientY = ctm.b * centerX + ctm.d * centerY + ctm.f;
+      // Dispatch mousedown on outer group to prime dragStartPos
+      newGroup.node.dispatchEvent(new MouseEvent('mousedown', {
+        clientX, clientY, button: 0, bubbles: true
+      }));
+      await new Promise(r => setTimeout(r, 50));
+      // Then mouseup on polygon to trigger rotation
       cPol.node.dispatchEvent(new MouseEvent('mouseup', {
         clientX, clientY, button: 0, bubbles: true
       }));
     }
-  })();
+  });
 }
 
 function drawCalendar() {
