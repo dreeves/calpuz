@@ -213,16 +213,7 @@ function visualizePlacement(placement) {
   newGroup.translate(x0 + placement.col * boxel, y0 + placement.row * boxel);
   
   innerGroup.node._scale = 1;
-  
-  // Prime by literally rotating 4 times (360 degrees) like a user would
   let ang = 0;
-  for (let i = 0; i < 4; i++) {
-    ang += 90;
-    const bbox = innerGroup.node.getBBox();
-    innerGroup.node.style.transformOrigin = `${bbox.x + bbox.width/2}px ${bbox.y + bbox.height/2}px`;
-    Crossy(innerGroup.node, "transform", `rotate(${ang}deg) scaleX(1)`);
-  }
-  ang = 0;
   let dragStartPos = null;
   newGroup.draggy();
   newGroup.on("dragstart", () => {
@@ -275,6 +266,22 @@ function visualizePlacement(placement) {
       Crossy(innerGroup.node, "transform", `rotate(${ang}deg) scaleX(${innerGroup.node._scale || 1})`);
     }
   );
+  
+  // Prime rotation by dispatching 4 real mouseup events
+  requestAnimationFrame(() => {
+    const ctm = innerGroup.node.getScreenCTM();
+    if (!ctm) return;
+    const bbox = innerGroup.node.getBBox();
+    const centerX = bbox.x + bbox.width / 2;
+    const centerY = bbox.y + bbox.height / 2;
+    const clientX = ctm.a * centerX + ctm.c * centerY + ctm.e;
+    const clientY = ctm.b * centerX + ctm.d * centerY + ctm.f;
+    for (let i = 0; i < 4; i++) {
+      innerGroup.node.dispatchEvent(new MouseEvent('mouseup', {
+        clientX, clientY, button: 0, bubbles: true
+      }));
+    }
+  });
 }
 
 // Initialize progress panel with table rows for each piece (runs once)
@@ -802,14 +809,6 @@ function movePoly(polyId, x, y, angle = 0, flip = false) {
   pol.node._scale = flip_scale;
   
   let ang = initialAng;
-  
-  // Prime by literally rotating 4 times (360 degrees) like a user would
-  for (let i = 0; i < 4; i++) {
-    ang += 90;
-    const bbox = pol.node.getBBox();
-    pol.node.style.transformOrigin = `${bbox.x + bbox.width/2}px ${bbox.y + bbox.height/2}px`;
-    Crossy(pol.node, "transform", `rotate(${ang}deg) scaleX(${pol.node._scale || 1})`);
-  }
   let dragStartPos = null;
   const cPol = newGroup.children()[0];
   newGroup.draggy();
@@ -864,6 +863,22 @@ function movePoly(polyId, x, y, angle = 0, flip = false) {
       Crossy(cPol.node, "transform", `rotate(${ang}deg) scaleX(${cPol.node._scale || 1})`);
     }
   );
+  
+  // Prime rotation by dispatching 4 real mouseup events
+  requestAnimationFrame(() => {
+    const ctm = cPol.node.getScreenCTM();
+    if (!ctm) return;
+    const bbox = cPol.node.getBBox();
+    const centerX = bbox.x + bbox.width / 2;
+    const centerY = bbox.y + bbox.height / 2;
+    const clientX = ctm.a * centerX + ctm.c * centerY + ctm.e;
+    const clientY = ctm.b * centerX + ctm.d * centerY + ctm.f;
+    for (let i = 0; i < 4; i++) {
+      cPol.node.dispatchEvent(new MouseEvent('mouseup', {
+        clientX, clientY, button: 0, bubbles: true
+      }));
+    }
+  });
 }
 
 function drawCalendar() {
