@@ -209,6 +209,9 @@ function visualizePlacement(placement) {
   for (const [dr, dc] of placement.cells) {
     innerGroup.rect(boxel, boxel).move(dc * boxel, dr * boxel).fill(hue).opacity('0.8').stroke({ width: 1, color: '#fff' });
   }
+  // Prime with identity transform so first rotation doesn't shift
+  innerGroup.node.style.transform = 'rotate(0deg) scaleX(1)';
+  innerGroup.node._scale = 1;
   // Translate the GROUP to board position (matches manual piece convention)
   newGroup.translate(x0 + placement.col * boxel, y0 + placement.row * boxel);
   
@@ -792,8 +795,9 @@ function movePoly(polyId, x, y, angle = 0, flip = false) {
   const centerX = bbox.x + bbox.width / 2;
   const centerY = bbox.y + bbox.height / 2;
   pol.node.style.transformOrigin = `${centerX}px ${centerY}px`;
-  Crossy(pol.node, "transform", 
-        `rotate(${(angle * 180 / Math.PI) % 360}deg) scaleX(${flip ? -1 : 1})`);
+  // Prime with identity transform so first rotation doesn't shift
+  pol.node.style.transform = `rotate(${(angle * 180 / Math.PI) % 360}deg) scaleX(${flip ? -1 : 1})`;
+  pol.node._scale = flip ? -1 : 1;
 
   let ang = 0;
   let dragStartPos = null;
