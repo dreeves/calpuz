@@ -1,8 +1,5 @@
 // ============ CONFIGURATION CONSTANTS ============
 
-// Global priming queue - serializes piece priming one at a time
-let primingQueue = Promise.resolve();
-
 // Piece rendering
 const PIECE_OPACITY = 0.8;
 const ROTATION_DEGREES = 90;
@@ -216,7 +213,6 @@ function visualizePlacement(placement) {
   newGroup.translate(x0 + placement.col * boxel, y0 + placement.row * boxel);
   
   innerGroup.node._scale = 1;
-  let ang = 0;
   let dragStartPos = null;
   newGroup.draggy();
   newGroup.on("dragstart", () => {
@@ -230,70 +226,43 @@ function visualizePlacement(placement) {
     dragStartPos = null;
   });
   
-  // Rotation on inner group (set transform-origin only when rotating, not during drag)
+  // Rotation on inner group using SVG transforms (not CSS) to avoid first-click shift
   innerGroup.on("contextmenu", e => { e.preventDefault() });
   innerGroup.on("mouseup", e => {
     const t = newGroup.transform();
     const wasDrag = dragStartPos && ((t.x || 0) !== dragStartPos.x || (t.y || 0) !== dragStartPos.y);
     if (!wasDrag) {
-      // Compute pivot from click point, set origin, force reflow, then rotate
+      // Compute pivot from click point
       const pt = svg.node.createSVGPoint();
       pt.x = e.clientX;
       pt.y = e.clientY;
       const local = pt.matrixTransform(innerGroup.node.getScreenCTM().inverse());
-      innerGroup.node.style.transformOrigin = `${local.x}px ${local.y}px`;
-      innerGroup.node.getBoundingClientRect(); // force reflow
       
       if (e.ctrlKey) {
+        // Flip using SVG transform
         innerGroup.node._scale = (innerGroup.node._scale || 1) === 1 ? -1 : 1;
+        innerGroup.scale(innerGroup.node._scale, 1, local.x, local.y);
       } else {
-        ang += 90 * (e.button === 2 ? 1 : -1);
+        // Rotate using SVG transform
+        const delta = 90 * (e.button === 2 ? 1 : -1);
+        innerGroup.rotate(delta, local.x, local.y);
       }
-      Crossy(innerGroup.node, "transform", `rotate(${ang}deg) scaleX(${innerGroup.node._scale || 1})`);
     }
     e.preventDefault();
   });
   
-  // Touch support - uses bbox center since we don't have reliable touch coordinates
+  // Touch support - uses bbox center with SVG transforms
   addTouchGestures(innerGroup.node, 
     () => {
-      ang += 90;
       const bbox = innerGroup.node.getBBox();
-      innerGroup.node.style.transformOrigin = `${bbox.x + bbox.width/2}px ${bbox.y + bbox.height/2}px`;
-      Crossy(innerGroup.node, "transform", `rotate(${ang}deg) scaleX(${innerGroup.node._scale || 1})`);
+      innerGroup.rotate(90, bbox.x + bbox.width/2, bbox.y + bbox.height/2);
     },
     () => {
       innerGroup.node._scale = (innerGroup.node._scale || 1) === 1 ? -1 : 1;
       const bbox = innerGroup.node.getBBox();
-      innerGroup.node.style.transformOrigin = `${bbox.x + bbox.width/2}px ${bbox.y + bbox.height/2}px`;
-      Crossy(innerGroup.node, "transform", `rotate(${ang}deg) scaleX(${innerGroup.node._scale || 1})`);
+      innerGroup.scale(innerGroup.node._scale, 1, bbox.x + bbox.width/2, bbox.y + bbox.height/2);
     }
   );
-  
-  // Prime rotation by dispatching mousedown+mouseup pairs - one piece at a time
-  primingQueue = primingQueue.then(async () => {
-    await new Promise(r => setTimeout(r, 300)); // delay before this piece
-    for (let i = 0; i < 4; i++) {
-      await new Promise(r => setTimeout(r, 150)); // 150ms between each click
-      innerGroup.node.getBoundingClientRect(); // force reflow
-      const ctm = innerGroup.node.getScreenCTM();
-      if (!ctm) return;
-      const bbox = innerGroup.node.getBBox();
-      const centerX = bbox.x + bbox.width / 2;
-      const centerY = bbox.y + bbox.height / 2;
-      const clientX = ctm.a * centerX + ctm.c * centerY + ctm.e;
-      const clientY = ctm.b * centerX + ctm.d * centerY + ctm.f;
-      // Dispatch mousedown on outer group to prime dragStartPos
-      newGroup.node.dispatchEvent(new MouseEvent('mousedown', {
-        clientX, clientY, button: 0, bubbles: true
-      }));
-      await new Promise(r => setTimeout(r, 50));
-      // Then mouseup on inner group to trigger rotation
-      innerGroup.node.dispatchEvent(new MouseEvent('mouseup', {
-        clientX, clientY, button: 0, bubbles: true
-      }));
-    }
-  });
 }
 
 // Initialize progress panel with table rows for each piece (runs once)
@@ -835,74 +804,43 @@ function movePoly(polyId, x, y, angle = 0, flip = false) {
     dragStartPos = null;
   });
   
-  // Rotation on inner polygon (set transform-origin only when rotating, not during drag)
+  // Rotation on inner polygon using SVG transforms (not CSS) to avoid first-click shift
   cPol.on("contextmenu",  e => { e.preventDefault() });
   cPol.on("mouseup",      e => {
     const t = newGroup.transform();
     const wasDrag = dragStartPos && ((t.x || 0) !== dragStartPos.x || (t.y || 0) !== dragStartPos.y);
-    console.log(`[${nom}] mouseup: isTrusted=${e.isTrusted}, wasDrag=${wasDrag}, dragStartPos=`, dragStartPos, `transform=`, t);
     if (!wasDrag) {
-      // Compute pivot from click point, set origin, force reflow, then rotate
+      // Compute pivot from click point
       const pt = svg.node.createSVGPoint();
       pt.x = e.clientX;
       pt.y = e.clientY;
       const local = pt.matrixTransform(cPol.node.getScreenCTM().inverse());
-      console.log(`[${nom}] rotating: clientX=${e.clientX}, clientY=${e.clientY}, local=`, local, `ang before=${ang}`);
-      cPol.node.style.transformOrigin = `${local.x}px ${local.y}px`;
-      cPol.node.getBoundingClientRect(); // force reflow
       
       if (e.ctrlKey) {
+        // Flip using SVG transform
         cPol.node._scale = (cPol.node._scale || 1) === 1 ? -1 : 1;
+        cPol.scale(cPol.node._scale, 1, local.x, local.y);
       } else {
-        ang += 90 * (e.button === 2 ? 1 : -1);
+        // Rotate using SVG transform
+        const delta = 90 * (e.button === 2 ? 1 : -1);
+        cPol.rotate(delta, local.x, local.y);
       }
-      console.log(`[${nom}] ang after=${ang}, applying transform`);
-      Crossy(cPol.node, "transform", 
-                     `rotate(${ang}deg) scaleX(${cPol.node._scale || 1})`);
     }
     e.preventDefault()
   });
   
-  // Touch support: tap to rotate, long press to flip - uses bbox center
+  // Touch support: tap to rotate, long press to flip - uses bbox center with SVG transforms
   addTouchGestures(cPol.node, 
     () => {
-      ang += 90;
       const bbox = cPol.node.getBBox();
-      cPol.node.style.transformOrigin = `${bbox.x + bbox.width/2}px ${bbox.y + bbox.height/2}px`;
-      Crossy(cPol.node, "transform", `rotate(${ang}deg) scaleX(${cPol.node._scale || 1})`);
+      cPol.rotate(90, bbox.x + bbox.width/2, bbox.y + bbox.height/2);
     },
     () => {
       cPol.node._scale = (cPol.node._scale || 1) === 1 ? -1 : 1;
       const bbox = cPol.node.getBBox();
-      cPol.node.style.transformOrigin = `${bbox.x + bbox.width/2}px ${bbox.y + bbox.height/2}px`;
-      Crossy(cPol.node, "transform", `rotate(${ang}deg) scaleX(${cPol.node._scale || 1})`);
+      cPol.scale(cPol.node._scale, 1, bbox.x + bbox.width/2, bbox.y + bbox.height/2);
     }
   );
-  
-  // Prime rotation by dispatching mousedown+mouseup pairs - one piece at a time
-  primingQueue = primingQueue.then(async () => {
-    await new Promise(r => setTimeout(r, 300)); // delay before this piece
-    for (let i = 0; i < 4; i++) {
-      await new Promise(r => setTimeout(r, 150)); // 150ms between each click
-      cPol.node.getBoundingClientRect(); // force reflow
-      const ctm = cPol.node.getScreenCTM();
-      if (!ctm) return;
-      const bbox = cPol.node.getBBox();
-      const centerX = bbox.x + bbox.width / 2;
-      const centerY = bbox.y + bbox.height / 2;
-      const clientX = ctm.a * centerX + ctm.c * centerY + ctm.e;
-      const clientY = ctm.b * centerX + ctm.d * centerY + ctm.f;
-      // Dispatch mousedown on outer group to prime dragStartPos
-      newGroup.node.dispatchEvent(new MouseEvent('mousedown', {
-        clientX, clientY, button: 0, bubbles: true
-      }));
-      await new Promise(r => setTimeout(r, 50));
-      // Then mouseup on polygon to trigger rotation
-      cPol.node.dispatchEvent(new MouseEvent('mouseup', {
-        clientX, clientY, button: 0, bubbles: true
-      }));
-    }
-  });
 }
 
 function drawCalendar() {
