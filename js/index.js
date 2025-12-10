@@ -218,22 +218,23 @@ function visualizePlacement(placement) {
   newGroup.draggy();
   newGroup.on("dragmove", () => { moved = true });
   newGroup.on("dragend", () => { if (moved) snapToGrid(newGroup); moved = false; });
-  innerGroup.on("mousedown", () => { moved = false });
+  innerGroup.on("mousedown", e => {
+    moved = false;
+    // Set transform-origin on mousedown so CSS transition pivots correctly
+    const pt = svg.node.createSVGPoint();
+    pt.x = e.clientX;
+    pt.y = e.clientY;
+    const local = pt.matrixTransform(innerGroup.node.getScreenCTM().inverse());
+    innerGroup.node.style.transformOrigin = `${local.x}px ${local.y}px`;
+  });
   innerGroup.on("contextmenu", e => { e.preventDefault() });
   innerGroup.on("mouseup", e => {
     if (!moved) {
-      // Convert click to element's local coordinate space via inverse CTM
-      const pt = svg.node.createSVGPoint();
-      pt.x = e.clientX;
-      pt.y = e.clientY;
-      const local = pt.matrixTransform(innerGroup.node.getScreenCTM().inverse());
-      
       if (e.ctrlKey) {
         innerGroup.node._scale = (innerGroup.node._scale || 1) === 1 ? -1 : 1;
       } else {
         ang += 90 * (e.button === 2 ? 1 : -1);
       }
-      innerGroup.node.style.transformOrigin = `${local.x}px ${local.y}px`;
       Crossy(innerGroup.node, "transform", `rotate(${ang}deg) scaleX(${innerGroup.node._scale || 1})`);
     }
     e.preventDefault();
@@ -789,25 +790,25 @@ function movePoly(polyId, x, y, angle = 0, flip = false) {
   newGroup.draggy();
   newGroup.on("dragmove", () => { moved = true });
   newGroup.on("dragend", () => { if (moved) snapToGrid(newGroup); moved = false; });
-  cPol.on("mousedown", () => { moved = false });
+  cPol.on("mousedown", e => {
+    moved = false;
+    // Set transform-origin on mousedown so CSS transition pivots correctly
+    const pt = svg.node.createSVGPoint();
+    pt.x = e.clientX;
+    pt.y = e.clientY;
+    const local = pt.matrixTransform(cPol.node.getScreenCTM().inverse());
+    cPol.node.style.transformOrigin = `${local.x}px ${local.y}px`;
+  });
   cPol.on("contextmenu",  e => { e.preventDefault() });
   cPol.on("mouseup",      e => {
     if (!moved) {
-      const targetNode = e.currentTarget;
-      // Convert click to element's local coordinate space via inverse CTM
-      const pt = svg.node.createSVGPoint();
-      pt.x = e.clientX;
-      pt.y = e.clientY;
-      const local = pt.matrixTransform(targetNode.getScreenCTM().inverse());
-      
       if (e.ctrlKey) {
-        targetNode._scale = (targetNode._scale || 1) === 1 ? -1 : 1;
+        cPol.node._scale = (cPol.node._scale || 1) === 1 ? -1 : 1;
       } else {
         ang += 90 * (e.button === 2 ? 1 : -1);
       }
-      targetNode.style.transformOrigin = `${local.x}px ${local.y}px`;
-      Crossy(targetNode, "transform", 
-                     `rotate(${ang}deg) scaleX(${targetNode._scale || 1})`);
+      Crossy(cPol.node, "transform", 
+                     `rotate(${ang}deg) scaleX(${cPol.node._scale || 1})`);
     }
     e.preventDefault()
   });
