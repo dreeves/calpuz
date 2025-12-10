@@ -209,14 +209,22 @@ function visualizePlacement(placement) {
   for (const [dr, dc] of placement.cells) {
     innerGroup.rect(boxel, boxel).move(dc * boxel, dr * boxel).fill(hue).opacity('0.8').stroke({ width: 1, color: '#fff' });
   }
-  // Prime with identity transform so first rotation doesn't shift
-  innerGroup.node.style.transform = 'rotate(0deg) scaleX(1)';
-  innerGroup.node._scale = 1;
   // Translate the GROUP to board position (matches manual piece convention)
   newGroup.translate(x0 + placement.col * boxel, y0 + placement.row * boxel);
   
   // Drag on outer group, rotation on inner group
   let ang = 0;
+  
+  // Patch: simulate 4 clicks (360°) to prime the rotation system
+  const bbox = innerGroup.node.getBBox();
+  innerGroup.node.style.transformOrigin = `${bbox.x + bbox.width/2}px ${bbox.y + bbox.height/2}px`;
+  innerGroup.node._scale = 1;
+  for (let i = 0; i < 4; i++) {
+    ang += 90;
+    Crossy(innerGroup.node, "transform", `rotate(${ang}deg) scaleX(1)`);
+  }
+  ang = 0;
+  Crossy(innerGroup.node, "transform", `rotate(0deg) scaleX(1)`);
   let dragStartPos = null;
   newGroup.draggy();
   newGroup.on("dragstart", () => {
@@ -795,11 +803,16 @@ function movePoly(polyId, x, y, angle = 0, flip = false) {
   const centerX = bbox.x + bbox.width / 2;
   const centerY = bbox.y + bbox.height / 2;
   pol.node.style.transformOrigin = `${centerX}px ${centerY}px`;
-  // Prime with identity transform so first rotation doesn't shift
-  pol.node.style.transform = `rotate(${(angle * 180 / Math.PI) % 360}deg) scaleX(${flip ? -1 : 1})`;
-  pol.node._scale = flip ? -1 : 1;
 
-  let ang = 0;
+  let ang = (angle * 180 / Math.PI) % 360;
+  const flip_scale = flip ? -1 : 1;
+  pol.node._scale = flip_scale;
+  
+  // Patch: simulate 4 clicks (360°) to prime the rotation system
+  for (let i = 0; i < 4; i++) {
+    Crossy(pol.node, "transform", `rotate(${ang + (i+1)*90}deg) scaleX(${flip_scale})`);
+  }
+  Crossy(pol.node, "transform", `rotate(${ang}deg) scaleX(${flip_scale})`);
   let dragStartPos = null;
   const cPol = newGroup.children()[0];
   newGroup.draggy();
