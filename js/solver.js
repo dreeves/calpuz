@@ -299,6 +299,7 @@ window.Solver = (function() {
     const shapePruning = { cells: [], sizes: [] };     // (2) unfillable shape
     const tunnelPruning = { cells: [], sizes: [] };    // (3) unfillable tunnels
     const forcedRegions = { cells: [], sizes: [] };    // (4) regions that force a piece placement
+    const allRegionSizes = [];                         // All region sizes (for legend)
     const forcedPlacements = [];                       // Pieces that must be placed in specific regions
     const remainingSet = new Set(remainingPieces);
     
@@ -434,7 +435,8 @@ window.Solver = (function() {
         if (grid[r][c] === 1 && !visited[r][c]) {
           const component = floodFill(r, c);
           const size = component.length;
-          
+          allRegionSizes.push(size);  // Track all region sizes
+
           // (1) Size pruning: region size not fillable by any combo of remaining pieces
           if (!isFillableSize(size, pieceSizes)) {
             deadCells.push(...component);
@@ -488,7 +490,7 @@ window.Solver = (function() {
       }
     }
     
-    return { deadCells, sizePruning, shapePruning, tunnelPruning, forcedRegions, forcedPlacements };
+    return { deadCells, sizePruning, shapePruning, tunnelPruning, forcedRegions, forcedPlacements, allRegionSizes };
   }
   
   function countValidPlacements(grid, pieceName) {
@@ -501,9 +503,9 @@ window.Solver = (function() {
   }
   
   function getEffectiveCounts(grid, remainingPieces) {
-    const { deadCells, sizePruning, shapePruning, tunnelPruning, forcedRegions, forcedPlacements } = analyzeRegions(grid, remainingPieces);
+    const { deadCells, sizePruning, shapePruning, tunnelPruning, forcedRegions, forcedPlacements, allRegionSizes } = analyzeRegions(grid, remainingPieces);
     const counts = remainingPieces.map(name => ({ name, count: countValidPlacements(grid, name) }));
-    return { counts, deadCells, sizePruning, shapePruning, tunnelPruning, forcedRegions, forcedPlacements };
+    return { counts, deadCells, sizePruning, shapePruning, tunnelPruning, forcedRegions, forcedPlacements, allRegionSizes };
   }
   
   // Main solve function
@@ -554,7 +556,7 @@ window.Solver = (function() {
         // Convert to array format for visualization
         placements = placedPieces.map(name => placementsByName[name]);
         const emptyPruning = { cells: [], sizes: [] };
-        visualizeCallback(placements, attempts, allPiecesProgress, [], emptyPruning, emptyPruning, emptyPruning, emptyPruning, null, false, []);
+        visualizeCallback(placements, attempts, allPiecesProgress, [], emptyPruning, emptyPruning, emptyPruning, emptyPruning, null, false, [], []);
         
         // Wait while paused (user can resume to find next solution)
         while (paused && solving) {
@@ -631,7 +633,7 @@ window.Solver = (function() {
         placements = newPlaced.map(name => placementsByName[name]);
         visualizeCallback(placements, attempts, allPiecesProgress, newAnalysis.deadCells,
             newAnalysis.sizePruning, newAnalysis.shapePruning, newAnalysis.tunnelPruning,
-            newAnalysis.forcedRegions, nextPieceName, false, orderedNewRemaining);
+            newAnalysis.forcedRegions, nextPieceName, false, orderedNewRemaining, newAnalysis.allRegionSizes);
         
         // Step mode or delay
         if (stepMode) {
@@ -710,7 +712,7 @@ window.Solver = (function() {
           const rawRemaining = orderedRemaining.slice(1);
           const tryAnalysis = getEffectiveCounts(grid, rawRemaining);
           
-          const { counts: remainingCounts, deadCells, sizePruning, shapePruning, tunnelPruning, forcedRegions } = tryAnalysis;
+          const { counts: remainingCounts, deadCells, sizePruning, shapePruning, tunnelPruning, forcedRegions, allRegionSizes } = tryAnalysis;
           remainingCounts.sort((a, b) => a.count - b.count);
           const newRemaining = remainingCounts.map(x => x.name);
           
@@ -737,7 +739,7 @@ window.Solver = (function() {
           
           // Convert to array for visualization
           placements = newPlaced.map(name => placementsByName[name]);
-          visualizeCallback(placements, attempts, allPiecesProgress, deadCells, sizePruning, shapePruning, tunnelPruning, forcedRegions, nextPieceName, false, newRemaining);
+          visualizeCallback(placements, attempts, allPiecesProgress, deadCells, sizePruning, shapePruning, tunnelPruning, forcedRegions, nextPieceName, false, newRemaining, allRegionSizes);
           
           // Step mode: pause after each placement
           if (stepMode) {
@@ -782,7 +784,7 @@ window.Solver = (function() {
         ];
         placements = currentPlaced.map(name => placementsByName[name]);
         const emptyPruning2 = { cells: [], sizes: [] };
-        visualizeCallback(placements, attempts, allPiecesProgress, [], emptyPruning2, emptyPruning2, emptyPruning2, emptyPruning2, pieceName, true, orderedRemaining);
+        visualizeCallback(placements, attempts, allPiecesProgress, [], emptyPruning2, emptyPruning2, emptyPruning2, emptyPruning2, pieceName, true, orderedRemaining, []);
         
         // Step mode or normal delay
         if (stepMode) {

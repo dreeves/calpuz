@@ -605,7 +605,7 @@ function drawPendingPieces(progress, failedPieceName = null, orderedRemaining = 
 
 // Visualize all placements (callback for solver)
 // sizePruning, shapePruning, tunnelPruning, forcedRegions are { cells: [[r,c],...], sizes: [n,...] }
-function visualizeAllPlacements(placements, attempts, progress, deadCells = [], sizePruning = {cells:[], sizes:[]}, shapePruning = {cells:[], sizes:[]}, tunnelPruning = {cells:[], sizes:[]}, forcedRegions = {cells:[], sizes:[]}, nextPiece = null, pieceFailed = false, orderedRemaining = []) {
+function visualizeAllPlacements(placements, attempts, progress, deadCells = [], sizePruning = {cells:[], sizes:[]}, shapePruning = {cells:[], sizes:[]}, tunnelPruning = {cells:[], sizes:[]}, forcedRegions = {cells:[], sizes:[]}, nextPiece = null, pieceFailed = false, orderedRemaining = [], allRegionSizes = []) {
   // Clear all pieces
   for (const [name, , ] of shapes) {
     const group = SVG.get(name);
@@ -732,13 +732,26 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
     deadGroup.rect(swatchSize, swatchSize).move(swatchX, y).fill(pattern).opacity(LEGEND_SWATCH_OPACITY).stroke({ width: 1, color: '#666' });
   }
   
-  // Helper to draw text with italic portion
-  function drawLegendText(y, count, noun, italicWord, sizes) {
-    const pluralNoun = count === 1 ? noun : noun + 's';
+  // Helper to render sizes in braces with specified ones struck through in red
+  function addSizes(add, sizes, strikethroughSet) {
+    add.tspan(' — {');
+    sizes.forEach((size, i) => {
+      const span = add.tspan(String(size));
+      if (strikethroughSet.has(size)) {
+        span.fill('#cc0000').attr('text-decoration', 'line-through');
+      }
+      if (i < sizes.length - 1) add.tspan(', ');
+    });
+    add.tspan('}');
+  }
+
+  // Helper to draw legend text showing all sizes with unfillable ones struck through
+  function drawLegendText(y, unfillableSizes, italicWord, allSizes) {
+    const sorted = [...allSizes].sort((a, b) => a - b);
     const text = deadGroup.text(function(add) {
-      add.tspan(`${count} ${pluralNoun} of unfillable `);
+      add.tspan(`${splur(unfillableSizes.length, "region")} of unfillable `);
       add.tspan(italicWord).attr('font-style', 'italic');
-      add.tspan(` — {${sizes.join(', ')}}`);
+      addSizes(add, sorted, new Set(unfillableSizes));
     });
     text.font({ size: fontSize, weight: 'bold', family: 'Arial' }).fill('#000000').move(textX, y);
   }
@@ -747,26 +760,23 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
   const legendOpacity = showLegend ? 1 : 0;
   
   drawSwatch(textY, SIZE_PRUNE_COLOR_1, SIZE_PRUNE_COLOR_2, SIZE_PRUNE_ANGLE, 'swatch-size');
-  drawLegendText(textY, sizePruning.sizes.length, 'region', 'size', sizePruning.sizes);
+  drawLegendText(textY, sizePruning.sizes, 'size', allRegionSizes);
   textY += lineHeight;
-  
+
   drawSwatch(textY, SHAPE_PRUNE_COLOR_1, SHAPE_PRUNE_COLOR_2, SHAPE_PRUNE_ANGLE, 'swatch-shape');
-  drawLegendText(textY, shapePruning.sizes.length, 'region', 'shape', shapePruning.sizes);
+  drawLegendText(textY, shapePruning.sizes, 'shape', allRegionSizes);
   textY += lineHeight;
   
-  const tunnelCount = tunnelPruning.sizes.length;
-  const tunnelNoun = tunnelCount === 1 ? 'tunnel' : 'tunnels';
   drawSwatch(textY, TUNNEL_PRUNE_COLOR_1, TUNNEL_PRUNE_COLOR_2, TUNNEL_PRUNE_ANGLE, 'swatch-tunnel');
-  deadGroup.text(`${tunnelCount} unfillable ${tunnelNoun} — {${tunnelPruning.sizes.join(', ')}}`)
-    .font({ size: fontSize, weight: 'bold', family: 'Arial' })
-    .fill('#000000')
-    .move(textX, textY);
+  const tunnelText = deadGroup.text(function(add) {
+    add.tspan(splur(tunnelPruning.sizes.length, "unfillable tunnel"));
+    addSizes(add, tunnelPruning.sizes, new Set(tunnelPruning.sizes));
+  });
+  tunnelText.font({ size: fontSize, weight: 'bold', family: 'Arial' }).fill('#000000').move(textX, textY);
   textY += lineHeight;
-  
-  const forcedCount = forcedRegions.sizes.length;
-  const forcedNoun = forcedCount === 1 ? 'placement' : 'placements';
+
   drawCheckerboardSwatch(textY, FORCED_REGION_COLOR_1, FORCED_REGION_COLOR_2, 'swatch-forced');
-  deadGroup.text(`${forcedCount} forced ${forcedNoun} — {${forcedRegions.sizes.join(', ')}}`)
+  deadGroup.text(`${splur(forcedRegions.sizes.length, "forced placement")} — {${forcedRegions.sizes.join(', ')}}`)
     .font({ size: fontSize, weight: 'bold', family: 'Arial' })
     .fill('#000000')
     .move(textX, textY);
