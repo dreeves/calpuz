@@ -212,14 +212,23 @@ function visualizePlacement(placement) {
   // Translate the GROUP to board position (matches manual piece convention)
   newGroup.translate(x0 + placement.col * boxel, y0 + placement.row * boxel);
   
-  // Drag on outer group, rotation on inner group (separate event paths)
+  // Drag on outer group, rotation on inner group
   let ang = 0;
+  let dragStartPos = null;
   newGroup.draggy();
-  newGroup.on("dragend", () => { snapToGrid(newGroup); });
+  newGroup.on("dragstart", () => {
+    const t = newGroup.transform();
+    dragStartPos = { x: t.x || 0, y: t.y || 0 };
+  });
+  newGroup.on("dragend", () => {
+    const t = newGroup.transform();
+    const actuallyMoved = dragStartPos && ((t.x || 0) !== dragStartPos.x || (t.y || 0) !== dragStartPos.y);
+    if (actuallyMoved) snapToGrid(newGroup);
+    dragStartPos = null;
+  });
   
-  // Rotation: stop propagation so draggy doesn't see these events
+  // Rotation on inner group
   innerGroup.on("mousedown", e => {
-    e.stopPropagation();
     // Set transform-origin on mousedown so CSS transition pivots correctly
     const pt = svg.node.createSVGPoint();
     pt.x = e.clientX;
@@ -229,12 +238,17 @@ function visualizePlacement(placement) {
   });
   innerGroup.on("contextmenu", e => { e.preventDefault() });
   innerGroup.on("mouseup", e => {
-    if (e.ctrlKey) {
-      innerGroup.node._scale = (innerGroup.node._scale || 1) === 1 ? -1 : 1;
-    } else {
-      ang += 90 * (e.button === 2 ? 1 : -1);
+    // Only rotate if position didn't change (i.e., not a drag)
+    const t = newGroup.transform();
+    const wasDrag = dragStartPos && ((t.x || 0) !== dragStartPos.x || (t.y || 0) !== dragStartPos.y);
+    if (!wasDrag) {
+      if (e.ctrlKey) {
+        innerGroup.node._scale = (innerGroup.node._scale || 1) === 1 ? -1 : 1;
+      } else {
+        ang += 90 * (e.button === 2 ? 1 : -1);
+      }
+      Crossy(innerGroup.node, "transform", `rotate(${ang}deg) scaleX(${innerGroup.node._scale || 1})`);
     }
-    Crossy(innerGroup.node, "transform", `rotate(${ang}deg) scaleX(${innerGroup.node._scale || 1})`);
     e.preventDefault();
   });
   
@@ -783,13 +797,22 @@ function movePoly(polyId, x, y, angle = 0, flip = false) {
         `rotate(${(angle * 180 / Math.PI) % 360}deg) scaleX(${flip ? -1 : 1})`);
 
   let ang = 0;
+  let dragStartPos = null;
   const cPol = newGroup.children()[0];
   newGroup.draggy();
-  newGroup.on("dragend", () => { snapToGrid(newGroup); });
+  newGroup.on("dragstart", () => {
+    const t = newGroup.transform();
+    dragStartPos = { x: t.x || 0, y: t.y || 0 };
+  });
+  newGroup.on("dragend", () => {
+    const t = newGroup.transform();
+    const actuallyMoved = dragStartPos && ((t.x || 0) !== dragStartPos.x || (t.y || 0) !== dragStartPos.y);
+    if (actuallyMoved) snapToGrid(newGroup);
+    dragStartPos = null;
+  });
   
-  // Rotation: stop propagation so draggy doesn't see these events
+  // Rotation on inner polygon
   cPol.on("mousedown", e => {
-    e.stopPropagation();
     // Set transform-origin on mousedown so CSS transition pivots correctly
     const pt = svg.node.createSVGPoint();
     pt.x = e.clientX;
@@ -799,13 +822,18 @@ function movePoly(polyId, x, y, angle = 0, flip = false) {
   });
   cPol.on("contextmenu",  e => { e.preventDefault() });
   cPol.on("mouseup",      e => {
-    if (e.ctrlKey) {
-      cPol.node._scale = (cPol.node._scale || 1) === 1 ? -1 : 1;
-    } else {
-      ang += 90 * (e.button === 2 ? 1 : -1);
+    // Only rotate if position didn't change (i.e., not a drag)
+    const t = newGroup.transform();
+    const wasDrag = dragStartPos && ((t.x || 0) !== dragStartPos.x || (t.y || 0) !== dragStartPos.y);
+    if (!wasDrag) {
+      if (e.ctrlKey) {
+        cPol.node._scale = (cPol.node._scale || 1) === 1 ? -1 : 1;
+      } else {
+        ang += 90 * (e.button === 2 ? 1 : -1);
+      }
+      Crossy(cPol.node, "transform", 
+                     `rotate(${ang}deg) scaleX(${cPol.node._scale || 1})`);
     }
-    Crossy(cPol.node, "transform", 
-                   `rotate(${ang}deg) scaleX(${cPol.node._scale || 1})`);
     e.preventDefault()
   });
   
