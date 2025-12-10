@@ -217,7 +217,7 @@ function visualizePlacement(placement) {
   let ang = 0;
   newGroup.draggy();
   newGroup.on("dragmove", () => { moved = true });
-  newGroup.on("dragend", () => { if (moved) snapToGrid(newGroup); });
+  newGroup.on("dragend", () => { if (moved) snapToGrid(newGroup); moved = false; });
   innerGroup.on("mousedown", () => { moved = false });
   innerGroup.on("contextmenu", e => { e.preventDefault() });
   innerGroup.on("mouseup", e => {
@@ -236,7 +236,6 @@ function visualizePlacement(placement) {
       innerGroup.node.style.transformOrigin = `${clickX}px ${clickY}px`;
       Crossy(innerGroup.node, "transform", `rotate(${ang}deg) scaleX(${innerGroup.node._scale || 1})`);
     }
-    moved = false;
     e.preventDefault();
   });
   
@@ -789,7 +788,7 @@ function movePoly(polyId, x, y, angle = 0, flip = false) {
   const cPol = newGroup.children()[0];
   newGroup.draggy();
   newGroup.on("dragmove", () => { moved = true });
-  newGroup.on("dragend", () => { if (moved) snapToGrid(newGroup); });
+  newGroup.on("dragend", () => { if (moved) snapToGrid(newGroup); moved = false; });
   cPol.on("mousedown", () => { moved = false });
   cPol.on("contextmenu",  e => { e.preventDefault() });
   cPol.on("mouseup",      e => {
@@ -810,7 +809,6 @@ function movePoly(polyId, x, y, angle = 0, flip = false) {
       Crossy(targetNode, "transform", 
                      `rotate(${ang}deg) scaleX(${targetNode._scale || 1})`);
     }
-    moved = false;
     e.preventDefault()
   });
   
