@@ -212,19 +212,15 @@ function visualizePlacement(placement) {
   // Translate the GROUP to board position (matches manual piece convention)
   newGroup.translate(x0 + placement.col * boxel, y0 + placement.row * boxel);
   
-  // Drag on outer group, rotation on inner group
-  let ang = 0;
-  
-  // Patch: simulate 4 clicks (360°) to prime the rotation system
+  // Prime the rotation system: set origin, force reflow, apply identity transform
   const bbox = innerGroup.node.getBBox();
   innerGroup.node.style.transformOrigin = `${bbox.x + bbox.width/2}px ${bbox.y + bbox.height/2}px`;
+  innerGroup.node.getBoundingClientRect(); // force reflow to commit the origin
+  innerGroup.node.style.transform = 'rotate(0deg) scaleX(1)';
   innerGroup.node._scale = 1;
-  for (let i = 0; i < 4; i++) {
-    ang += 90;
-    Crossy(innerGroup.node, "transform", `rotate(${ang}deg) scaleX(1)`);
-  }
-  ang = 0;
-  Crossy(innerGroup.node, "transform", `rotate(0deg) scaleX(1)`);
+  
+  // Drag on outer group, rotation on inner group
+  let ang = 0;
   let dragStartPos = null;
   newGroup.draggy();
   newGroup.on("dragstart", () => {
@@ -799,20 +795,18 @@ function movePoly(polyId, x, y, angle = 0, flip = false) {
   const pol = newGroup.polygon(polygen(fig, boxel)).fill(hue).opacity('0.8')
   newGroup.translate(x0 + x * boxel, y0 + y * boxel);
 
+  // Prime the rotation system: set origin, force reflow, apply initial transform
   const bbox = pol.node.getBBox();
   const centerX = bbox.x + bbox.width / 2;
   const centerY = bbox.y + bbox.height / 2;
   pol.node.style.transformOrigin = `${centerX}px ${centerY}px`;
-
-  let ang = (angle * 180 / Math.PI) % 360;
+  pol.node.getBoundingClientRect(); // force reflow to commit the origin
+  const initialAng = (angle * 180 / Math.PI) % 360;
   const flip_scale = flip ? -1 : 1;
+  pol.node.style.transform = `rotate(${initialAng}deg) scaleX(${flip_scale})`;
   pol.node._scale = flip_scale;
   
-  // Patch: simulate 4 clicks (360°) to prime the rotation system
-  for (let i = 0; i < 4; i++) {
-    Crossy(pol.node, "transform", `rotate(${ang + (i+1)*90}deg) scaleX(${flip_scale})`);
-  }
-  Crossy(pol.node, "transform", `rotate(${ang}deg) scaleX(${flip_scale})`);
+  let ang = initialAng;
   let dragStartPos = null;
   const cPol = newGroup.children()[0];
   newGroup.draggy();
