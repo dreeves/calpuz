@@ -226,13 +226,11 @@ function visualizePlacement(placement) {
     dragStartPos = null;
   });
   
-  // Simple rotation around bbox center using CSS transforms
+  // Click-point rotation using CSS transforms with fill-box and percentage origins
   let ang = 0;
   innerGroup.node._scale = 1;
-  
-  // Set initial transform-origin to bbox center  
-  const initBbox = innerGroup.node.getBBox();
-  innerGroup.node.style.transformOrigin = `${initBbox.x + initBbox.width/2}px ${initBbox.y + initBbox.height/2}px`;
+  innerGroup.node.style.transformBox = 'fill-box';  // Critical: makes transform-origin relative to SVG bbox
+  innerGroup.node.style.transformOrigin = '50% 50%';
   innerGroup.node.style.transform = `rotate(0deg) scaleX(1)`;
   
   innerGroup.on("contextmenu", e => { e.preventDefault() });
@@ -240,9 +238,15 @@ function visualizePlacement(placement) {
     const t = newGroup.transform();
     const wasDrag = dragStartPos && ((t.x || 0) !== dragStartPos.x || (t.y || 0) !== dragStartPos.y);
     if (!wasDrag) {
-      // Always use bbox center for rotation (simpler, no coordinate issues)
+      // Convert click point to percentage of bbox for proper CSS transform-origin
+      const pt = svg.node.createSVGPoint();
+      pt.x = e.clientX;
+      pt.y = e.clientY;
+      const local = pt.matrixTransform(innerGroup.node.getScreenCTM().inverse());
       const bbox = innerGroup.node.getBBox();
-      innerGroup.node.style.transformOrigin = `${bbox.x + bbox.width/2}px ${bbox.y + bbox.height/2}px`;
+      const originX = bbox.width > 0 ? ((local.x - bbox.x) / bbox.width) * 100 : 50;
+      const originY = bbox.height > 0 ? ((local.y - bbox.y) / bbox.height) * 100 : 50;
+      innerGroup.node.style.transformOrigin = `${originX}% ${originY}%`;
       
       if (e.ctrlKey) {
         innerGroup.node._scale = (innerGroup.node._scale || 1) === 1 ? -1 : 1;
@@ -254,18 +258,16 @@ function visualizePlacement(placement) {
     e.preventDefault();
   });
   
-  // Touch support - uses bbox center
+  // Touch support - uses bbox center (50% 50%)
   addTouchGestures(innerGroup.node, 
     () => {
       ang += 90;
-      const bbox = innerGroup.node.getBBox();
-      innerGroup.node.style.transformOrigin = `${bbox.x + bbox.width/2}px ${bbox.y + bbox.height/2}px`;
+      innerGroup.node.style.transformOrigin = '50% 50%';
       Crossy(innerGroup.node, "transform", `rotate(${ang}deg) scaleX(${innerGroup.node._scale || 1})`);
     },
     () => {
       innerGroup.node._scale = (innerGroup.node._scale || 1) === 1 ? -1 : 1;
-      const bbox = innerGroup.node.getBBox();
-      innerGroup.node.style.transformOrigin = `${bbox.x + bbox.width/2}px ${bbox.y + bbox.height/2}px`;
+      innerGroup.node.style.transformOrigin = '50% 50%';
       Crossy(innerGroup.node, "transform", `rotate(${ang}deg) scaleX(${innerGroup.node._scale || 1})`);
     }
   );
@@ -809,13 +811,11 @@ function movePoly(polyId, x, y, angle = 0, flip = false) {
     dragStartPos = null;
   });
   
-  // Simple rotation around bbox center using CSS transforms
+  // Click-point rotation using CSS transforms with fill-box and percentage origins
   let ang = initialAng;
   pol.node._scale = flip_scale;
-  
-  // Set initial transform-origin to bbox center
-  const initBbox = pol.node.getBBox();
-  pol.node.style.transformOrigin = `${initBbox.x + initBbox.width/2}px ${initBbox.y + initBbox.height/2}px`;
+  pol.node.style.transformBox = 'fill-box';  // Critical: makes transform-origin relative to SVG bbox
+  pol.node.style.transformOrigin = '50% 50%';
   pol.node.style.transform = `rotate(${ang}deg) scaleX(${flip_scale})`;
   
   cPol.on("contextmenu",  e => { e.preventDefault() });
@@ -823,9 +823,15 @@ function movePoly(polyId, x, y, angle = 0, flip = false) {
     const t = newGroup.transform();
     const wasDrag = dragStartPos && ((t.x || 0) !== dragStartPos.x || (t.y || 0) !== dragStartPos.y);
     if (!wasDrag) {
-      // Always use bbox center for rotation (simpler, no coordinate issues)
+      // Convert click point to percentage of bbox for proper CSS transform-origin
+      const pt = svg.node.createSVGPoint();
+      pt.x = e.clientX;
+      pt.y = e.clientY;
+      const local = pt.matrixTransform(cPol.node.getScreenCTM().inverse());
       const bbox = pol.node.getBBox();
-      pol.node.style.transformOrigin = `${bbox.x + bbox.width/2}px ${bbox.y + bbox.height/2}px`;
+      const originX = bbox.width > 0 ? ((local.x - bbox.x) / bbox.width) * 100 : 50;
+      const originY = bbox.height > 0 ? ((local.y - bbox.y) / bbox.height) * 100 : 50;
+      pol.node.style.transformOrigin = `${originX}% ${originY}%`;
       
       if (e.ctrlKey) {
         pol.node._scale = (pol.node._scale || 1) === 1 ? -1 : 1;
@@ -837,18 +843,16 @@ function movePoly(polyId, x, y, angle = 0, flip = false) {
     e.preventDefault()
   });
   
-  // Touch support: tap to rotate, long press to flip
+  // Touch support: tap to rotate (bbox center), long press to flip
   addTouchGestures(cPol.node, 
     () => {
       ang += 90;
-      const bbox = pol.node.getBBox();
-      pol.node.style.transformOrigin = `${bbox.x + bbox.width/2}px ${bbox.y + bbox.height/2}px`;
+      pol.node.style.transformOrigin = '50% 50%';
       Crossy(pol.node, "transform", `rotate(${ang}deg) scaleX(${pol.node._scale || 1})`);
     },
     () => {
       pol.node._scale = (pol.node._scale || 1) === 1 ? -1 : 1;
-      const bbox = pol.node.getBBox();
-      pol.node.style.transformOrigin = `${bbox.x + bbox.width/2}px ${bbox.y + bbox.height/2}px`;
+      pol.node.style.transformOrigin = '50% 50%';
       Crossy(pol.node, "transform", `rotate(${ang}deg) scaleX(${pol.node._scale || 1})`);
     }
   );
