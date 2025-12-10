@@ -227,21 +227,20 @@ function visualizePlacement(placement) {
     dragStartPos = null;
   });
   
-  // Rotation on inner group
-  innerGroup.on("mousedown", e => {
-    // Set transform-origin on mousedown so CSS transition pivots correctly
-    const pt = svg.node.createSVGPoint();
-    pt.x = e.clientX;
-    pt.y = e.clientY;
-    const local = pt.matrixTransform(innerGroup.node.getScreenCTM().inverse());
-    innerGroup.node.style.transformOrigin = `${local.x}px ${local.y}px`;
-  });
+  // Rotation on inner group (set transform-origin only when rotating, not during drag)
   innerGroup.on("contextmenu", e => { e.preventDefault() });
   innerGroup.on("mouseup", e => {
-    // Only rotate if position didn't change (i.e., not a drag)
     const t = newGroup.transform();
     const wasDrag = dragStartPos && ((t.x || 0) !== dragStartPos.x || (t.y || 0) !== dragStartPos.y);
     if (!wasDrag) {
+      // Compute pivot from click point, set origin, force reflow, then rotate
+      const pt = svg.node.createSVGPoint();
+      pt.x = e.clientX;
+      pt.y = e.clientY;
+      const local = pt.matrixTransform(innerGroup.node.getScreenCTM().inverse());
+      innerGroup.node.style.transformOrigin = `${local.x}px ${local.y}px`;
+      innerGroup.node.getBoundingClientRect(); // force reflow
+      
       if (e.ctrlKey) {
         innerGroup.node._scale = (innerGroup.node._scale || 1) === 1 ? -1 : 1;
       } else {
@@ -811,21 +810,20 @@ function movePoly(polyId, x, y, angle = 0, flip = false) {
     dragStartPos = null;
   });
   
-  // Rotation on inner polygon
-  cPol.on("mousedown", e => {
-    // Set transform-origin on mousedown so CSS transition pivots correctly
-    const pt = svg.node.createSVGPoint();
-    pt.x = e.clientX;
-    pt.y = e.clientY;
-    const local = pt.matrixTransform(cPol.node.getScreenCTM().inverse());
-    cPol.node.style.transformOrigin = `${local.x}px ${local.y}px`;
-  });
+  // Rotation on inner polygon (set transform-origin only when rotating, not during drag)
   cPol.on("contextmenu",  e => { e.preventDefault() });
   cPol.on("mouseup",      e => {
-    // Only rotate if position didn't change (i.e., not a drag)
     const t = newGroup.transform();
     const wasDrag = dragStartPos && ((t.x || 0) !== dragStartPos.x || (t.y || 0) !== dragStartPos.y);
     if (!wasDrag) {
+      // Compute pivot from click point, set origin, force reflow, then rotate
+      const pt = svg.node.createSVGPoint();
+      pt.x = e.clientX;
+      pt.y = e.clientY;
+      const local = pt.matrixTransform(cPol.node.getScreenCTM().inverse());
+      cPol.node.style.transformOrigin = `${local.x}px ${local.y}px`;
+      cPol.node.getBoundingClientRect(); // force reflow
+      
       if (e.ctrlKey) {
         cPol.node._scale = (cPol.node._scale || 1) === 1 ? -1 : 1;
       } else {
