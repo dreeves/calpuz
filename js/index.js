@@ -212,14 +212,14 @@ function visualizePlacement(placement) {
   // Translate the GROUP to board position (matches manual piece convention)
   newGroup.translate(x0 + placement.col * boxel, y0 + placement.row * boxel);
   
-  // Always interactive - drag on outer group, rotation on inner group
-  let moved = false;
+  // Drag on outer group, rotation on inner group (separate event paths)
   let ang = 0;
   newGroup.draggy();
-  newGroup.on("dragmove", () => { moved = true });
-  newGroup.on("dragend", () => { if (moved) snapToGrid(newGroup); moved = false; });
+  newGroup.on("dragend", () => { snapToGrid(newGroup); });
+  
+  // Rotation: stop propagation so draggy doesn't see these events
   innerGroup.on("mousedown", e => {
-    moved = false;
+    e.stopPropagation();
     // Set transform-origin on mousedown so CSS transition pivots correctly
     const pt = svg.node.createSVGPoint();
     pt.x = e.clientX;
@@ -229,14 +229,12 @@ function visualizePlacement(placement) {
   });
   innerGroup.on("contextmenu", e => { e.preventDefault() });
   innerGroup.on("mouseup", e => {
-    if (!moved) {
-      if (e.ctrlKey) {
-        innerGroup.node._scale = (innerGroup.node._scale || 1) === 1 ? -1 : 1;
-      } else {
-        ang += 90 * (e.button === 2 ? 1 : -1);
-      }
-      Crossy(innerGroup.node, "transform", `rotate(${ang}deg) scaleX(${innerGroup.node._scale || 1})`);
+    if (e.ctrlKey) {
+      innerGroup.node._scale = (innerGroup.node._scale || 1) === 1 ? -1 : 1;
+    } else {
+      ang += 90 * (e.button === 2 ? 1 : -1);
     }
+    Crossy(innerGroup.node, "transform", `rotate(${ang}deg) scaleX(${innerGroup.node._scale || 1})`);
     e.preventDefault();
   });
   
@@ -784,14 +782,14 @@ function movePoly(polyId, x, y, angle = 0, flip = false) {
   Crossy(pol.node, "transform", 
         `rotate(${(angle * 180 / Math.PI) % 360}deg) scaleX(${flip ? -1 : 1})`);
 
-  let moved = false;
   let ang = 0;
   const cPol = newGroup.children()[0];
   newGroup.draggy();
-  newGroup.on("dragmove", () => { moved = true });
-  newGroup.on("dragend", () => { if (moved) snapToGrid(newGroup); moved = false; });
+  newGroup.on("dragend", () => { snapToGrid(newGroup); });
+  
+  // Rotation: stop propagation so draggy doesn't see these events
   cPol.on("mousedown", e => {
-    moved = false;
+    e.stopPropagation();
     // Set transform-origin on mousedown so CSS transition pivots correctly
     const pt = svg.node.createSVGPoint();
     pt.x = e.clientX;
@@ -801,15 +799,13 @@ function movePoly(polyId, x, y, angle = 0, flip = false) {
   });
   cPol.on("contextmenu",  e => { e.preventDefault() });
   cPol.on("mouseup",      e => {
-    if (!moved) {
-      if (e.ctrlKey) {
-        cPol.node._scale = (cPol.node._scale || 1) === 1 ? -1 : 1;
-      } else {
-        ang += 90 * (e.button === 2 ? 1 : -1);
-      }
-      Crossy(cPol.node, "transform", 
-                     `rotate(${ang}deg) scaleX(${cPol.node._scale || 1})`);
+    if (e.ctrlKey) {
+      cPol.node._scale = (cPol.node._scale || 1) === 1 ? -1 : 1;
+    } else {
+      ang += 90 * (e.button === 2 ? 1 : -1);
     }
+    Crossy(cPol.node, "transform", 
+                   `rotate(${ang}deg) scaleX(${cPol.node._scale || 1})`);
     e.preventDefault()
   });
   
