@@ -222,18 +222,18 @@ function visualizePlacement(placement) {
   innerGroup.on("contextmenu", e => { e.preventDefault() });
   innerGroup.on("mouseup", e => {
     if (!moved) {
-      // Get click position in SVG coordinates for rotation around click point
-      const svgRect = svg.node.getBoundingClientRect();
-      const groupMatrix = newGroup.transform();
-      const clickX = e.clientX - svgRect.left - (groupMatrix.x || 0);
-      const clickY = e.clientY - svgRect.top - (groupMatrix.y || 0);
+      // Convert click to element's local coordinate space via inverse CTM
+      const pt = svg.node.createSVGPoint();
+      pt.x = e.clientX;
+      pt.y = e.clientY;
+      const local = pt.matrixTransform(innerGroup.node.getScreenCTM().inverse());
       
       if (e.ctrlKey) {
         innerGroup.node._scale = (innerGroup.node._scale || 1) === 1 ? -1 : 1;
       } else {
         ang += 90 * (e.button === 2 ? 1 : -1);
       }
-      innerGroup.node.style.transformOrigin = `${clickX}px ${clickY}px`;
+      innerGroup.node.style.transformOrigin = `${local.x}px ${local.y}px`;
       Crossy(innerGroup.node, "transform", `rotate(${ang}deg) scaleX(${innerGroup.node._scale || 1})`);
     }
     e.preventDefault();
@@ -794,18 +794,18 @@ function movePoly(polyId, x, y, angle = 0, flip = false) {
   cPol.on("mouseup",      e => {
     if (!moved) {
       const targetNode = e.currentTarget;
-      // Get click position in SVG coordinates for rotation around click point
-      const svgRect = svg.node.getBoundingClientRect();
-      const groupMatrix = newGroup.transform();
-      const clickX = e.clientX - svgRect.left - (groupMatrix.x || 0);
-      const clickY = e.clientY - svgRect.top - (groupMatrix.y || 0);
+      // Convert click to element's local coordinate space via inverse CTM
+      const pt = svg.node.createSVGPoint();
+      pt.x = e.clientX;
+      pt.y = e.clientY;
+      const local = pt.matrixTransform(targetNode.getScreenCTM().inverse());
       
       if (e.ctrlKey) {
         targetNode._scale = (targetNode._scale || 1) === 1 ? -1 : 1;
       } else {
         ang += 90 * (e.button === 2 ? 1 : -1);
       }
-      targetNode.style.transformOrigin = `${clickX}px ${clickY}px`;
+      targetNode.style.transformOrigin = `${local.x}px ${local.y}px`;
       Crossy(targetNode, "transform", 
                      `rotate(${ang}deg) scaleX(${targetNode._scale || 1})`);
     }
