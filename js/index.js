@@ -267,21 +267,23 @@ function visualizePlacement(placement) {
     }
   );
   
-  // Prime rotation by dispatching 4 real mouseup events
-  requestAnimationFrame(() => {
-    const ctm = innerGroup.node.getScreenCTM();
-    if (!ctm) return;
-    const bbox = innerGroup.node.getBBox();
-    const centerX = bbox.x + bbox.width / 2;
-    const centerY = bbox.y + bbox.height / 2;
-    const clientX = ctm.a * centerX + ctm.c * centerY + ctm.e;
-    const clientY = ctm.b * centerX + ctm.d * centerY + ctm.f;
+  // Prime rotation by dispatching 4 real mouseup events with delays
+  (async () => {
     for (let i = 0; i < 4; i++) {
+      await new Promise(r => requestAnimationFrame(r));
+      innerGroup.node.getBoundingClientRect(); // force reflow
+      const ctm = innerGroup.node.getScreenCTM();
+      if (!ctm) return;
+      const bbox = innerGroup.node.getBBox();
+      const centerX = bbox.x + bbox.width / 2;
+      const centerY = bbox.y + bbox.height / 2;
+      const clientX = ctm.a * centerX + ctm.c * centerY + ctm.e;
+      const clientY = ctm.b * centerX + ctm.d * centerY + ctm.f;
       innerGroup.node.dispatchEvent(new MouseEvent('mouseup', {
         clientX, clientY, button: 0, bubbles: true
       }));
     }
-  });
+  })();
 }
 
 // Initialize progress panel with table rows for each piece (runs once)
@@ -864,21 +866,23 @@ function movePoly(polyId, x, y, angle = 0, flip = false) {
     }
   );
   
-  // Prime rotation by dispatching 4 real mouseup events
-  requestAnimationFrame(() => {
-    const ctm = cPol.node.getScreenCTM();
-    if (!ctm) return;
-    const bbox = cPol.node.getBBox();
-    const centerX = bbox.x + bbox.width / 2;
-    const centerY = bbox.y + bbox.height / 2;
-    const clientX = ctm.a * centerX + ctm.c * centerY + ctm.e;
-    const clientY = ctm.b * centerX + ctm.d * centerY + ctm.f;
+  // Prime rotation by dispatching 4 real mouseup events with delays
+  (async () => {
     for (let i = 0; i < 4; i++) {
+      await new Promise(r => requestAnimationFrame(r));
+      cPol.node.getBoundingClientRect(); // force reflow
+      const ctm = cPol.node.getScreenCTM();
+      if (!ctm) return;
+      const bbox = cPol.node.getBBox();
+      const centerX = bbox.x + bbox.width / 2;
+      const centerY = bbox.y + bbox.height / 2;
+      const clientX = ctm.a * centerX + ctm.c * centerY + ctm.e;
+      const clientY = ctm.b * centerX + ctm.d * centerY + ctm.f;
       cPol.node.dispatchEvent(new MouseEvent('mouseup', {
         clientX, clientY, button: 0, bubbles: true
       }));
     }
-  });
+  })();
 }
 
 function drawCalendar() {
