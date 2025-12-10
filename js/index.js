@@ -217,42 +217,41 @@ function visualizePlacement(placement) {
   let ang = 0;
   newGroup.draggy();
   newGroup.on("dragmove", () => { moved = true });
-  newGroup.on("dragend", () => { snapToGrid(newGroup); });
+  newGroup.on("dragend", () => { if (moved) snapToGrid(newGroup); });
   innerGroup.on("mousedown", () => { moved = false });
   innerGroup.on("contextmenu", e => { e.preventDefault() });
   innerGroup.on("mouseup", e => {
     if (!moved) {
+      // Get click position in SVG coordinates for rotation around click point
+      const svgRect = svg.node.getBoundingClientRect();
+      const groupMatrix = newGroup.transform();
+      const clickX = e.clientX - svgRect.left - (groupMatrix.x || 0);
+      const clickY = e.clientY - svgRect.top - (groupMatrix.y || 0);
+      
       if (e.ctrlKey) {
         innerGroup.node._scale = (innerGroup.node._scale || 1) === 1 ? -1 : 1;
       } else {
         ang += 90 * (e.button === 2 ? 1 : -1);
       }
-      const bbox = innerGroup.node.getBBox();
-      const centerX = bbox.x + bbox.width / 2;
-      const centerY = bbox.y + bbox.height / 2;
-      innerGroup.node.style.transformOrigin = `${centerX}px ${centerY}px`;
+      innerGroup.node.style.transformOrigin = `${clickX}px ${clickY}px`;
       Crossy(innerGroup.node, "transform", `rotate(${ang}deg) scaleX(${innerGroup.node._scale || 1})`);
     }
     moved = false;
     e.preventDefault();
   });
   
-  // Touch support
+  // Touch support - uses bbox center since we don't have reliable touch coordinates
   addTouchGestures(innerGroup.node, 
     () => {
       ang += 90;
       const bbox = innerGroup.node.getBBox();
-      const centerX = bbox.x + bbox.width / 2;
-      const centerY = bbox.y + bbox.height / 2;
-      innerGroup.node.style.transformOrigin = `${centerX}px ${centerY}px`;
+      innerGroup.node.style.transformOrigin = `${bbox.x + bbox.width/2}px ${bbox.y + bbox.height/2}px`;
       Crossy(innerGroup.node, "transform", `rotate(${ang}deg) scaleX(${innerGroup.node._scale || 1})`);
     },
     () => {
       innerGroup.node._scale = (innerGroup.node._scale || 1) === 1 ? -1 : 1;
       const bbox = innerGroup.node.getBBox();
-      const centerX = bbox.x + bbox.width / 2;
-      const centerY = bbox.y + bbox.height / 2;
-      innerGroup.node.style.transformOrigin = `${centerX}px ${centerY}px`;
+      innerGroup.node.style.transformOrigin = `${bbox.x + bbox.width/2}px ${bbox.y + bbox.height/2}px`;
       Crossy(innerGroup.node, "transform", `rotate(${ang}deg) scaleX(${innerGroup.node._scale || 1})`);
     }
   );
@@ -790,17 +789,24 @@ function movePoly(polyId, x, y, angle = 0, flip = false) {
   const cPol = newGroup.children()[0];
   newGroup.draggy();
   newGroup.on("dragmove", () => { moved = true });
-  newGroup.on("dragend", () => { snapToGrid(newGroup); });
+  newGroup.on("dragend", () => { if (moved) snapToGrid(newGroup); });
   cPol.on("mousedown", () => { moved = false });
   cPol.on("contextmenu",  e => { e.preventDefault() });
   cPol.on("mouseup",      e => {
     if (!moved) {
       const targetNode = e.currentTarget;
+      // Get click position in SVG coordinates for rotation around click point
+      const svgRect = svg.node.getBoundingClientRect();
+      const groupMatrix = newGroup.transform();
+      const clickX = e.clientX - svgRect.left - (groupMatrix.x || 0);
+      const clickY = e.clientY - svgRect.top - (groupMatrix.y || 0);
+      
       if (e.ctrlKey) {
         targetNode._scale = (targetNode._scale || 1) === 1 ? -1 : 1;
       } else {
         ang += 90 * (e.button === 2 ? 1 : -1);
       }
+      targetNode.style.transformOrigin = `${clickX}px ${clickY}px`;
       Crossy(targetNode, "transform", 
                      `rotate(${ang}deg) scaleX(${targetNode._scale || 1})`);
     }
@@ -808,14 +814,18 @@ function movePoly(polyId, x, y, angle = 0, flip = false) {
     e.preventDefault()
   });
   
-  // Touch support: tap to rotate, long press to flip
+  // Touch support: tap to rotate, long press to flip - uses bbox center
   addTouchGestures(cPol.node, 
     () => {
       ang += 90;
+      const bbox = cPol.node.getBBox();
+      cPol.node.style.transformOrigin = `${bbox.x + bbox.width/2}px ${bbox.y + bbox.height/2}px`;
       Crossy(cPol.node, "transform", `rotate(${ang}deg) scaleX(${cPol.node._scale || 1})`);
     },
     () => {
       cPol.node._scale = (cPol.node._scale || 1) === 1 ? -1 : 1;
+      const bbox = cPol.node.getBBox();
+      cPol.node.style.transformOrigin = `${bbox.x + bbox.width/2}px ${bbox.y + bbox.height/2}px`;
       Crossy(cPol.node, "transform", `rotate(${ang}deg) scaleX(${cPol.node._scale || 1})`);
     }
   );
