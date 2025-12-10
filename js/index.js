@@ -840,12 +840,14 @@ function movePoly(polyId, x, y, angle = 0, flip = false) {
   cPol.on("mouseup",      e => {
     const t = newGroup.transform();
     const wasDrag = dragStartPos && ((t.x || 0) !== dragStartPos.x || (t.y || 0) !== dragStartPos.y);
+    console.log(`[${nom}] mouseup: isTrusted=${e.isTrusted}, wasDrag=${wasDrag}, dragStartPos=`, dragStartPos, `transform=`, t);
     if (!wasDrag) {
       // Compute pivot from click point, set origin, force reflow, then rotate
       const pt = svg.node.createSVGPoint();
       pt.x = e.clientX;
       pt.y = e.clientY;
       const local = pt.matrixTransform(cPol.node.getScreenCTM().inverse());
+      console.log(`[${nom}] rotating: clientX=${e.clientX}, clientY=${e.clientY}, local=`, local, `ang before=${ang}`);
       cPol.node.style.transformOrigin = `${local.x}px ${local.y}px`;
       cPol.node.getBoundingClientRect(); // force reflow
       
@@ -854,6 +856,7 @@ function movePoly(polyId, x, y, angle = 0, flip = false) {
       } else {
         ang += 90 * (e.button === 2 ? 1 : -1);
       }
+      console.log(`[${nom}] ang after=${ang}, applying transform`);
       Crossy(cPol.node, "transform", 
                      `rotate(${ang}deg) scaleX(${cPol.node._scale || 1})`);
     }
