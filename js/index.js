@@ -267,10 +267,11 @@ function visualizePlacement(placement) {
     }
   );
   
-  // Prime rotation by dispatching 4 real mouseup events with delays
+  // Prime rotation by dispatching 4 real mouseup events with huge delays
   (async () => {
+    await new Promise(r => setTimeout(r, 100)); // initial delay
     for (let i = 0; i < 4; i++) {
-      await new Promise(r => requestAnimationFrame(r));
+      await new Promise(r => setTimeout(r, 100)); // 100ms between each click
       innerGroup.node.getBoundingClientRect(); // force reflow
       const ctm = innerGroup.node.getScreenCTM();
       if (!ctm) return;
@@ -866,10 +867,11 @@ function movePoly(polyId, x, y, angle = 0, flip = false) {
     }
   );
   
-  // Prime rotation by dispatching 4 real mouseup events with delays
+  // Prime rotation by dispatching 4 real mouseup events with huge delays
   (async () => {
+    await new Promise(r => setTimeout(r, 100)); // initial delay
     for (let i = 0; i < 4; i++) {
-      await new Promise(r => requestAnimationFrame(r));
+      await new Promise(r => setTimeout(r, 100)); // 100ms between each click
       cPol.node.getBoundingClientRect(); // force reflow
       const ctm = cPol.node.getScreenCTM();
       if (!ctm) return;
