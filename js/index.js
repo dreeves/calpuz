@@ -226,41 +226,43 @@ function visualizePlacement(placement) {
     dragStartPos = null;
   });
   
-  // Rotation on inner group using SVG transforms (not CSS) to avoid first-click shift
+  // Track cumulative rotation state per piece
+  const state = { angle: 0, scaleX: 1 };
+  
+  // Rotation using SVG transforms with cumulative state
   innerGroup.on("contextmenu", e => { e.preventDefault() });
   innerGroup.on("mouseup", e => {
     const t = newGroup.transform();
     const wasDrag = dragStartPos && ((t.x || 0) !== dragStartPos.x || (t.y || 0) !== dragStartPos.y);
     if (!wasDrag) {
-      // Compute pivot from click point
+      // Compute pivot from click point using PARENT group's CTM
       const pt = svg.node.createSVGPoint();
       pt.x = e.clientX;
       pt.y = e.clientY;
-      const local = pt.matrixTransform(innerGroup.node.getScreenCTM().inverse());
+      const local = pt.matrixTransform(newGroup.node.getScreenCTM().inverse());
       
       if (e.ctrlKey) {
-        // Flip using SVG transform
-        innerGroup.node._scale = (innerGroup.node._scale || 1) === 1 ? -1 : 1;
-        innerGroup.scale(innerGroup.node._scale, 1, local.x, local.y);
+        state.scaleX = state.scaleX === 1 ? -1 : 1;
       } else {
-        // Rotate using SVG transform
-        const delta = 90 * (e.button === 2 ? 1 : -1);
-        innerGroup.rotate(delta, local.x, local.y);
+        state.angle += 90 * (e.button === 2 ? 1 : -1);
       }
+      // Apply absolute transform with pivot
+      innerGroup.transform({ rotation: state.angle, scaleX: state.scaleX, cx: local.x, cy: local.y });
     }
     e.preventDefault();
   });
   
-  // Touch support - uses bbox center with SVG transforms
+  // Touch support - uses bbox center
   addTouchGestures(innerGroup.node, 
     () => {
-      const bbox = innerGroup.node.getBBox();
-      innerGroup.rotate(90, bbox.x + bbox.width/2, bbox.y + bbox.height/2);
+      const bbox = innerGroup.bbox();
+      state.angle += 90;
+      innerGroup.transform({ rotation: state.angle, scaleX: state.scaleX, cx: bbox.cx, cy: bbox.cy });
     },
     () => {
-      innerGroup.node._scale = (innerGroup.node._scale || 1) === 1 ? -1 : 1;
-      const bbox = innerGroup.node.getBBox();
-      innerGroup.scale(innerGroup.node._scale, 1, bbox.x + bbox.width/2, bbox.y + bbox.height/2);
+      const bbox = innerGroup.bbox();
+      state.scaleX = state.scaleX === 1 ? -1 : 1;
+      innerGroup.transform({ rotation: state.angle, scaleX: state.scaleX, cx: bbox.cx, cy: bbox.cy });
     }
   );
 }
@@ -804,41 +806,43 @@ function movePoly(polyId, x, y, angle = 0, flip = false) {
     dragStartPos = null;
   });
   
-  // Rotation on inner polygon using SVG transforms (not CSS) to avoid first-click shift
+  // Track cumulative rotation state per piece
+  const state = { angle: ang, scaleX: flip_scale };
+  
+  // Rotation using SVG transforms with cumulative state
   cPol.on("contextmenu",  e => { e.preventDefault() });
   cPol.on("mouseup",      e => {
     const t = newGroup.transform();
     const wasDrag = dragStartPos && ((t.x || 0) !== dragStartPos.x || (t.y || 0) !== dragStartPos.y);
     if (!wasDrag) {
-      // Compute pivot from click point
+      // Compute pivot from click point using PARENT group's CTM
       const pt = svg.node.createSVGPoint();
       pt.x = e.clientX;
       pt.y = e.clientY;
-      const local = pt.matrixTransform(cPol.node.getScreenCTM().inverse());
+      const local = pt.matrixTransform(newGroup.node.getScreenCTM().inverse());
       
       if (e.ctrlKey) {
-        // Flip using SVG transform
-        cPol.node._scale = (cPol.node._scale || 1) === 1 ? -1 : 1;
-        cPol.scale(cPol.node._scale, 1, local.x, local.y);
+        state.scaleX = state.scaleX === 1 ? -1 : 1;
       } else {
-        // Rotate using SVG transform
-        const delta = 90 * (e.button === 2 ? 1 : -1);
-        cPol.rotate(delta, local.x, local.y);
+        state.angle += 90 * (e.button === 2 ? 1 : -1);
       }
+      // Apply absolute transform with pivot
+      cPol.transform({ rotation: state.angle, scaleX: state.scaleX, cx: local.x, cy: local.y });
     }
     e.preventDefault()
   });
   
-  // Touch support: tap to rotate, long press to flip - uses bbox center with SVG transforms
+  // Touch support: tap to rotate, long press to flip - uses bbox center
   addTouchGestures(cPol.node, 
     () => {
-      const bbox = cPol.node.getBBox();
-      cPol.rotate(90, bbox.x + bbox.width/2, bbox.y + bbox.height/2);
+      const bbox = cPol.bbox();
+      state.angle += 90;
+      cPol.transform({ rotation: state.angle, scaleX: state.scaleX, cx: bbox.cx, cy: bbox.cy });
     },
     () => {
-      cPol.node._scale = (cPol.node._scale || 1) === 1 ? -1 : 1;
-      const bbox = cPol.node.getBBox();
-      cPol.scale(cPol.node._scale, 1, bbox.x + bbox.width/2, bbox.y + bbox.height/2);
+      const bbox = cPol.bbox();
+      state.scaleX = state.scaleX === 1 ? -1 : 1;
+      cPol.transform({ rotation: state.angle, scaleX: state.scaleX, cx: bbox.cx, cy: bbox.cy });
     }
   );
 }
