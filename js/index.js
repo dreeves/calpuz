@@ -47,7 +47,6 @@ const DATE_CIRCLE_COLOR = '#ff6b6b';
 
 // Touch gestures
 const LONG_PRESS_MS = 500;
-const MOVE_THRESHOLD_PX = 10;
 
 // ============ END CONFIGURATION ============
 
@@ -62,11 +61,14 @@ function splur(n, s, p=null) {
 
 const w = window.innerWidth;
 const h = window.innerHeight;
-const boxel = w/20;           // size in pixels of a calendar cell
-const calw = boxel*7;         // width of the calendar
-const calh = boxel*7;         // height of the calendar
 const headh = 63;             // height of the header
 const sbarw = 68.5;           // width of the sidebar on the right
+// Ensure minimum cell size for touch targets, and max to fit screen
+const minBoxel = 32;          // Minimum practical touch target size
+const maxBoxel = 80;          // Maximum reasonable size
+const boxel = Math.max(minBoxel, Math.min(maxBoxel, (w - sbarw - 20) / 9));  // Fit 7 cols + margins for pieces
+const calw = boxel*7;         // width of the calendar
+const calh = boxel*7;         // height of the calendar
 const x0 = (w-calw-sbarw)/2;  // (x0, y0) = left top corner of the calendar grid
 const y0 = Math.min((h-calh+headh)/2, headh + boxel*4);  // centered or near top, whichever is higher
 let svg;                      // this gets initialized when the page loads
@@ -115,82 +117,174 @@ window.colorChangeButton = function () {
 // Cached elements container to prevent DOM leak
 let elementsContainer = null;
 
-// Add touch support for rotate (tap) and flip (long press)
-function addTouchGestures(element, onRotate, onFlip) {
-  let touchStartTime = 0;
-  let touchStartPos = { x: 0, y: 0 };
-  let longPressTimer = null;
-  let didLongPress = false;
-  const LONG_PRESS_DURATION = LONG_PRESS_MS;
-  const MOVE_THRESHOLD = MOVE_THRESHOLD_PX;
+// Helper to find SVG element by ID (SVG.js v3 compatible)
+function svgGet(id) {
+  const el = SVG.find('#' + id)[0];
+  return el || null;
+}
+
+// Setup draggable using Pointer Events API (works reliably on mobile with setPointerCapture)
+function setupDraggable(group, onDragEnd, rotateState) {
+  const node = group.node;
   
-  element.addEventListener('touchstart', (e) => {
-    if (e.touches.length !== 1) return;
-    touchStartTime = Date.now();
-    touchStartPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-    didLongPress = false;
-    
-    longPressTimer = setTimeout(() => {
-      didLongPress = true;
-      onFlip();
-      // Haptic feedback if available
-      if (navigator.vibrate) navigator.vibrate(50);
-    }, LONG_PRESS_DURATION);
-  }, { passive: true });
+  // Critical: set touch-action directly on element for mobile
+  node.style.touchAction = 'none';
   
-  element.addEventListener('touchmove', (e) => {
-    if (e.touches.length !== 1) return;
-    const dx = e.touches[0].clientX - touchStartPos.x;
-    const dy = e.touches[0].clientY - touchStartPos.y;
-    if (Math.abs(dx) > MOVE_THRESHOLD || Math.abs(dy) > MOVE_THRESHOLD) {
-      // User is dragging, cancel long press
-      clearTimeout(longPressTimer);
+  // Store initial position
+  if (!node.dataset.x) node.dataset.x = '0';
+  if (!node.dataset.y) node.dataset.y = '0';
+  
+  let isDragging = false;
+  let dragMoved = false;
+  let startX, startY, initialX, initialY;
+  let holdTimer = null;
+  let didHold = false;
+  
+  node.addEventListener('pointerdown', (e) => {
+    isDragging = true;
+    dragMoved = false;
+    didHold = false;
+    startX = e.clientX;
+    startY = e.clientY;
+    initialX = parseFloat(node.dataset.x) || 0;
+    initialY = parseFloat(node.dataset.y) || 0;
+
+    // KEY for mobile: capture all pointer events even if finger moves outside element
+    node.setPointerCapture(e.pointerId);
+
+    // Start hold timer for flip (long press)
+    if (rotateState) {
+      holdTimer = setTimeout(() => {
+        if (!dragMoved) {
+          didHold = true;
+          const { pol, getAngle } = rotateState;
+          const polNode = pol.node || pol;
+          polNode._scale = (polNode._scale || 1) === 1 ? -1 : 1;
+          polNode.style.transformOrigin = '50% 50%';
+          polNode.style.transform = `rotate(${getAngle()}deg) scaleX(${polNode._scale})`;
+          if (navigator.vibrate) navigator.vibrate(50);
+        }
+      }, LONG_PRESS_MS);
     }
-  }, { passive: true });
+
+    e.preventDefault();
+  }, { passive: false });
+
+  node.addEventListener('pointermove', (e) => {
+    if (!isDragging) return;
+
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+
+    // Only count as drag if moved more than threshold
+    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+      dragMoved = true;
+      clearTimeout(holdTimer);  // Cancel flip if dragging
+    }
+
+    const newX = initialX + dx;
+    const newY = initialY + dy;
+    node.dataset.x = newX;
+    node.dataset.y = newY;
+    node.setAttribute('transform', `translate(${newX}, ${newY})`);
+
+    e.preventDefault();
+  }, { passive: false });
   
-  element.addEventListener('touchend', (e) => {
-    clearTimeout(longPressTimer);
-    const elapsed = Date.now() - touchStartTime;
+  node.addEventListener('pointerup', (e) => {
+    if (!isDragging) return;
+    isDragging = false;
+    clearTimeout(holdTimer);
+    node.releasePointerCapture(e.pointerId);
     
-    // If it was a quick tap (not a long press or drag), rotate
-    if (!didLongPress && elapsed < LONG_PRESS_DURATION) {
-      const touch = e.changedTouches[0];
-      const dx = touch.clientX - touchStartPos.x;
-      const dy = touch.clientY - touchStartPos.y;
-      if (Math.abs(dx) < MOVE_THRESHOLD && Math.abs(dy) < MOVE_THRESHOLD) {
-        onRotate();
+    if (dragMoved) {
+      // Was a drag - snap to grid
+      if (onDragEnd) onDragEnd(group);
+    } else if (!didHold && rotateState) {
+      // Was a tap (not drag, not hold) - rotate
+      const { pol, getAngle, setAngle } = rotateState;
+      const polNode = pol.node || pol;
+      
+      // Convert click point to percentage of bbox for transform-origin
+      const bbox = polNode.getBBox();
+      const pt = svg.node.createSVGPoint();
+      pt.x = e.clientX;
+      pt.y = e.clientY;
+      const ctm = polNode.getScreenCTM();
+      if (ctm) {
+        const local = pt.matrixTransform(ctm.inverse());
+        // Clamp to 0-100% to prevent piece flying off on mobile
+        const rawX = bbox.width > 0 ? ((local.x - bbox.x) / bbox.width) * 100 : 50;
+        const rawY = bbox.height > 0 ? ((local.y - bbox.y) / bbox.height) * 100 : 50;
+        const originX = Math.max(0, Math.min(100, rawX));
+        const originY = Math.max(0, Math.min(100, rawY));
+        polNode.style.transformOrigin = `${originX}% ${originY}%`;
       }
+      
+      if (e.ctrlKey) {
+        // Ctrl+click to flip on desktop
+        polNode._scale = (polNode._scale || 1) === 1 ? -1 : 1;
+      } else {
+        // Rotate - right click rotates opposite direction
+        const delta = e.button === 2 ? 1 : -1;
+        setAngle(getAngle() + 90 * delta);
+      }
+      polNode.style.transform = `rotate(${getAngle()}deg) scaleX(${polNode._scale || 1})`;
     }
-  }, { passive: true });
+    
+    e.preventDefault();
+  });
+  
+  // Handle pointer cancel (e.g., incoming call on mobile)
+  node.addEventListener('pointercancel', (e) => {
+    isDragging = false;
+    clearTimeout(holdTimer);
+  });
+  
+  // Prevent context menu on right-click
+  node.addEventListener('contextmenu', (e) => e.preventDefault());
 }
 
 // Get or create the elements container (reuse to prevent DOM leak)
 function getElementsContainer() {
+  // Always check if cached container still exists in DOM
+  if (elementsContainer && !elementsContainer.node.parentNode) {
+    elementsContainer = null;
+  }
   if (!elementsContainer) {
-    elementsContainer = svg.group().id('elements');
+    elementsContainer = svgGet('elements') || svg.group().attr('id', 'elements');
   }
   return elementsContainer;
 }
 
 // Snap a group to the nearest grid position
 function snapToGrid(group) {
-  // Use getBoundingClientRect to get visual position (includes CSS transforms)
-  const rect = group.node.getBoundingClientRect();
+  const node = group.node;
+  // Get current position from data attributes
+  const currentX = parseFloat(node.dataset.x) || 0;
+  const currentY = parseFloat(node.dataset.y) || 0;
+  
+  // Get visual position via bounding rect
+  const rect = node.getBoundingClientRect();
   const svgRect = svg.node.getBoundingClientRect();
   const visualX = rect.left - svgRect.left;
   const visualY = rect.top - svgRect.top;
+  
   // Compute nearest grid cell
   const col = Math.round((visualX - x0) / boxel);
   const row = Math.round((visualY - y0) / boxel);
-  // Get current transform position 
-  const matrix = group.transform();
-  const currentX = matrix.x || 0;
-  const currentY = matrix.y || 0;
-  // Calculate how far visual position is from transform position
+  
+  // Calculate how far visual position is from stored position
   const deltaX = visualX - currentX;
   const deltaY = visualY - currentY;
+  
   // Snap: move to grid cell, accounting for the visual offset
-  group.translate(x0 + col * boxel - deltaX, y0 + row * boxel - deltaY);
+  const newX = x0 + col * boxel - deltaX;
+  const newY = y0 + row * boxel - deltaY;
+  
+  node.dataset.x = newX;
+  node.dataset.y = newY;
+  node.setAttribute('transform', `translate(${newX}, ${newY})`);
 }
 
 // Visualize a placement from the solver using actual cell positions
@@ -198,79 +292,38 @@ function visualizePlacement(placement) {
   if (!placement) return;
   
   const [nom, hue, fig] = shapeMap.get(placement.name);
-  const targetGroup = SVG.get(placement.name);
+  const targetGroup = svgGet(placement.name);
   if (targetGroup) targetGroup.remove();
   
   const container = getElementsContainer();
-  const newGroup = container.group().id(nom);
+  const newGroup = container.group().attr('id', nom);
   const innerGroup = newGroup.group();
   
   // Draw cells at LOCAL coordinates (relative to piece origin)
   for (const [dr, dc] of placement.cells) {
-    innerGroup.rect(boxel, boxel).move(dc * boxel, dr * boxel).fill(hue).opacity('0.8').stroke({ width: 1, color: '#fff' });
+    innerGroup.rect(boxel, boxel).move(dc * boxel, dr * boxel).fill(hue).opacity(0.8).stroke({ width: 1, color: '#fff' });
   }
-  // Translate the GROUP to board position (matches manual piece convention)
-  newGroup.translate(x0 + placement.col * boxel, y0 + placement.row * boxel);
   
-  innerGroup.node._scale = 1;
-  let dragStartPos = null;
-  newGroup.draggy();
-  newGroup.on("dragstart", () => {
-    const t = newGroup.transform();
-    dragStartPos = { x: t.x || 0, y: t.y || 0 };
-  });
-  newGroup.on("dragend", () => {
-    const t = newGroup.transform();
-    const actuallyMoved = dragStartPos && ((t.x || 0) !== dragStartPos.x || (t.y || 0) !== dragStartPos.y);
-    if (actuallyMoved) snapToGrid(newGroup);
-    dragStartPos = null;
-  });
+  // Set initial position via data attributes and transform
+  const initX = x0 + placement.col * boxel;
+  const initY = y0 + placement.row * boxel;
+  newGroup.node.dataset.x = initX;
+  newGroup.node.dataset.y = initY;
+  newGroup.node.setAttribute('transform', `translate(${initX}, ${initY})`);
   
-  // Click-point rotation using CSS transforms with fill-box and percentage origins
+  // Setup rotation state
   let ang = 0;
   innerGroup.node._scale = 1;
-  innerGroup.node.style.transformBox = 'fill-box';  // Critical: makes transform-origin relative to SVG bbox
+  innerGroup.node.style.transformBox = 'fill-box';
   innerGroup.node.style.transformOrigin = '50% 50%';
   innerGroup.node.style.transform = `rotate(0deg) scaleX(1)`;
   
-  innerGroup.on("contextmenu", e => { e.preventDefault() });
-  innerGroup.on("mouseup", e => {
-    const t = newGroup.transform();
-    const wasDrag = dragStartPos && ((t.x || 0) !== dragStartPos.x || (t.y || 0) !== dragStartPos.y);
-    if (!wasDrag) {
-      // Convert click point to percentage of bbox for proper CSS transform-origin
-      const pt = svg.node.createSVGPoint();
-      pt.x = e.clientX;
-      pt.y = e.clientY;
-      const local = pt.matrixTransform(innerGroup.node.getScreenCTM().inverse());
-      const bbox = innerGroup.node.getBBox();
-      const originX = bbox.width > 0 ? ((local.x - bbox.x) / bbox.width) * 100 : 50;
-      const originY = bbox.height > 0 ? ((local.y - bbox.y) / bbox.height) * 100 : 50;
-      innerGroup.node.style.transformOrigin = `${originX}% ${originY}%`;
-      
-      if (e.ctrlKey) {
-        innerGroup.node._scale = (innerGroup.node._scale || 1) === 1 ? -1 : 1;
-      } else {
-        ang += 90 * (e.button === 2 ? 1 : -1);
-      }
-      Crossy(innerGroup.node, "transform", `rotate(${ang}deg) scaleX(${innerGroup.node._scale || 1})`);
-    }
-    e.preventDefault();
+  // Setup draggable with integrated tap/hold handling for rotate/flip
+  setupDraggable(newGroup, snapToGrid, {
+    pol: innerGroup.node,
+    getAngle: () => ang,
+    setAngle: (a) => { ang = a; }
   });
-  
-  // Touch support - uses bbox center (50% 50%)
-  addTouchGestures(innerGroup.node, 
-    () => {
-      ang += 90;
-      innerGroup.node.style.transformOrigin = '50% 50%';
-      Crossy(innerGroup.node, "transform", `rotate(${ang}deg) scaleX(${innerGroup.node._scale || 1})`);
-    },
-    () => {
-      innerGroup.node._scale = (innerGroup.node._scale || 1) === 1 ? -1 : 1;
-      innerGroup.node.style.transformOrigin = '50% 50%';
-      Crossy(innerGroup.node, "transform", `rotate(${ang}deg) scaleX(${innerGroup.node._scale || 1})`);
-    }
-  );
 }
 
 // Initialize progress panel with table rows for each piece (runs once)
@@ -486,7 +539,7 @@ window.solveOnceAllDates = function() { return Solver.solveOnceAllDates(shapes) 
 // Draw circles around target date cells
 function drawDateCircles(targetCells) {
   removeDateCircles(); // Clean up any existing
-  const circleGroup = svg.group().id('date-circles');
+  const circleGroup = svg.group().attr('id', 'date-circles');
   for (const [r, c] of targetCells) {
     const cx = x0 + c * boxel + boxel / 2;
     const cy = y0 + r * boxel + boxel / 2;
@@ -499,7 +552,7 @@ function drawDateCircles(targetCells) {
 
 // Remove date circles
 function removeDateCircles() {
-  const circles = SVG.get('date-circles');
+  const circles = svgGet('date-circles');
   if (circles) circles.remove();
 }
 
@@ -514,7 +567,7 @@ function resetDocket() {
 // Draw all pending pieces above the grid in order (rotated to be short & wide)
 function drawPendingPieces(progress, failedPieceName = null, orderedRemaining = []) {
   // Remove old pending pieces display
-  const oldPending = SVG.get('pending-pieces');
+  const oldPending = svgGet('pending-pieces');
   if (oldPending) oldPending.remove();
   
   if (!progress) return;
@@ -530,7 +583,7 @@ function drawPendingPieces(progress, failedPieceName = null, orderedRemaining = 
   // Convert names to piece objects for drawing
   const pendingPieces = pendingNames.map(name => ({ name }));
   
-  const pendingGroup = svg.group().id('pending-pieces');
+  const pendingGroup = svg.group().attr('id', 'pending-pieces');
   
   // Calculate layout - pieces in a row ABOVE the grid
   const previewScale = boxel * DOCKET_SCALE;
@@ -571,7 +624,7 @@ function drawPendingPieces(progress, failedPieceName = null, orderedRemaining = 
     const poly = pieceGroup.polygon(polygen(drawVerts, previewScale))
       .fill(color)
       .opacity(0.85)
-      .style('cursor', 'pointer');
+      .css('cursor', 'pointer');
     
     const bbox = poly.bbox();
     
@@ -608,12 +661,12 @@ function drawPendingPieces(progress, failedPieceName = null, orderedRemaining = 
 function visualizeAllPlacements(placements, attempts, progress, deadCells = [], sizePruning = {cells:[], sizes:[]}, shapePruning = {cells:[], sizes:[]}, tunnelPruning = {cells:[], sizes:[]}, forcedRegions = {cells:[], sizes:[]}, nextPiece = null, pieceFailed = false, orderedRemaining = [], allRegionSizes = []) {
   // Clear all pieces
   for (const [name, , ] of shapes) {
-    const group = SVG.get(name);
+    const group = svgGet(name);
     if (group) group.remove();
   }
   
   // Clear any existing dead cell markers, text, and patterns
-  const oldDeadMarkers = SVG.get('dead-cells');
+  const oldDeadMarkers = svgGet('dead-cells');
   if (oldDeadMarkers) oldDeadMarkers.remove();
   
   // Remove old patterns from defs to prevent memory leak
@@ -684,7 +737,7 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
   }
   
   // Draw pruned regions and legend (legend hidden only when solution found)
-  const deadGroup = svg.group().id('dead-cells');
+  const deadGroup = svg.group().attr('id', 'dead-cells');
   
   // Draw striped overlays on pruned cells and forced regions
   drawPrunedRegions(deadGroup, sizePruning.cells,
@@ -797,75 +850,40 @@ window.solvePuzzle = function() {
 
 function movePoly(polyId, x, y, angle = 0, flip = false) {
   const [nom, hue, fig] = shapeMap.get(polyId);
-  const targetGroup = SVG.get(polyId);
+  const targetGroup = svgGet(polyId);
   if (targetGroup) { targetGroup.remove() }
-  const newGroup = svg.group().id("elements").group().id(nom);
-  const pol = newGroup.polygon(polygen(fig, boxel)).fill(hue).opacity('0.8')
-  newGroup.translate(x0 + x * boxel, y0 + y * boxel);
+  
+  // Get or create elements container
+  let elemContainer = svgGet('elements');
+  if (!elemContainer) {
+    elemContainer = svg.group().attr('id', 'elements');
+  }
+  const newGroup = elemContainer.group().attr('id', nom);
+  const pol = newGroup.polygon(polygen(fig, boxel)).fill(hue).opacity(0.8);
+  
+  // Set initial position via data attributes and transform
+  const initX = x0 + x * boxel;
+  const initY = y0 + y * boxel;
+  newGroup.node.dataset.x = initX;
+  newGroup.node.dataset.y = initY;
+  newGroup.node.setAttribute('transform', `translate(${initX}, ${initY})`);
 
   const initialAng = (angle * 180 / Math.PI) % 360;
   const flip_scale = flip ? -1 : 1;
-  pol.node._scale = flip_scale;
   
-  let dragStartPos = null;
-  const cPol = newGroup.children()[0];
-  newGroup.draggy();
-  newGroup.on("dragstart", () => {
-    const t = newGroup.transform();
-    dragStartPos = { x: t.x || 0, y: t.y || 0 };
-  });
-  newGroup.on("dragend", () => {
-    const t = newGroup.transform();
-    const actuallyMoved = dragStartPos && ((t.x || 0) !== dragStartPos.x || (t.y || 0) !== dragStartPos.y);
-    if (actuallyMoved) snapToGrid(newGroup);
-    dragStartPos = null;
-  });
-  
-  // Click-point rotation using CSS transforms with fill-box and percentage origins
+  // Setup rotation state
   let ang = initialAng;
   pol.node._scale = flip_scale;
-  pol.node.style.transformBox = 'fill-box';  // Critical: makes transform-origin relative to SVG bbox
+  pol.node.style.transformBox = 'fill-box';
   pol.node.style.transformOrigin = '50% 50%';
   pol.node.style.transform = `rotate(${ang}deg) scaleX(${flip_scale})`;
   
-  cPol.on("contextmenu",  e => { e.preventDefault() });
-  cPol.on("mouseup",      e => {
-    const t = newGroup.transform();
-    const wasDrag = dragStartPos && ((t.x || 0) !== dragStartPos.x || (t.y || 0) !== dragStartPos.y);
-    if (!wasDrag) {
-      // Convert click point to percentage of bbox for proper CSS transform-origin
-      const pt = svg.node.createSVGPoint();
-      pt.x = e.clientX;
-      pt.y = e.clientY;
-      const local = pt.matrixTransform(cPol.node.getScreenCTM().inverse());
-      const bbox = pol.node.getBBox();
-      const originX = bbox.width > 0 ? ((local.x - bbox.x) / bbox.width) * 100 : 50;
-      const originY = bbox.height > 0 ? ((local.y - bbox.y) / bbox.height) * 100 : 50;
-      pol.node.style.transformOrigin = `${originX}% ${originY}%`;
-      
-      if (e.ctrlKey) {
-        pol.node._scale = (pol.node._scale || 1) === 1 ? -1 : 1;
-      } else {
-        ang += 90 * (e.button === 2 ? 1 : -1);
-      }
-      Crossy(pol.node, "transform", `rotate(${ang}deg) scaleX(${pol.node._scale || 1})`);
-    }
-    e.preventDefault()
+  // Setup draggable with integrated tap/hold handling for rotate/flip
+  setupDraggable(newGroup, snapToGrid, {
+    pol: pol.node,
+    getAngle: () => ang,
+    setAngle: (a) => { ang = a; }
   });
-  
-  // Touch support: tap to rotate (bbox center), long press to flip
-  addTouchGestures(cPol.node, 
-    () => {
-      ang += 90;
-      pol.node.style.transformOrigin = '50% 50%';
-      Crossy(pol.node, "transform", `rotate(${ang}deg) scaleX(${pol.node._scale || 1})`);
-    },
-    () => {
-      pol.node._scale = (pol.node._scale || 1) === 1 ? -1 : 1;
-      pol.node.style.transformOrigin = '50% 50%';
-      Crossy(pol.node, "transform", `rotate(${ang}deg) scaleX(${pol.node._scale || 1})`);
-    }
-  );
 }
 
 function drawCalendar() {
@@ -879,7 +897,7 @@ function drawCalendar() {
                    [ "22",  "23",  "24",  "25",  "26",  "27", "28"],
                    [ "29",  "30",  "31",    "",    "",    "",   ""] ];
 
-  const gridGroup = svg.group().id('grid');
+  const gridGroup = svg.group().attr('id', 'grid');
   gridGroup.addClass('grid-lines');
 
   const trX = x => x + x0;
@@ -925,10 +943,12 @@ function scatterShapes() {
 }
 
 window.addEventListener("load", function () {
-  svg = new SVG(document.querySelector(".graph")).size("100%", "100%");
+  svg = SVG().addTo(document.querySelector(".graph")).size("100%", "100%");
+  // Ensure SVG element doesn't intercept touch for scrolling
+  svg.node.style.touchAction = 'none';
   drawCalendar();
   scatterShapes();
-  
+
   // Initialize solver with piece data
   Solver.initPieceData(shapes);
 });
