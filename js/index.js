@@ -122,10 +122,7 @@ function svgGet(id) {
 // Setup draggable using Pointer Events API (works reliably on mobile with setPointerCapture)
 function setupDraggable(group, onDragEnd, rotateState) {
   const node = group.node;
-  
-  // Critical: set touch-action directly on element for mobile
-  node.style.touchAction = 'none';
-  
+
   // Store initial position
   if (!node.dataset.x) node.dataset.x = '0';
   if (!node.dataset.y) node.dataset.y = '0';
@@ -144,6 +141,9 @@ function setupDraggable(group, onDragEnd, rotateState) {
     startY = e.clientY;
     initialX = parseFloat(node.dataset.x) || 0;
     initialY = parseFloat(node.dataset.y) || 0;
+
+    // Bring piece to front (SVG uses DOM order for stacking, not z-index)
+    node.parentNode.appendChild(node);
 
     // KEY for mobile: capture all pointer events even if finger moves outside element
     node.setPointerCapture(e.pointerId);
@@ -940,8 +940,6 @@ function scatterShapes() {
 
 window.addEventListener("load", function () {
   svg = SVG().addTo(document.querySelector(".graph")).size("100%", "100%");
-  // Ensure SVG element doesn't intercept touch for scrolling
-  svg.node.style.touchAction = 'none';
   drawCalendar();
   scatterShapes();
 
