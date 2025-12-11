@@ -1,9 +1,5 @@
 // ============ CONFIGURATION CONSTANTS ============
 
-// Piece rendering
-const PIECE_OPACITY = 0.8;
-const ROTATION_DEGREES = 90;
-
 // Docket (pending pieces row)
 const DOCKET_SCALE = 0.35;    // Preview piece size as fraction of boxel
 const DOCKET_GAP = 0.3;       // Gap between pieces as fraction of boxel
