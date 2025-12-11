@@ -201,32 +201,32 @@ function setupDraggable(group, onDragEnd, rotateState) {
       // Was a drag - snap to grid
       if (onDragEnd) onDragEnd(group);
     } else if (!didHold && rotateState) {
-      // Was a tap (not drag, not hold) - rotate
+      // Was a tap (not drag, not hold) - rotate around tap point
       const { pol, getAngle, setAngle } = rotateState;
       const polNode = pol.node || pol;
-      
-      // Convert click point to percentage of bbox for transform-origin
+
+      // Convert tap point to local coordinates using parent group's CTM
+      // (polNode's CTM includes CSS transforms which breaks the math)
       const bbox = polNode.getBBox();
       const pt = svg.node.createSVGPoint();
       pt.x = e.clientX;
       pt.y = e.clientY;
-      const ctm = polNode.getScreenCTM();
+      const ctm = node.getScreenCTM();  // Use group's CTM, not polNode's
       if (ctm) {
         const local = pt.matrixTransform(ctm.inverse());
-        // Clamp to 0-100% to prevent piece flying off on mobile
         const rawX = bbox.width > 0 ? ((local.x - bbox.x) / bbox.width) * 100 : 50;
         const rawY = bbox.height > 0 ? ((local.y - bbox.y) / bbox.height) * 100 : 50;
         const originX = Math.max(0, Math.min(100, rawX));
         const originY = Math.max(0, Math.min(100, rawY));
         polNode.style.transformOrigin = `${originX}% ${originY}%`;
       }
-      
+
       if (e.ctrlKey) {
         // Ctrl+click to flip on desktop
         polNode._scale = (polNode._scale || 1) === 1 ? -1 : 1;
       } else {
-        // Rotate - right click rotates opposite direction
-        const delta = e.button === 2 ? 1 : -1;
+        // Rotate 90° - right click rotates opposite direction
+        const delta = e.button === 2 ? -1 : 1;
         setAngle(getAngle() + 90 * delta);
       }
       polNode.style.transform = `rotate(${getAngle()}deg) scaleX(${polNode._scale || 1})`;
