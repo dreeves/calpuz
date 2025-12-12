@@ -305,11 +305,9 @@ function setupDraggable(group, onDragEnd, rotateState) {
   let invScreenCtm;
   // RAF-based coalescing removed because it introduced perceptible lag.
   // Keeping the cached inverse screen CTM for performance.
-  let justPressed = false;  // Suppress the tap that can fire on long-press release
 
   // --- DRAGGING ---
   hammer.on('panstart', (e) => {
-    justPressed = false;  // Clear in case of press-then-drag
     startMatrix = getLocalTransformMatrix(node);
     invScreenCtm = node.ownerSVGElement.getScreenCTM().inverse();
     const { x, y } = getEventClientCoords(e);
@@ -342,7 +340,6 @@ function setupDraggable(group, onDragEnd, rotateState) {
 
   // --- TAP TO ROTATE (CW), CTRL+TAP TO FLIP ---
   hammer.on('tap', (e) => {
-    if (justPressed) return;
     if (!rotateState) return;
     const polNode = getPolNode();
     const { getAngle, setAngle } = rotateState;
@@ -360,17 +357,12 @@ function setupDraggable(group, onDragEnd, rotateState) {
 
   // --- LONG-PRESS TO FLIP (mobile) ---
   hammer.on('press', () => {
-    justPressed = true;
     if (!rotateState) return;
     flipPiece(getPolNode());
+    // End the current touch session so it can't also be recognized as a tap.
+    // This avoids delaying regular taps while keeping long-press as flip-only.
+    hammer.stop(true);
     if (navigator.vibrate) navigator.vibrate(50);
-  });
-
-  // Clear suppression after the long-press interaction fully ends.
-  // Using setTimeout(0) keeps suppression in place for the release event
-  // that can otherwise trigger a tap.
-  hammer.on('pressup', () => {
-    setTimeout(() => { justPressed = false; }, 0);
   });
 
   // --- CTRL+CLICK TO FLIP (native handler to catch before Hammer) ---
@@ -1027,9 +1019,13 @@ function drawCalendar() {
 
   labels.forEach((row, i) => {
     row.forEach((col, j) => {
-      gridGroup.text(labels[i][j]).x(trX(j * boxel + boxel / 2))
-                                  .y(trY(i * boxel + boxel / 2))
+      const t = gridGroup.text(labels[i][j])
         .font({ family: 'Arial', size: boxel / 4, anchor: 'middle' })
+        .attr({ 'text-anchor': 'middle' });
+
+      // Use geometric (bbox) centering for consistent visual centering across
+      // browsers. Baseline-based centering varies by font and SVG implementation.
+      t.center(trX(j * boxel + boxel / 2), trY(i * boxel + boxel / 2));
     })
   });
 
