@@ -132,6 +132,37 @@ function screenToSvg(svgEl, screenX, screenY) {
   return pt.matrixTransform(svgEl.getScreenCTM().inverse());
 }
 
+// Faster variant when the inverse screen CTM is already known.
+function screenToSvgWithInverse(svgEl, screenX, screenY, inverseScreenCtm) {
+  const pt = svgEl.createSVGPoint();
+  pt.x = screenX;
+  pt.y = screenY;
+  return pt.matrixTransform(inverseScreenCtm);
+}
+
+// Even faster: avoid SVGPoint allocation; just apply the affine matrix.
+function screenToSvgXYWithInverse(screenX, screenY, inverseScreenCtm) {
+  return {
+    x: inverseScreenCtm.a * screenX + inverseScreenCtm.c * screenY + inverseScreenCtm.e,
+    y: inverseScreenCtm.b * screenX + inverseScreenCtm.d * screenY + inverseScreenCtm.f,
+  };
+}
+
+// Read the element's *local* SVG transform matrix (ignores parent CTMs)
+function getLocalTransformMatrix(node) {
+  const baseVal = node.transform && node.transform.baseVal;
+  const consolidated = baseVal && baseVal.consolidate && baseVal.consolidate();
+  if (!consolidated) return new DOMMatrix();
+  return DOMMatrix.fromMatrix(consolidated.matrix);
+}
+
+// Set the element's local transform matrix and keep dataset position in sync
+function setLocalTransformMatrix(node, m) {
+  node.setAttribute('transform', `matrix(${m.a} ${m.b} ${m.c} ${m.d} ${m.e} ${m.f})`);
+  node.dataset.x = String(m.e);
+  node.dataset.y = String(m.f);
+}
+
 // Update a group's transform (position + rotation around a pivot)
 function setGroupTransform(node, x, y, angle, pivotX, pivotY) {
   node.dataset.x = x;
@@ -140,19 +171,18 @@ function setGroupTransform(node, x, y, angle, pivotX, pivotY) {
   node.dataset.pivotX = pivotX;
   node.dataset.pivotY = pivotY;
   // Translate to position, then rotate around pivot point
+  // NOTE: This legacy helper is kept for compatibility but matrix-based
+  // transforms are now the canonical representation.
   node.setAttribute('transform', 
     `translate(${x}, ${y}) rotate(${angle}, ${pivotX}, ${pivotY})`);
 }
 
 // Simple position update (no rotation change)
 function setGroupPosition(node, x, y) {
-  node.dataset.x = x;
-  node.dataset.y = y;
-  const angle = parseFloat(node.dataset.angle) || 0;
-  const pivotX = parseFloat(node.dataset.pivotX) || 0;
-  const pivotY = parseFloat(node.dataset.pivotY) || 0;
-  node.setAttribute('transform', 
-    `translate(${x}, ${y}) rotate(${angle}, ${pivotX}, ${pivotY})`);
+  // Preserve current linear components (rotation/shear/scale), replace translation.
+  const m = getLocalTransformMatrix(node);
+  const next = new DOMMatrix([m.a, m.b, m.c, m.d, x, y]);
+  setLocalTransformMatrix(node, next);
 }
 
 // Initialize transform state (just sets flip via CSS since SVG doesn't have scaleX in rotate)
@@ -200,29 +230,33 @@ function rotatePiece(node, polNode, getAngle, setAngle, screenX, screenY, clockw
   const startAngle = getAngle();
   const deltaAngle = clockwise ? 90 : -90;
   const endAngle = startAngle + deltaAngle;
-  setAngle(endAngle);
 
-  // Convert tap point to SVG coordinates
+  // Convert tap point to SVG coordinates (global user units)
   const svgEl = node.ownerSVGElement;
-  const tapPt = screenToSvg(svgEl, screenX, screenY);
-  
-  // Get current group position
-  const groupX = parseFloat(node.dataset.x) || 0;
-  const groupY = parseFloat(node.dataset.y) || 0;
-  
-  // Pivot point relative to the group's local coordinate system
-  const pivotX = tapPt.x - groupX;
-  const pivotY = tapPt.y - groupY;
+  const invScreenCtm = svgEl.getScreenCTM().inverse();
+  const pivot = screenToSvgXYWithInverse(screenX, screenY, invScreenCtm);
+
+  // Snapshot the current local transform and animate a rotation pre-multiplied
+  // about the clicked point. This guarantees the clicked point stays fixed,
+  // even after prior rotations around other points.
+  const startMatrix = getLocalTransformMatrix(node);
 
   const startTime = performance.now();
   requestAnimationFrame(function tick(now) {
     const t = Math.min((now - startTime) / ROTATION_DURATION_MS, 1);
     const eased = easeOutCubic(t);
-    const currentAngle = startAngle + deltaAngle * eased;
-    
-    setGroupTransform(node, groupX, groupY, currentAngle, pivotX, pivotY);
+    const currentDelta = deltaAngle * eased;
+
+    const rotAboutPivot = new DOMMatrix()
+      .translate(pivot.x, pivot.y)
+      .rotate(currentDelta)
+      .translate(-pivot.x, -pivot.y);
+
+    const next = rotAboutPivot.multiply(startMatrix);
+    setLocalTransformMatrix(node, next);
 
     if (t < 1) requestAnimationFrame(tick);
+    else setAngle(endAngle);
   });
 }
 
@@ -266,19 +300,40 @@ function setupDraggable(group, onDragEnd, rotateState) {
   hammer.get('pan').set({ threshold: 5, direction: Hammer.DIRECTION_ALL });
   hammer.get('press').set({ time: LONG_PRESS_MS });
 
-  let initialX, initialY;
-  let justPressed = false;  // Prevent tap after long-press
+  let startMatrix;
+  let startPt;
+  let invScreenCtm;
+  // RAF-based coalescing removed because it introduced perceptible lag.
+  // Keeping the cached inverse screen CTM for performance.
+  let justPressed = false;  // Suppress the tap that can fire on long-press release
 
   // --- DRAGGING ---
-  hammer.on('panstart', () => {
+  hammer.on('panstart', (e) => {
     justPressed = false;  // Clear in case of press-then-drag
-    initialX = parseFloat(node.dataset.x) || 0;
-    initialY = parseFloat(node.dataset.y) || 0;
+    startMatrix = getLocalTransformMatrix(node);
+    invScreenCtm = node.ownerSVGElement.getScreenCTM().inverse();
+    const { x, y } = getEventClientCoords(e);
+    startPt = screenToSvgXYWithInverse(x, y, invScreenCtm);
     bringToFront(node);
   });
 
   hammer.on('panmove', (e) => {
-    setGroupPosition(node, initialX + e.deltaX, initialY + e.deltaY);
+    const { x, y } = getEventClientCoords(e);
+    const curPt = screenToSvgXYWithInverse(x, y, invScreenCtm);
+    const dx = curPt.x - startPt.x;
+    const dy = curPt.y - startPt.y;
+
+    // Drag is a pure translation in SVG space. Pre-multiplying by a translation
+    // simply adds to e/f, regardless of existing rotation/shear.
+    const next = new DOMMatrix([
+      startMatrix.a,
+      startMatrix.b,
+      startMatrix.c,
+      startMatrix.d,
+      startMatrix.e + dx,
+      startMatrix.f + dy,
+    ]);
+    setLocalTransformMatrix(node, next);
   });
 
   hammer.on('panend', () => {
@@ -287,7 +342,7 @@ function setupDraggable(group, onDragEnd, rotateState) {
 
   // --- TAP TO ROTATE (CW), CTRL+TAP TO FLIP ---
   hammer.on('tap', (e) => {
-    if (justPressed) { justPressed = false; return; }
+    if (justPressed) return;
     if (!rotateState) return;
     const polNode = getPolNode();
     const { getAngle, setAngle } = rotateState;
@@ -309,6 +364,13 @@ function setupDraggable(group, onDragEnd, rotateState) {
     if (!rotateState) return;
     flipPiece(getPolNode());
     if (navigator.vibrate) navigator.vibrate(50);
+  });
+
+  // Clear suppression after the long-press interaction fully ends.
+  // Using setTimeout(0) keeps suppression in place for the release event
+  // that can otherwise trigger a tap.
+  hammer.on('pressup', () => {
+    setTimeout(() => { justPressed = false; }, 0);
   });
 
   // --- CTRL+CLICK TO FLIP (native handler to catch before Hammer) ---
