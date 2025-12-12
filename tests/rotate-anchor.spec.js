@@ -20,8 +20,9 @@ test('piece rotates around clicked point (anchor stays fixed)', async ({ page, b
     const node = document.getElementById('corner');
     const svgEl = node.ownerSVGElement;
 
-    // screenToSvg is defined in js/index.js
-    const pivot = screenToSvg(svgEl, clientX, clientY);
+    // screenToSvg takes (screenX, screenY, invCtm) - compute inverse CTM first
+    const invCtm = svgEl.getScreenCTM().inverse();
+    const pivot = screenToSvg(clientX, clientY, invCtm);
 
     // Find the local point on the element that currently maps to pivot.
     const local = new DOMPoint(pivot.x, pivot.y).matrixTransform(node.getCTM().inverse());
