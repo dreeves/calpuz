@@ -119,126 +119,163 @@ function svgGet(id) {
   return el || null;
 }
 
-// Setup draggable using Pointer Events API (works reliably on mobile with setPointerCapture)
+// ============ PIECE MANIPULATION HELPERS ============
+
+// Update a group's position (stored in dataset and applied via SVG transform)
+function setGroupPosition(node, x, y) {
+  node.dataset.x = x;
+  node.dataset.y = y;
+  node.setAttribute('transform', `translate(${x}, ${y})`);
+}
+
+// Initialize inner element for CSS rotation/flip transforms
+function initTransformState(polNode, angle = 0, scale = 1) {
+  polNode._scale = scale;
+  polNode.style.transformBox = 'fill-box';
+  polNode.style.transformOrigin = '50% 50%';
+  polNode.style.transform = `rotate(${angle}deg) scaleX(${scale})`;
+}
+
+// Apply rotation and flip to inner element via CSS transform
+function applyTransform(polNode, angle) {
+  const scale = polNode._scale || 1;
+  polNode.style.transform = `rotate(${angle}deg) scaleX(${scale})`;
+}
+
+// Flip a piece (toggle scaleX between 1 and -1)
+function flipPiece(polNode, angle) {
+  polNode._scale = (polNode._scale || 1) === 1 ? -1 : 1;
+  applyTransform(polNode, angle);
+}
+
+// Rotate piece 90° around a screen point, adjusting group position to compensate
+function rotatePiece(node, polNode, getAngle, setAngle, screenX, screenY, clockwise) {
+  // 1. Get tap offset relative to shape's visual center
+  const rect = polNode.getBoundingClientRect();
+  const cx = rect.left + rect.width / 2;
+  const cy = rect.top + rect.height / 2;
+  const rx = screenX - cx;
+  const ry = screenY - cy;
+
+  // 2. Do the rotation around center
+  const delta = clockwise ? 90 : -90;
+  setAngle(getAngle() + delta);
+  applyTransform(polNode, getAngle());
+
+  // 3. After rotation, the tap point moved from (rx, ry) to (rxAfter, ryAfter) relative to center
+  // In screen coords (Y down), CW: (x,y)->(-y,x), CCW: (x,y)->(y,-x)
+  const [rxAfter, ryAfter] = clockwise ? [-ry, rx] : [ry, -rx];
+
+  // 4. Shift to bring tap point back to original screen position
+  const currentX = parseFloat(node.dataset.x) || 0;
+  const currentY = parseFloat(node.dataset.y) || 0;
+  setGroupPosition(node, currentX + (rx - rxAfter), currentY + (ry - ryAfter));
+}
+
+// Bring element to front (SVG uses DOM order for z-index)
+function bringToFront(node) {
+  node.parentNode.appendChild(node);
+}
+
+// ============ GESTURE HANDLING (via Hammer.js) ============
+
+// Extract client coordinates from a Hammer event (works for mouse and touch)
+function getEventClientCoords(e) {
+  const src = e.srcEvent;
+  if (src.clientX !== undefined) {
+    return { x: src.clientX, y: src.clientY };
+  }
+  // Touch event - use changedTouches for tap/press end
+  const touch = src.changedTouches?.[0] || src.touches?.[0];
+  if (touch) {
+    return { x: touch.clientX, y: touch.clientY };
+  }
+  // Fallback to Hammer's center (but convert from page to client coords)
+  return { x: e.center.x - window.pageXOffset, y: e.center.y - window.pageYOffset };
+}
+
+// Setup draggable with tap-to-rotate and hold-to-flip
 function setupDraggable(group, onDragEnd, rotateState) {
   const node = group.node;
-  
-  // Critical: set touch-action directly on element for mobile
+
+  // Required for mobile: prevent browser from handling touch as scroll/zoom
   node.style.touchAction = 'none';
-  
-  // Store initial position
+
+  // Initialize position tracking
   if (!node.dataset.x) node.dataset.x = '0';
   if (!node.dataset.y) node.dataset.y = '0';
-  
-  let isDragging = false;
-  let dragMoved = false;
-  let startX, startY, initialX, initialY;
-  let holdTimer = null;
-  let didHold = false;
-  
-  node.addEventListener('pointerdown', (e) => {
-    isDragging = true;
-    dragMoved = false;
-    didHold = false;
-    startX = e.clientX;
-    startY = e.clientY;
+
+  const getPolNode = () => rotateState ? (rotateState.pol.node || rotateState.pol) : null;
+
+  // Configure Hammer.js
+  const hammer = new Hammer(node);
+  hammer.get('pan').set({ threshold: 5, direction: Hammer.DIRECTION_ALL });
+  hammer.get('press').set({ time: LONG_PRESS_MS });
+
+  let initialX, initialY;
+  let justPressed = false;  // Prevent tap after long-press
+
+  // --- DRAGGING ---
+  hammer.on('panstart', () => {
+    justPressed = false;  // Clear in case of press-then-drag
     initialX = parseFloat(node.dataset.x) || 0;
     initialY = parseFloat(node.dataset.y) || 0;
-
-    // KEY for mobile: capture all pointer events even if finger moves outside element
-    node.setPointerCapture(e.pointerId);
-
-    // Start hold timer for flip (long press)
-    if (rotateState) {
-      holdTimer = setTimeout(() => {
-        if (!dragMoved) {
-          didHold = true;
-          const { pol, getAngle } = rotateState;
-          const polNode = pol.node || pol;
-          polNode._scale = (polNode._scale || 1) === 1 ? -1 : 1;
-          polNode.style.transformOrigin = '50% 50%';
-          polNode.style.transform = `rotate(${getAngle()}deg) scaleX(${polNode._scale})`;
-          if (navigator.vibrate) navigator.vibrate(50);
-        }
-      }, LONG_PRESS_MS);
-    }
-
-    e.preventDefault();
-  }, { passive: false });
-
-  node.addEventListener('pointermove', (e) => {
-    if (!isDragging) return;
-
-    const dx = e.clientX - startX;
-    const dy = e.clientY - startY;
-
-    // Only count as drag if moved more than threshold
-    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
-      dragMoved = true;
-      clearTimeout(holdTimer);  // Cancel flip if dragging
-    }
-
-    const newX = initialX + dx;
-    const newY = initialY + dy;
-    node.dataset.x = newX;
-    node.dataset.y = newY;
-    node.setAttribute('transform', `translate(${newX}, ${newY})`);
-
-    e.preventDefault();
-  }, { passive: false });
-  
-  node.addEventListener('pointerup', (e) => {
-    if (!isDragging) return;
-    isDragging = false;
-    clearTimeout(holdTimer);
-    node.releasePointerCapture(e.pointerId);
-    
-    if (dragMoved) {
-      // Was a drag - snap to grid
-      if (onDragEnd) onDragEnd(group);
-    } else if (!didHold && rotateState) {
-      // Was a tap (not drag, not hold) - rotate around tap point
-      const { pol, getAngle, setAngle } = rotateState;
-      const polNode = pol.node || pol;
-
-      // Convert tap point to local coordinates using parent group's CTM
-      // (polNode's CTM includes CSS transforms which breaks the math)
-      const bbox = polNode.getBBox();
-      const pt = svg.node.createSVGPoint();
-      pt.x = e.clientX;
-      pt.y = e.clientY;
-      const ctm = node.getScreenCTM();  // Use group's CTM, not polNode's
-      if (ctm) {
-        const local = pt.matrixTransform(ctm.inverse());
-        const rawX = bbox.width > 0 ? ((local.x - bbox.x) / bbox.width) * 100 : 50;
-        const rawY = bbox.height > 0 ? ((local.y - bbox.y) / bbox.height) * 100 : 50;
-        const originX = Math.max(0, Math.min(100, rawX));
-        const originY = Math.max(0, Math.min(100, rawY));
-        polNode.style.transformOrigin = `${originX}% ${originY}%`;
-      }
-
-      if (e.ctrlKey) {
-        // Ctrl+click to flip on desktop
-        polNode._scale = (polNode._scale || 1) === 1 ? -1 : 1;
-      } else {
-        // Rotate 90° - right click rotates opposite direction
-        const delta = e.button === 2 ? -1 : 1;
-        setAngle(getAngle() + 90 * delta);
-      }
-      polNode.style.transform = `rotate(${getAngle()}deg) scaleX(${polNode._scale || 1})`;
-    }
-    
-    e.preventDefault();
+    bringToFront(node);
   });
-  
-  // Handle pointer cancel (e.g., incoming call on mobile)
-  node.addEventListener('pointercancel', (e) => {
-    isDragging = false;
-    clearTimeout(holdTimer);
+
+  hammer.on('panmove', (e) => {
+    setGroupPosition(node, initialX + e.deltaX, initialY + e.deltaY);
   });
-  
-  // Prevent context menu on right-click
-  node.addEventListener('contextmenu', (e) => e.preventDefault());
+
+  hammer.on('panend', () => {
+    if (onDragEnd) onDragEnd(group);
+  });
+
+  // --- TAP TO ROTATE (CW), CTRL+TAP TO FLIP ---
+  hammer.on('tap', (e) => {
+    if (justPressed) { justPressed = false; return; }
+    if (!rotateState) return;
+    const polNode = getPolNode();
+    const { getAngle, setAngle } = rotateState;
+
+    if (e.srcEvent.ctrlKey || e.srcEvent.metaKey) {
+      // Ctrl+click or Cmd+click: flip
+      flipPiece(polNode, getAngle());
+    } else {
+      // Regular tap: rotate clockwise around tap point
+      const { x, y } = getEventClientCoords(e);
+      rotatePiece(node, polNode, getAngle, setAngle, x, y, true);
+    }
+    bringToFront(node);
+  });
+
+  // --- LONG-PRESS TO FLIP (mobile) ---
+  hammer.on('press', () => {
+    justPressed = true;
+    if (!rotateState) return;
+    flipPiece(getPolNode(), rotateState.getAngle());
+    if (navigator.vibrate) navigator.vibrate(50);
+  });
+
+  // --- CTRL+CLICK TO FLIP (native handler to catch before Hammer) ---
+  node.addEventListener('click', (e) => {
+    if (!e.ctrlKey && !e.metaKey) return;  // Let Hammer handle normal clicks
+    e.stopPropagation();
+    if (!rotateState) return;
+    flipPiece(getPolNode(), rotateState.getAngle());
+    bringToFront(node);
+  });
+
+  // --- RIGHT-CLICK TO ROTATE CCW (but not ctrl+click which is flip) ---
+  node.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    if (e.ctrlKey) return;  // Ctrl+click is flip, not rotate
+    if (!rotateState) return;
+    const polNode = getPolNode();
+    const { getAngle, setAngle } = rotateState;
+    rotatePiece(node, polNode, getAngle, setAngle, e.clientX, e.clientY, false);
+    bringToFront(node);
+  });
 }
 
 // Get or create the elements container (reuse to prevent DOM leak)
@@ -275,12 +312,7 @@ function snapToGrid(group) {
   const deltaY = visualY - currentY;
   
   // Snap: move to grid cell, accounting for the visual offset
-  const newX = x0 + col * boxel - deltaX;
-  const newY = y0 + row * boxel - deltaY;
-  
-  node.dataset.x = newX;
-  node.dataset.y = newY;
-  node.setAttribute('transform', `translate(${newX}, ${newY})`);
+  setGroupPosition(node, x0 + col * boxel - deltaX, y0 + row * boxel - deltaY);
 }
 
 // Visualize a placement from the solver using actual cell positions
@@ -299,22 +331,12 @@ function visualizePlacement(placement) {
   for (const [dr, dc] of placement.cells) {
     innerGroup.rect(boxel, boxel).move(dc * boxel, dr * boxel).fill(hue).opacity(0.8).stroke({ width: 1, color: '#fff' });
   }
-  
-  // Set initial position via data attributes and transform
-  const initX = x0 + placement.col * boxel;
-  const initY = y0 + placement.row * boxel;
-  newGroup.node.dataset.x = initX;
-  newGroup.node.dataset.y = initY;
-  newGroup.node.setAttribute('transform', `translate(${initX}, ${initY})`);
-  
-  // Setup rotation state
+
+  // Initialize position and rotation
+  setGroupPosition(newGroup.node, x0 + placement.col * boxel, y0 + placement.row * boxel);
+  initTransformState(innerGroup.node);
   let ang = 0;
-  innerGroup.node._scale = 1;
-  innerGroup.node.style.transformBox = 'fill-box';
-  innerGroup.node.style.transformOrigin = '50% 50%';
-  innerGroup.node.style.transform = `rotate(0deg) scaleX(1)`;
-  
-  // Setup draggable with integrated tap/hold handling for rotate/flip
+
   setupDraggable(newGroup, snapToGrid, {
     pol: innerGroup.node,
     getAngle: () => ang,
@@ -847,34 +869,18 @@ window.solvePuzzle = function() {
 function movePoly(polyId, x, y, angle = 0, flip = false) {
   const [nom, hue, fig] = shapeMap.get(polyId);
   const targetGroup = svgGet(polyId);
-  if (targetGroup) { targetGroup.remove() }
-  
-  // Get or create elements container
-  let elemContainer = svgGet('elements');
-  if (!elemContainer) {
-    elemContainer = svg.group().attr('id', 'elements');
-  }
-  const newGroup = elemContainer.group().attr('id', nom);
-  const pol = newGroup.polygon(polygen(fig, boxel)).fill(hue).opacity(0.8);
-  
-  // Set initial position via data attributes and transform
-  const initX = x0 + x * boxel;
-  const initY = y0 + y * boxel;
-  newGroup.node.dataset.x = initX;
-  newGroup.node.dataset.y = initY;
-  newGroup.node.setAttribute('transform', `translate(${initX}, ${initY})`);
+  if (targetGroup) targetGroup.remove();
 
+  const container = getElementsContainer();
+  const newGroup = container.group().attr('id', nom);
+  const pol = newGroup.polygon(polygen(fig, boxel)).fill(hue).opacity(0.8);
+
+  // Initialize position and rotation
+  setGroupPosition(newGroup.node, x0 + x * boxel, y0 + y * boxel);
   const initialAng = (angle * 180 / Math.PI) % 360;
-  const flip_scale = flip ? -1 : 1;
-  
-  // Setup rotation state
+  initTransformState(pol.node, initialAng, flip ? -1 : 1);
   let ang = initialAng;
-  pol.node._scale = flip_scale;
-  pol.node.style.transformBox = 'fill-box';
-  pol.node.style.transformOrigin = '50% 50%';
-  pol.node.style.transform = `rotate(${ang}deg) scaleX(${flip_scale})`;
-  
-  // Setup draggable with integrated tap/hold handling for rotate/flip
+
   setupDraggable(newGroup, snapToGrid, {
     pol: pol.node,
     getAngle: () => ang,
