@@ -124,27 +124,11 @@ function svgGet(id) {
 
 // ============ PIECE MANIPULATION HELPERS ============
 
-// Convert screen coordinates to SVG coordinates
-function screenToSvg(svgEl, screenX, screenY) {
-  const pt = svgEl.createSVGPoint();
-  pt.x = screenX;
-  pt.y = screenY;
-  return pt.matrixTransform(svgEl.getScreenCTM().inverse());
-}
-
-// Faster variant when the inverse screen CTM is already known.
-function screenToSvgWithInverse(svgEl, screenX, screenY, inverseScreenCtm) {
-  const pt = svgEl.createSVGPoint();
-  pt.x = screenX;
-  pt.y = screenY;
-  return pt.matrixTransform(inverseScreenCtm);
-}
-
-// Even faster: avoid SVGPoint allocation; just apply the affine matrix.
-function screenToSvgXYWithInverse(screenX, screenY, inverseScreenCtm) {
+// Convert screen coordinates to SVG coordinates using precomputed inverse CTM
+function screenToSvg(screenX, screenY, invCtm) {
   return {
-    x: inverseScreenCtm.a * screenX + inverseScreenCtm.c * screenY + inverseScreenCtm.e,
-    y: inverseScreenCtm.b * screenX + inverseScreenCtm.d * screenY + inverseScreenCtm.f,
+    x: invCtm.a * screenX + invCtm.c * screenY + invCtm.e,
+    y: invCtm.b * screenX + invCtm.d * screenY + invCtm.f,
   };
 }
 
@@ -163,20 +147,6 @@ function setLocalTransformMatrix(node, m) {
   node.dataset.y = String(m.f);
 }
 
-// Update a group's transform (position + rotation around a pivot)
-function setGroupTransform(node, x, y, angle, pivotX, pivotY) {
-  node.dataset.x = x;
-  node.dataset.y = y;
-  node.dataset.angle = angle;
-  node.dataset.pivotX = pivotX;
-  node.dataset.pivotY = pivotY;
-  // Translate to position, then rotate around pivot point
-  // NOTE: This legacy helper is kept for compatibility but matrix-based
-  // transforms are now the canonical representation.
-  node.setAttribute('transform', 
-    `translate(${x}, ${y}) rotate(${angle}, ${pivotX}, ${pivotY})`);
-}
-
 // Simple position update (no rotation change)
 function setGroupPosition(node, x, y) {
   // Preserve current linear components (rotation/shear/scale), replace translation.
@@ -185,8 +155,8 @@ function setGroupPosition(node, x, y) {
   setLocalTransformMatrix(node, next);
 }
 
-// Initialize transform state (just sets flip via CSS since SVG doesn't have scaleX in rotate)
-function initTransformState(polNode, angle = 0, scale = 1) {
+// Initialize flip state (CSS scaleX for mirroring)
+function initTransformState(polNode, scale = 1) {
   polNode._scale = scale;
   if (scale === -1) {
     polNode.style.transform = 'scaleX(-1)';
@@ -234,7 +204,7 @@ function rotatePiece(node, polNode, getAngle, setAngle, screenX, screenY, clockw
   // Convert tap point to SVG coordinates (global user units)
   const svgEl = node.ownerSVGElement;
   const invScreenCtm = svgEl.getScreenCTM().inverse();
-  const pivot = screenToSvgXYWithInverse(screenX, screenY, invScreenCtm);
+  const pivot = screenToSvg(screenX, screenY, invScreenCtm);
 
   // Snapshot the current local transform and animate a rotation pre-multiplied
   // about the clicked point. This guarantees the clicked point stays fixed,
@@ -299,31 +269,28 @@ function setupDraggable(group, onDragEnd, rotateState) {
   const hammer = new Hammer(node);
   hammer.get('pan').set({ threshold: 5, direction: Hammer.DIRECTION_ALL });
   hammer.get('press').set({ time: LONG_PRESS_MS });
-  const tapRecognizer = hammer.get('tap');
 
   let startMatrix;
   let startPt;
   let invScreenCtm;
-  // RAF-based coalescing removed because it introduced perceptible lag.
-  // Keeping the cached inverse screen CTM for performance.
+  let justPressed = false;  // Flag to prevent tap firing after long-press
 
   // --- DRAGGING ---
   hammer.on('panstart', (e) => {
+    justPressed = false;
     startMatrix = getLocalTransformMatrix(node);
     invScreenCtm = node.ownerSVGElement.getScreenCTM().inverse();
     const { x, y } = getEventClientCoords(e);
-    startPt = screenToSvgXYWithInverse(x, y, invScreenCtm);
+    startPt = screenToSvg(x, y, invScreenCtm);
     bringToFront(node);
   });
 
   hammer.on('panmove', (e) => {
     const { x, y } = getEventClientCoords(e);
-    const curPt = screenToSvgXYWithInverse(x, y, invScreenCtm);
+    const curPt = screenToSvg(x, y, invScreenCtm);
     const dx = curPt.x - startPt.x;
     const dy = curPt.y - startPt.y;
 
-    // Drag is a pure translation in SVG space. Pre-multiplying by a translation
-    // simply adds to e/f, regardless of existing rotation/shear.
     const next = new DOMMatrix([
       startMatrix.a,
       startMatrix.b,
@@ -341,15 +308,14 @@ function setupDraggable(group, onDragEnd, rotateState) {
 
   // --- TAP TO ROTATE (CW), CTRL+TAP TO FLIP ---
   hammer.on('tap', (e) => {
+    if (justPressed) { justPressed = false; return; }
     if (!rotateState) return;
     const polNode = getPolNode();
     const { getAngle, setAngle } = rotateState;
 
     if (e.srcEvent.ctrlKey || e.srcEvent.metaKey) {
-      // Ctrl+click or Cmd+click: flip
       flipPiece(polNode);
     } else {
-      // Regular tap: rotate clockwise around tap point
       const { x, y } = getEventClientCoords(e);
       rotatePiece(node, polNode, getAngle, setAngle, x, y, true);
     }
@@ -357,19 +323,11 @@ function setupDraggable(group, onDragEnd, rotateState) {
   });
 
   // --- LONG-PRESS TO FLIP (mobile) ---
-  hammer.on('press', (e) => {
+  hammer.on('press', () => {
+    justPressed = true;
     if (!rotateState) return;
     flipPiece(getPolNode());
-
-    // While a press is active, disable tap recognition so releasing the press
-    // can't also be recognized as a tap/rotate.
-    tapRecognizer.set({ enable: false });
-
     if (navigator.vibrate) navigator.vibrate(50);
-  });
-
-  hammer.on('pressup', () => {
-    tapRecognizer.set({ enable: true });
   });
 
   // --- CTRL+CLICK TO FLIP (native handler to catch before Hammer) ---
@@ -990,11 +948,10 @@ function movePoly(polyId, x, y, angle = 0, flip = false) {
   const newGroup = container.group().attr('id', nom);
   const pol = newGroup.polygon(polygen(fig, boxel)).fill(hue).opacity(0.8);
 
-  // Initialize position and rotation
+  // Initialize position and flip state
   setGroupPosition(newGroup.node, x0 + x * boxel, y0 + y * boxel);
-  const initialAng = (angle * 180 / Math.PI) % 360;
-  initTransformState(pol.node, initialAng, flip ? -1 : 1);
-  let ang = initialAng;
+  initTransformState(pol.node, flip ? -1 : 1);
+  let ang = (angle * 180 / Math.PI) % 360;
 
   setupDraggable(newGroup, snapToGrid, {
     pol: pol.node,
