@@ -44,6 +44,9 @@ const DATE_CIRCLE_COLOR = '#ff6b6b';
 // Touch gestures
 const LONG_PRESS_MS = 500;
 
+// Animation timing
+const ROTATION_DURATION_MS = 150;
+
 // ============ END CONFIGURATION ============
 
 // Singular or plural with comma formatting. Eg, splur(1000, "cat") returns "1,000 cats"
@@ -121,55 +124,106 @@ function svgGet(id) {
 
 // ============ PIECE MANIPULATION HELPERS ============
 
-// Update a group's position (stored in dataset and applied via SVG transform)
+// Convert screen coordinates to SVG coordinates
+function screenToSvg(svgEl, screenX, screenY) {
+  const pt = svgEl.createSVGPoint();
+  pt.x = screenX;
+  pt.y = screenY;
+  return pt.matrixTransform(svgEl.getScreenCTM().inverse());
+}
+
+// Update a group's transform (position + rotation around a pivot)
+function setGroupTransform(node, x, y, angle, pivotX, pivotY) {
+  node.dataset.x = x;
+  node.dataset.y = y;
+  node.dataset.angle = angle;
+  node.dataset.pivotX = pivotX;
+  node.dataset.pivotY = pivotY;
+  // Translate to position, then rotate around pivot point
+  node.setAttribute('transform', 
+    `translate(${x}, ${y}) rotate(${angle}, ${pivotX}, ${pivotY})`);
+}
+
+// Simple position update (no rotation change)
 function setGroupPosition(node, x, y) {
   node.dataset.x = x;
   node.dataset.y = y;
-  node.setAttribute('transform', `translate(${x}, ${y})`);
+  const angle = parseFloat(node.dataset.angle) || 0;
+  const pivotX = parseFloat(node.dataset.pivotX) || 0;
+  const pivotY = parseFloat(node.dataset.pivotY) || 0;
+  node.setAttribute('transform', 
+    `translate(${x}, ${y}) rotate(${angle}, ${pivotX}, ${pivotY})`);
 }
 
-// Initialize inner element for CSS rotation/flip transforms
+// Initialize transform state (just sets flip via CSS since SVG doesn't have scaleX in rotate)
 function initTransformState(polNode, angle = 0, scale = 1) {
   polNode._scale = scale;
+  if (scale === -1) {
+    polNode.style.transform = 'scaleX(-1)';
+    polNode.style.transformBox = 'fill-box';
+    polNode.style.transformOrigin = '50% 50%';
+  }
+}
+
+// Easing function (ease-out cubic)
+function easeOutCubic(t) {
+  return 1 - Math.pow(1 - t, 3);
+}
+
+// Flip a piece (toggle scaleX between 1 and -1) with animation
+function flipPiece(polNode) {
+  const startScale = polNode._scale || 1;
+  const endScale = startScale === 1 ? -1 : 1;
+  const startTime = performance.now();
+  
   polNode.style.transformBox = 'fill-box';
   polNode.style.transformOrigin = '50% 50%';
-  polNode.style.transform = `rotate(${angle}deg) scaleX(${scale})`;
+
+  requestAnimationFrame(function tick(now) {
+    const t = Math.min((now - startTime) / ROTATION_DURATION_MS, 1);
+    const eased = easeOutCubic(t);
+    const currentScale = startScale + (endScale - startScale) * eased;
+    polNode.style.transform = `scaleX(${currentScale})`;
+
+    if (t < 1) {
+      requestAnimationFrame(tick);
+    } else {
+      polNode._scale = endScale;
+      polNode.style.transform = `scaleX(${endScale})`;
+    }
+  });
 }
 
-// Apply rotation and flip to inner element via CSS transform
-function applyTransform(polNode, angle) {
-  const scale = polNode._scale || 1;
-  polNode.style.transform = `rotate(${angle}deg) scaleX(${scale})`;
-}
-
-// Flip a piece (toggle scaleX between 1 and -1)
-function flipPiece(polNode, angle) {
-  polNode._scale = (polNode._scale || 1) === 1 ? -1 : 1;
-  applyTransform(polNode, angle);
-}
-
-// Rotate piece 90° around a screen point, adjusting group position to compensate
+// Rotate piece 90° around tap point with smooth animation.
+// Uses SVG's native rotate(angle, cx, cy) which rotates around ANY point elegantly.
 function rotatePiece(node, polNode, getAngle, setAngle, screenX, screenY, clockwise) {
-  // 1. Get tap offset relative to shape's visual center
-  const rect = polNode.getBoundingClientRect();
-  const cx = rect.left + rect.width / 2;
-  const cy = rect.top + rect.height / 2;
-  const rx = screenX - cx;
-  const ry = screenY - cy;
+  const startAngle = getAngle();
+  const deltaAngle = clockwise ? 90 : -90;
+  const endAngle = startAngle + deltaAngle;
+  setAngle(endAngle);
 
-  // 2. Do the rotation around center
-  const delta = clockwise ? 90 : -90;
-  setAngle(getAngle() + delta);
-  applyTransform(polNode, getAngle());
+  // Convert tap point to SVG coordinates
+  const svgEl = node.ownerSVGElement;
+  const tapPt = screenToSvg(svgEl, screenX, screenY);
+  
+  // Get current group position
+  const groupX = parseFloat(node.dataset.x) || 0;
+  const groupY = parseFloat(node.dataset.y) || 0;
+  
+  // Pivot point relative to the group's local coordinate system
+  const pivotX = tapPt.x - groupX;
+  const pivotY = tapPt.y - groupY;
 
-  // 3. After rotation, the tap point moved from (rx, ry) to (rxAfter, ryAfter) relative to center
-  // In screen coords (Y down), CW: (x,y)->(-y,x), CCW: (x,y)->(y,-x)
-  const [rxAfter, ryAfter] = clockwise ? [-ry, rx] : [ry, -rx];
+  const startTime = performance.now();
+  requestAnimationFrame(function tick(now) {
+    const t = Math.min((now - startTime) / ROTATION_DURATION_MS, 1);
+    const eased = easeOutCubic(t);
+    const currentAngle = startAngle + deltaAngle * eased;
+    
+    setGroupTransform(node, groupX, groupY, currentAngle, pivotX, pivotY);
 
-  // 4. Shift to bring tap point back to original screen position
-  const currentX = parseFloat(node.dataset.x) || 0;
-  const currentY = parseFloat(node.dataset.y) || 0;
-  setGroupPosition(node, currentX + (rx - rxAfter), currentY + (ry - ryAfter));
+    if (t < 1) requestAnimationFrame(tick);
+  });
 }
 
 // Bring element to front (SVG uses DOM order for z-index)
@@ -240,7 +294,7 @@ function setupDraggable(group, onDragEnd, rotateState) {
 
     if (e.srcEvent.ctrlKey || e.srcEvent.metaKey) {
       // Ctrl+click or Cmd+click: flip
-      flipPiece(polNode, getAngle());
+      flipPiece(polNode);
     } else {
       // Regular tap: rotate clockwise around tap point
       const { x, y } = getEventClientCoords(e);
@@ -253,7 +307,7 @@ function setupDraggable(group, onDragEnd, rotateState) {
   hammer.on('press', () => {
     justPressed = true;
     if (!rotateState) return;
-    flipPiece(getPolNode(), rotateState.getAngle());
+    flipPiece(getPolNode());
     if (navigator.vibrate) navigator.vibrate(50);
   });
 
@@ -262,7 +316,7 @@ function setupDraggable(group, onDragEnd, rotateState) {
     if (!e.ctrlKey && !e.metaKey) return;  // Let Hammer handle normal clicks
     e.stopPropagation();
     if (!rotateState) return;
-    flipPiece(getPolNode(), rotateState.getAngle());
+    flipPiece(getPolNode());
     bringToFront(node);
   });
 
