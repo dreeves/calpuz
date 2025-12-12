@@ -299,6 +299,7 @@ function setupDraggable(group, onDragEnd, rotateState) {
   const hammer = new Hammer(node);
   hammer.get('pan').set({ threshold: 5, direction: Hammer.DIRECTION_ALL });
   hammer.get('press').set({ time: LONG_PRESS_MS });
+  const tapRecognizer = hammer.get('tap');
 
   let startMatrix;
   let startPt;
@@ -356,13 +357,19 @@ function setupDraggable(group, onDragEnd, rotateState) {
   });
 
   // --- LONG-PRESS TO FLIP (mobile) ---
-  hammer.on('press', () => {
+  hammer.on('press', (e) => {
     if (!rotateState) return;
     flipPiece(getPolNode());
-    // End the current touch session so it can't also be recognized as a tap.
-    // This avoids delaying regular taps while keeping long-press as flip-only.
-    hammer.stop(true);
+
+    // While a press is active, disable tap recognition so releasing the press
+    // can't also be recognized as a tap/rotate.
+    tapRecognizer.set({ enable: false });
+
     if (navigator.vibrate) navigator.vibrate(50);
+  });
+
+  hammer.on('pressup', () => {
+    tapRecognizer.set({ enable: true });
   });
 
   // --- CTRL+CLICK TO FLIP (native handler to catch before Hammer) ---
