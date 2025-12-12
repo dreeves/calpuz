@@ -155,14 +155,9 @@ function setGroupPosition(node, x, y) {
   setLocalTransformMatrix(node, next);
 }
 
-// Initialize flip state (CSS scaleX for mirroring)
-function initTransformState(polNode, scale = 1) {
-  polNode._scale = scale;
-  if (scale === -1) {
-    polNode.style.transform = 'scaleX(-1)';
-    polNode.style.transformBox = 'fill-box';
-    polNode.style.transformOrigin = '50% 50%';
-  }
+// Initialize flip state on the group node
+function initFlipState(node, flipScale = 1) {
+  node._flipScale = flipScale;
 }
 
 // Easing function (ease-out cubic)
@@ -170,7 +165,8 @@ function easeOutCubic(t) {
   return 1 - Math.pow(1 - t, 3);
 }
 
-// Flip a piece (toggle scaleX between 1 and -1) with animation
+// Flip a piece (toggle scaleX between 1 and -1) with smooth animation
+// Applied to the inner polygon element to avoid conflicts with the group's SVG transform
 function flipPiece(polNode) {
   const startScale = polNode._scale || 1;
   const endScale = startScale === 1 ? -1 : 1;
@@ -239,17 +235,21 @@ function bringToFront(node) {
 
 // Extract client coordinates from a Hammer event (works for mouse and touch)
 function getEventClientCoords(e) {
+  // Hammer's center property is the most reliable for touch events
+  // It's already in client (viewport) coordinates
+  if (e.center && e.center.x !== undefined) {
+    return { x: e.center.x, y: e.center.y };
+  }
+  // Fallback for native events (shouldn't normally be needed for Hammer)
   const src = e.srcEvent;
-  if (src.clientX !== undefined) {
+  if (src && src.clientX !== undefined) {
     return { x: src.clientX, y: src.clientY };
   }
-  // Touch event - use changedTouches for tap/press end
-  const touch = src.changedTouches?.[0] || src.touches?.[0];
+  const touch = src?.changedTouches?.[0] || src?.touches?.[0];
   if (touch) {
     return { x: touch.clientX, y: touch.clientY };
   }
-  // Fallback to Hammer's center (but convert from page to client coords)
-  return { x: e.center.x - window.pageXOffset, y: e.center.y - window.pageYOffset };
+  return { x: 0, y: 0 };  // Should never happen
 }
 
 // Setup draggable with tap-to-rotate and hold-to-flip
@@ -312,18 +312,18 @@ function setupDraggable(group, onDragEnd, rotateState) {
     if (!rotateState) return;
     const polNode = getPolNode();
     const { getAngle, setAngle } = rotateState;
+    const { x, y } = getEventClientCoords(e);
 
     if (e.srcEvent.ctrlKey || e.srcEvent.metaKey) {
       flipPiece(polNode);
     } else {
-      const { x, y } = getEventClientCoords(e);
       rotatePiece(node, polNode, getAngle, setAngle, x, y, true);
     }
     bringToFront(node);
   });
 
   // --- LONG-PRESS TO FLIP (mobile) ---
-  hammer.on('press', () => {
+  hammer.on('press', (e) => {
     justPressed = true;
     if (!rotateState) return;
     flipPiece(getPolNode());
@@ -407,7 +407,7 @@ function visualizePlacement(placement) {
 
   // Initialize position and rotation
   setGroupPosition(newGroup.node, x0 + placement.col * boxel, y0 + placement.row * boxel);
-  initTransformState(innerGroup.node);
+  initFlipState(newGroup.node);
   let ang = 0;
 
   setupDraggable(newGroup, snapToGrid, {
@@ -950,7 +950,7 @@ function movePoly(polyId, x, y, angle = 0, flip = false) {
 
   // Initialize position and flip state
   setGroupPosition(newGroup.node, x0 + x * boxel, y0 + y * boxel);
-  initTransformState(pol.node, flip ? -1 : 1);
+  initFlipState(newGroup.node, flip ? -1 : 1);
   let ang = (angle * 180 / Math.PI) % 360;
 
   setupDraggable(newGroup, snapToGrid, {

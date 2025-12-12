@@ -11,8 +11,8 @@ test('long-press flips only (no rotate)', async ({ page, baseURL }) => {
   const clientX = box.x + box.width * 0.35;
   const clientY = box.y + box.height * 0.45;
 
-  // Snapshot transform before.
-  const before = await page.evaluate(() => {
+  // Snapshot SVG transform before (to verify no rotation happens)
+  const beforeTransform = await page.evaluate(() => {
     const node = document.getElementById('corner');
     return node.getAttribute('transform') || '';
   });
@@ -40,13 +40,21 @@ test('long-press flips only (no rotate)', async ({ page, baseURL }) => {
     clientY,
   });
 
-  // Give Hammer a moment to emit events.
-  await page.waitForTimeout(50);
+  // Wait for flip animation to complete (ROTATION_DURATION_MS = 150)
+  await page.waitForTimeout(200);
 
-  const after = await page.evaluate(() => {
+  // Check flip happened by looking at the inner polygon's CSS transform
+  const flipScale = await page.evaluate(() => {
+    const node = document.getElementById('corner');
+    const polNode = node.querySelector('polygon');
+    return polNode?._scale || 1;
+  });
+  expect(flipScale).toBe(-1);  // Now flipped
+
+  // Verify SVG transform unchanged (no rotation happened)
+  const afterTransform = await page.evaluate(() => {
     const node = document.getElementById('corner');
     return node.getAttribute('transform') || '';
   });
-
-  expect(after).toBe(before);
+  expect(afterTransform).toBe(beforeTransform);  // SVG transform should be unchanged
 });
