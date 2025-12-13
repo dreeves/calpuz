@@ -249,14 +249,16 @@ function setupDraggable(group, onDragEnd, rotateState) {
   if (!node.dataset.x) node.dataset.x = '0';
   if (!node.dataset.y) node.dataset.y = '0';
 
+  // Use Hammer.js only for pan (dragging)
   const hammer = new Hammer(node);
   hammer.get('pan').set({ threshold: 5, direction: Hammer.DIRECTION_ALL });
-  hammer.get('tap').set({ time: LONG_PRESS_MS - 1 });  // Tap fires for < 500ms
-  hammer.get('press').set({ time: LONG_PRESS_MS });    // Press fires for >= 500ms
+  hammer.get('tap').set({ enable: false });    // We handle tap ourselves
+  hammer.get('press').set({ enable: false });  // We handle press ourselves
 
   let startMatrix, startPt, invScreenCtm;
 
   hammer.on('panstart', (e) => {
+    cancelPressTimer();  // Drag started, not a tap or press
     startMatrix = getLocalTransformMatrix(node);
     invScreenCtm = node.ownerSVGElement.getScreenCTM().inverse();
     const { x, y } = getEventClientCoords(e);
@@ -278,34 +280,71 @@ function setupDraggable(group, onDragEnd, rotateState) {
     if (onDragEnd) onDragEnd(group);
   });
 
-  hammer.on('tap', (e) => {
+  // Manual tap/long-press handling with pointer events (works for mouse + touch)
+  // This is deterministic: exactly one of tap/long-press/drag fires, never two.
+  let pressTimer = null;
+  let didLongPress = false;
+  let pointerDownCoords = null;
+  let lastPointerType = null;  // 'mouse', 'touch', or 'pen'
+
+  function cancelPressTimer() {
+    if (pressTimer) {
+      clearTimeout(pressTimer);
+      pressTimer = null;
+    }
+  }
+
+  function doFlip(x, y) {
+    if (didLongPress) return;  // Already handled
+    didLongPress = true;
+    cancelPressTimer();
     if (!rotateState) return;
-    const { x, y } = getEventClientCoords(e);
-    if (e.srcEvent.ctrlKey || e.srcEvent.metaKey) {
-      flipPiece(node, x, y);
+    flipPiece(node, x, y);
+    if (navigator.vibrate) navigator.vibrate(50);
+  }
+
+  node.addEventListener('pointerdown', (e) => {
+    pointerDownCoords = { x: e.clientX, y: e.clientY };
+    lastPointerType = e.pointerType;
+    didLongPress = false;
+
+    pressTimer = setTimeout(() => {
+      pressTimer = null;
+      doFlip(pointerDownCoords.x, pointerDownCoords.y);
+    }, LONG_PRESS_MS);
+  });
+
+  node.addEventListener('pointerup', (e) => {
+    cancelPressTimer();
+    if (didLongPress) return;  // Already handled as long press
+    if (!pointerDownCoords) return;  // Pointer wasn't down on this element
+
+    // Check if it was a drag (moved too far to be a tap)
+    const dx = e.clientX - pointerDownCoords.x;
+    const dy = e.clientY - pointerDownCoords.y;
+    if (dx * dx + dy * dy > 25) return;  // 5px threshold, same as pan
+
+    // It's a tap
+    if (!rotateState) return;
+    if (e.ctrlKey || e.metaKey) {
+      flipPiece(node, e.clientX, e.clientY);
     } else {
-      rotatePiece(node, rotateState.getAngle, rotateState.setAngle, x, y, true);
+      rotatePiece(node, rotateState.getAngle, rotateState.setAngle, e.clientX, e.clientY, true);
     }
     bringToFront(node);
   });
 
-  hammer.on('press', (e) => {
-    if (!rotateState) return;
-    const { x, y } = getEventClientCoords(e);
-    flipPiece(node, x, y);
-    if (navigator.vibrate) navigator.vibrate(50);
-  });
-
-  node.addEventListener('click', (e) => {
-    if (!e.ctrlKey && !e.metaKey) return;
-    e.stopPropagation();
-    if (!rotateState) return;
-    flipPiece(node, e.clientX, e.clientY);
-    bringToFront(node);
-  });
+  node.addEventListener('pointercancel', cancelPressTimer);
 
   node.addEventListener('contextmenu', (e) => {
     e.preventDefault();
+    // On touch, long-press triggers contextmenu - treat it as flip (same as our timer)
+    // On mouse, right-click triggers contextmenu - treat it as counter-clockwise rotate
+    if (lastPointerType === 'touch') {
+      doFlip(e.clientX, e.clientY);
+      return;
+    }
+    cancelPressTimer();
     if (e.ctrlKey) return;
     if (!rotateState) return;
     rotatePiece(node, rotateState.getAngle, rotateState.setAngle, e.clientX, e.clientY, false);
