@@ -155,74 +155,61 @@ function setGroupPosition(node, x, y) {
   setLocalTransformMatrix(node, next);
 }
 
-// Initialize flip state on the group node
-function initFlipState(node, flipScale = 1) {
-  node._flipScale = flipScale;
-}
-
-// Easing function (ease-out cubic)
+// Easing functions
 function easeOutCubic(t) {
   return 1 - Math.pow(1 - t, 3);
 }
 
-// Flip a piece (toggle scaleX between 1 and -1) with smooth animation
-// Applied to the inner polygon element to avoid conflicts with the group's SVG transform
-function flipPiece(polNode) {
-  const startScale = polNode._scale || 1;
-  const endScale = startScale === 1 ? -1 : 1;
-  const startTime = performance.now();
-  
-  polNode.style.transformBox = 'fill-box';
-  polNode.style.transformOrigin = '50% 50%';
-
-  requestAnimationFrame(function tick(now) {
-    const t = Math.min((now - startTime) / ROTATION_DURATION_MS, 1);
-    const eased = easeOutCubic(t);
-    const currentScale = startScale + (endScale - startScale) * eased;
-    polNode.style.transform = `scaleX(${currentScale})`;
-
-    if (t < 1) {
-      requestAnimationFrame(tick);
-    } else {
-      polNode._scale = endScale;
-      polNode.style.transform = `scaleX(${endScale})`;
-    }
-  });
+function easeInOutSine(t) {
+  return (1 - Math.cos(Math.PI * t)) / 2;
 }
 
-// Rotate piece 90° around tap point with smooth animation.
-// Uses SVG's native rotate(angle, cx, cy) which rotates around ANY point elegantly.
-function rotatePiece(node, polNode, getAngle, setAngle, screenX, screenY, clockwise) {
-  const startAngle = getAngle();
-  const deltaAngle = clockwise ? 90 : -90;
-  const endAngle = startAngle + deltaAngle;
-
-  // Convert tap point to SVG coordinates (global user units)
+// Flip piece around a vertical line through the click point with smooth animation.
+// Uses the same DOMMatrix approach as rotation for consistency.
+function flipPiece(node, screenX, screenY) {
   const svgEl = node.ownerSVGElement;
   const invScreenCtm = svgEl.getScreenCTM().inverse();
   const pivot = screenToSvg(screenX, screenY, invScreenCtm);
-
-  // Snapshot the current local transform and animate a rotation pre-multiplied
-  // about the clicked point. This guarantees the clicked point stays fixed,
-  // even after prior rotations around other points.
   const startMatrix = getLocalTransformMatrix(node);
-
   const startTime = performance.now();
+
   requestAnimationFrame(function tick(now) {
     const t = Math.min((now - startTime) / ROTATION_DURATION_MS, 1);
-    const eased = easeOutCubic(t);
-    const currentDelta = deltaAngle * eased;
+    // Use sine easing for symmetric "squish and expand" effect
+    const eased = easeInOutSine(t);
+    const scale = 1 - 2 * eased;  // Goes smoothly from 1 → 0 → -1
+
+    const flipAboutPivot = new DOMMatrix()
+      .translate(pivot.x, 0)
+      .scale(scale, 1)
+      .translate(-pivot.x, 0);
+
+    setLocalTransformMatrix(node, flipAboutPivot.multiply(startMatrix));
+    if (t < 1) requestAnimationFrame(tick);
+  });
+}
+
+// Rotate piece 90° around the click point with smooth animation.
+function rotatePiece(node, getAngle, setAngle, screenX, screenY, clockwise) {
+  const deltaAngle = clockwise ? 90 : -90;
+  const svgEl = node.ownerSVGElement;
+  const invScreenCtm = svgEl.getScreenCTM().inverse();
+  const pivot = screenToSvg(screenX, screenY, invScreenCtm);
+  const startMatrix = getLocalTransformMatrix(node);
+  const startTime = performance.now();
+
+  requestAnimationFrame(function tick(now) {
+    const t = Math.min((now - startTime) / ROTATION_DURATION_MS, 1);
+    const currentDelta = deltaAngle * easeOutCubic(t);
 
     const rotAboutPivot = new DOMMatrix()
       .translate(pivot.x, pivot.y)
       .rotate(currentDelta)
       .translate(-pivot.x, -pivot.y);
 
-    const next = rotAboutPivot.multiply(startMatrix);
-    setLocalTransformMatrix(node, next);
-
+    setLocalTransformMatrix(node, rotAboutPivot.multiply(startMatrix));
     if (t < 1) requestAnimationFrame(tick);
-    else setAngle(endAngle);
+    else setAngle(getAngle() + deltaAngle);
   });
 }
 
@@ -255,27 +242,18 @@ function getEventClientCoords(e) {
 // Setup draggable with tap-to-rotate and hold-to-flip
 function setupDraggable(group, onDragEnd, rotateState) {
   const node = group.node;
+  node.style.touchAction = 'none';  // Required for mobile
 
-  // Required for mobile: prevent browser from handling touch as scroll/zoom
-  node.style.touchAction = 'none';
-
-  // Initialize position tracking
   if (!node.dataset.x) node.dataset.x = '0';
   if (!node.dataset.y) node.dataset.y = '0';
 
-  const getPolNode = () => rotateState ? (rotateState.pol.node || rotateState.pol) : null;
-
-  // Configure Hammer.js
   const hammer = new Hammer(node);
   hammer.get('pan').set({ threshold: 5, direction: Hammer.DIRECTION_ALL });
   hammer.get('press').set({ time: LONG_PRESS_MS });
 
-  let startMatrix;
-  let startPt;
-  let invScreenCtm;
-  let justPressed = false;  // Flag to prevent tap firing after long-press
+  let startMatrix, startPt, invScreenCtm;
+  let justPressed = false;
 
-  // --- DRAGGING ---
   hammer.on('panstart', (e) => {
     justPressed = false;
     startMatrix = getLocalTransformMatrix(node);
@@ -288,65 +266,50 @@ function setupDraggable(group, onDragEnd, rotateState) {
   hammer.on('panmove', (e) => {
     const { x, y } = getEventClientCoords(e);
     const curPt = screenToSvg(x, y, invScreenCtm);
-    const dx = curPt.x - startPt.x;
-    const dy = curPt.y - startPt.y;
-
-    const next = new DOMMatrix([
-      startMatrix.a,
-      startMatrix.b,
-      startMatrix.c,
-      startMatrix.d,
-      startMatrix.e + dx,
-      startMatrix.f + dy,
-    ]);
-    setLocalTransformMatrix(node, next);
+    setLocalTransformMatrix(node, new DOMMatrix([
+      startMatrix.a, startMatrix.b, startMatrix.c, startMatrix.d,
+      startMatrix.e + curPt.x - startPt.x,
+      startMatrix.f + curPt.y - startPt.y,
+    ]));
   });
 
   hammer.on('panend', () => {
     if (onDragEnd) onDragEnd(group);
   });
 
-  // --- TAP TO ROTATE (CW), CTRL+TAP TO FLIP ---
   hammer.on('tap', (e) => {
     if (justPressed) { justPressed = false; return; }
     if (!rotateState) return;
-    const polNode = getPolNode();
-    const { getAngle, setAngle } = rotateState;
     const { x, y } = getEventClientCoords(e);
-
     if (e.srcEvent.ctrlKey || e.srcEvent.metaKey) {
-      flipPiece(polNode);
+      flipPiece(node, x, y);
     } else {
-      rotatePiece(node, polNode, getAngle, setAngle, x, y, true);
+      rotatePiece(node, rotateState.getAngle, rotateState.setAngle, x, y, true);
     }
     bringToFront(node);
   });
 
-  // --- LONG-PRESS TO FLIP (mobile) ---
   hammer.on('press', (e) => {
     justPressed = true;
     if (!rotateState) return;
-    flipPiece(getPolNode());
+    const { x, y } = getEventClientCoords(e);
+    flipPiece(node, x, y);
     if (navigator.vibrate) navigator.vibrate(50);
   });
 
-  // --- CTRL+CLICK TO FLIP (native handler to catch before Hammer) ---
   node.addEventListener('click', (e) => {
-    if (!e.ctrlKey && !e.metaKey) return;  // Let Hammer handle normal clicks
+    if (!e.ctrlKey && !e.metaKey) return;
     e.stopPropagation();
     if (!rotateState) return;
-    flipPiece(getPolNode());
+    flipPiece(node, e.clientX, e.clientY);
     bringToFront(node);
   });
 
-  // --- RIGHT-CLICK TO ROTATE CCW (but not ctrl+click which is flip) ---
   node.addEventListener('contextmenu', (e) => {
     e.preventDefault();
-    if (e.ctrlKey) return;  // Ctrl+click is flip, not rotate
+    if (e.ctrlKey) return;
     if (!rotateState) return;
-    const polNode = getPolNode();
-    const { getAngle, setAngle } = rotateState;
-    rotatePiece(node, polNode, getAngle, setAngle, e.clientX, e.clientY, false);
+    rotatePiece(node, rotateState.getAngle, rotateState.setAngle, e.clientX, e.clientY, false);
     bringToFront(node);
   });
 }
@@ -391,27 +354,23 @@ function snapToGrid(group) {
 // Visualize a placement from the solver using actual cell positions
 function visualizePlacement(placement) {
   if (!placement) return;
-  
-  const [nom, hue, fig] = shapeMap.get(placement.name);
+
+  const [nom, hue] = shapeMap.get(placement.name);
   const targetGroup = svgGet(placement.name);
   if (targetGroup) targetGroup.remove();
-  
+
   const container = getElementsContainer();
   const newGroup = container.group().attr('id', nom);
   const innerGroup = newGroup.group();
-  
-  // Draw cells at LOCAL coordinates (relative to piece origin)
+
   for (const [dr, dc] of placement.cells) {
     innerGroup.rect(boxel, boxel).move(dc * boxel, dr * boxel).fill(hue).opacity(0.8).stroke({ width: 1, color: '#fff' });
   }
 
-  // Initialize position and rotation
   setGroupPosition(newGroup.node, x0 + placement.col * boxel, y0 + placement.row * boxel);
-  initFlipState(newGroup.node);
   let ang = 0;
 
   setupDraggable(newGroup, snapToGrid, {
-    pol: innerGroup.node,
     getAngle: () => ang,
     setAngle: (a) => { ang = a; }
   });
@@ -729,7 +688,7 @@ function drawPendingPieces(progress, failedPieceName = null, orderedRemaining = 
     poly.on('click', () => {
       takenFromDocket.add(name);
       drawPendingPieces(progress, failedPieceName, orderedRemaining); // Re-render without this piece
-      movePoly(name, 0, 0);
+      movePoly(name, 0, 0, 0, false);
     });
     
     // If this is the failed piece, draw X over it
@@ -939,22 +898,26 @@ window.solvePuzzle = function() {
   showProgressPanel(true);
 }
 
-function movePoly(polyId, x, y, angle = 0, flip = false) {
+function movePoly(polyId, x, y, angle, flip) {
   const [nom, hue, fig] = shapeMap.get(polyId);
   const targetGroup = svgGet(polyId);
   if (targetGroup) targetGroup.remove();
 
   const container = getElementsContainer();
   const newGroup = container.group().attr('id', nom);
-  const pol = newGroup.polygon(polygen(fig, boxel)).fill(hue).opacity(0.8);
+  newGroup.polygon(polygen(fig, boxel)).fill(hue).opacity(0.8);
 
-  // Initialize position and flip state
-  setGroupPosition(newGroup.node, x0 + x * boxel, y0 + y * boxel);
-  initFlipState(newGroup.node, flip ? -1 : 1);
-  let ang = (angle * 180 / Math.PI) % 360;
+  // Build initial transform matrix: position, then rotation, then flip
+  const px = x0 + x * boxel;
+  const py = y0 + y * boxel;
+  let m = new DOMMatrix().translate(px, py);
+  if (angle) m = m.rotate(angle * 180 / Math.PI);
+  if (flip) m = m.scale(-1, 1);
+  setLocalTransformMatrix(newGroup.node, m);
+
+  let ang = angle ? (angle * 180 / Math.PI) % 360 : 0;
 
   setupDraggable(newGroup, snapToGrid, {
-    pol: pol.node,
     getAngle: () => ang,
     setAngle: (a) => { ang = a; }
   });
@@ -1010,14 +973,14 @@ function polygen(tuples, x) {
 }
 
 function scatterShapes() {
-  movePoly("corner",      6.5, 1.8)
-  movePoly("stair",       5.3, 5.3)
-  movePoly("z-shape",       2, 6.3)
-  movePoly("rectangle",  -1.2, 5.6)
-  movePoly("c-shape",    -2.2, 2)
-  movePoly("chair",      -1.3, -1.3)
-  movePoly("stilt",       2.2, -2.5)
-  movePoly("l-shape",     5.2, -1.3)
+  movePoly("corner",      6.5, 1.8, 0, false)
+  movePoly("stair",       5.3, 5.3, 0, false)
+  movePoly("z-shape",       2, 6.3, 0, false)
+  movePoly("rectangle",  -1.2, 5.6, 0, false)
+  movePoly("c-shape",    -2.2, 2,   0, false)
+  movePoly("chair",      -1.3, -1.3, 0, false)
+  movePoly("stilt",       2.2, -2.5, 0, false)
+  movePoly("l-shape",     5.2, -1.3, 0, false)
 }
 
 window.addEventListener("load", function () {
