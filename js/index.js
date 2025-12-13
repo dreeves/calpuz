@@ -318,6 +318,7 @@ function setupDraggable(group, onDragEnd, rotateState) {
     cancelPressTimer();
     if (didLongPress) return;  // Already handled as long press
     if (!pointerDownCoords) return;  // Pointer wasn't down on this element
+    if (e.button === 2) return;  // Right-click handled by contextmenu
 
     // Check if it was a drag (moved too far to be a tap)
     const dx = e.clientX - pointerDownCoords.x;
@@ -340,13 +341,19 @@ function setupDraggable(group, onDragEnd, rotateState) {
     e.preventDefault();
     // On touch, long-press triggers contextmenu - treat it as flip (same as our timer)
     // On mouse, right-click triggers contextmenu - treat it as counter-clockwise rotate
+    // On macOS, ctrl+click triggers contextmenu - treat it as flip
     if (lastPointerType === 'touch') {
       doFlip(e.clientX, e.clientY);
       return;
     }
     cancelPressTimer();
-    if (e.ctrlKey) return;
+    didLongPress = true;  // Prevent pointerup from also acting
     if (!rotateState) return;
+    if (e.ctrlKey) {
+      flipPiece(node, e.clientX, e.clientY);
+      bringToFront(node);
+      return;
+    }
     rotatePiece(node, rotateState.getAngle, rotateState.setAngle, e.clientX, e.clientY, false);
     bringToFront(node);
   });
