@@ -222,21 +222,23 @@ function bringToFront(node) {
 
 // Extract client coordinates from a Hammer event (works for mouse and touch)
 function getEventClientCoords(e) {
-  // Hammer's center property is the most reliable for touch events
-  // It's already in client (viewport) coordinates
-  if (e.center && e.center.x !== undefined) {
+  // Hammer's center is most reliable
+  if (e.center && typeof e.center.x === 'number') {
     return { x: e.center.x, y: e.center.y };
   }
-  // Fallback for native events (shouldn't normally be needed for Hammer)
+  // Fallback to source event
   const src = e.srcEvent;
-  if (src && src.clientX !== undefined) {
+  if (!src) throw new Error('No event coordinates available');
+  // Mouse events
+  if (typeof src.clientX === 'number') {
     return { x: src.clientX, y: src.clientY };
   }
-  const touch = src?.changedTouches?.[0] || src?.touches?.[0];
+  // Touch events: use touches (finger down) before changedTouches (finger up)
+  const touch = src.touches?.[0] || src.changedTouches?.[0];
   if (touch) {
     return { x: touch.clientX, y: touch.clientY };
   }
-  return { x: 0, y: 0 };  // Should never happen
+  throw new Error('No event coordinates available');
 }
 
 // Setup draggable with tap-to-rotate and hold-to-flip
@@ -249,13 +251,12 @@ function setupDraggable(group, onDragEnd, rotateState) {
 
   const hammer = new Hammer(node);
   hammer.get('pan').set({ threshold: 5, direction: Hammer.DIRECTION_ALL });
-  hammer.get('press').set({ time: LONG_PRESS_MS });
+  hammer.get('tap').set({ time: LONG_PRESS_MS - 1 });  // Tap fires for < 500ms
+  hammer.get('press').set({ time: LONG_PRESS_MS });    // Press fires for >= 500ms
 
   let startMatrix, startPt, invScreenCtm;
-  let justPressed = false;
 
   hammer.on('panstart', (e) => {
-    justPressed = false;
     startMatrix = getLocalTransformMatrix(node);
     invScreenCtm = node.ownerSVGElement.getScreenCTM().inverse();
     const { x, y } = getEventClientCoords(e);
@@ -278,7 +279,6 @@ function setupDraggable(group, onDragEnd, rotateState) {
   });
 
   hammer.on('tap', (e) => {
-    if (justPressed) { justPressed = false; return; }
     if (!rotateState) return;
     const { x, y } = getEventClientCoords(e);
     if (e.srcEvent.ctrlKey || e.srcEvent.metaKey) {
@@ -290,7 +290,6 @@ function setupDraggable(group, onDragEnd, rotateState) {
   });
 
   hammer.on('press', (e) => {
-    justPressed = true;
     if (!rotateState) return;
     const { x, y } = getEventClientCoords(e);
     flipPiece(node, x, y);
