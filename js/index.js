@@ -44,6 +44,10 @@ const DATE_CIRCLE_COLOR = '#ff6b6b';
 // Touch gestures
 const LONG_PRESS_MS = 500;
 
+// Zoom settings
+const MIN_ZOOM = 0.5;
+const MAX_ZOOM = 3;
+
 // Animation timing
 const ROTATION_DURATION_MS = 150;
 
@@ -71,6 +75,10 @@ const calh = boxel*7;         // height of the calendar
 const x0 = (w-calw-sbarw)/2;  // (x0, y0) = left top corner of the calendar grid
 const y0 = Math.min((h-calh+headh)/2, headh + boxel*4);  // centered or near top, whichever is higher
 let svg;                      // this gets initialized when the page loads
+let zoomContainer;            // container group for zoom transform
+let currentZoom = 1;          // current zoom level
+let zoomPanX = 0;             // pan offset X (in SVG coords)
+let zoomPanY = 0;             // pan offset Y (in SVG coords)
 let solverSpeed = 50;         // animation delay in ms (adjustable via speed buttons)
 window.pauseOnSolution = true;  // set to false in console to skip pausing on solutions
 
@@ -111,6 +119,33 @@ window.colorChangeButton = function () {
     const color = getRandomColor();
     group.querySelectorAll('*').forEach(el => el.style.fill = color);
   });
+};
+
+// Apply current zoom transform to the container
+function applyZoomTransform() {
+  const cx = w / 2;  // Zoom center X (screen center)
+  const cy = h / 2;  // Zoom center Y (screen center)
+  // Transform: translate to center, scale, translate back, then apply pan
+  zoomContainer.attr('transform',
+    `translate(${cx + zoomPanX}, ${cy + zoomPanY}) scale(${currentZoom}) translate(${-cx}, ${-cy})`);
+}
+
+// Zoom button handlers
+window.zoomIn = function() {
+  currentZoom = Math.min(MAX_ZOOM, currentZoom * 1.25);
+  applyZoomTransform();
+};
+
+window.zoomOut = function() {
+  currentZoom = Math.max(MIN_ZOOM, currentZoom / 1.25);
+  applyZoomTransform();
+};
+
+window.zoomReset = function() {
+  currentZoom = 1;
+  zoomPanX = 0;
+  zoomPanY = 0;
+  applyZoomTransform();
 };
 
 // Cached elements container to prevent DOM leak
@@ -196,8 +231,8 @@ function enqueuePieceAction(node, action) {
 // Returns a promise that resolves when animation completes.
 function flipPiece(node, screenX, screenY) {
   return new Promise((resolve) => {
-    const svgEl = node.ownerSVGElement;
-    const invScreenCtm = svgEl.getScreenCTM().inverse();
+    // Use parent's CTM since piece transforms are relative to parent (accounts for zoom)
+    const invScreenCtm = node.parentElement.getScreenCTM().inverse();
     const pivot = screenToSvg(screenX, screenY, invScreenCtm);
     const startMatrix = getLocalTransformMatrix(node);
     const startTime = performance.now();
@@ -224,8 +259,8 @@ function flipPiece(node, screenX, screenY) {
 function rotatePiece(node, getAngle, setAngle, screenX, screenY, clockwise) {
   return new Promise((resolve) => {
     const deltaAngle = clockwise ? 90 : -90;
-    const svgEl = node.ownerSVGElement;
-    const invScreenCtm = svgEl.getScreenCTM().inverse();
+    // Use parent's CTM since piece transforms are relative to parent (accounts for zoom)
+    const invScreenCtm = node.parentElement.getScreenCTM().inverse();
     const pivot = screenToSvg(screenX, screenY, invScreenCtm);
     const startMatrix = getLocalTransformMatrix(node);
     const startAngle = getAngle();
@@ -298,7 +333,8 @@ function setupDraggable(group, onDragEnd, rotateState) {
   hammer.on('panstart', (e) => {
     cancelPressTimer();  // Drag started, not a tap or press
     startMatrix = getLocalTransformMatrix(node);
-    invScreenCtm = node.ownerSVGElement.getScreenCTM().inverse();
+    // Use parent's CTM since piece transforms are relative to parent (accounts for zoom)
+    invScreenCtm = node.parentElement.getScreenCTM().inverse();
     const { x, y } = getEventClientCoords(e);
     startPt = screenToSvg(x, y, invScreenCtm);
     bringToFront(node);
@@ -409,7 +445,7 @@ function getElementsContainer() {
     elementsContainer = null;
   }
   if (!elementsContainer) {
-    elementsContainer = svgGet('elements') || svg.group().attr('id', 'elements');
+    elementsContainer = svgGet('elements') || zoomContainer.group().attr('id', 'elements');
   }
   return elementsContainer;
 }
@@ -417,23 +453,28 @@ function getElementsContainer() {
 // Snap a group to the nearest grid position
 function snapToGrid(group) {
   const node = group.node;
-  // Get current position from data attributes
+  // Get current position from data attributes (SVG coords)
   const currentX = parseFloat(node.dataset.x) || 0;
   const currentY = parseFloat(node.dataset.y) || 0;
 
-  // Get visual position via bounding rect
+  // Get visual position via bounding rect (screen coords)
   const rect = node.getBoundingClientRect();
   const svgRect = svg.node.getBoundingClientRect();
-  const visualX = rect.left - svgRect.left;
-  const visualY = rect.top - svgRect.top;
+  const screenX = rect.left - svgRect.left;
+  const screenY = rect.top - svgRect.top;
 
-  // Compute nearest grid cell
-  const col = Math.round((visualX - x0) / boxel);
-  const row = Math.round((visualY - y0) / boxel);
+  // Convert screen coords to SVG coords (accounting for zoom/pan)
+  const cx = w / 2, cy = h / 2;
+  const svgX = (screenX - cx - zoomPanX) / currentZoom + cx;
+  const svgY = (screenY - cy - zoomPanY) / currentZoom + cy;
 
-  // Calculate how far visual position is from stored position
-  const deltaX = visualX - currentX;
-  const deltaY = visualY - currentY;
+  // Compute nearest grid cell (in SVG coords)
+  const col = Math.round((svgX - x0) / boxel);
+  const row = Math.round((svgY - y0) / boxel);
+
+  // Calculate how far SVG position is from stored position
+  const deltaX = svgX - currentX;
+  const deltaY = svgY - currentY;
 
   // Snap: move to grid cell, accounting for the visual offset
   setGroupPosition(node, x0 + col * boxel - deltaX, y0 + row * boxel - deltaY);
@@ -453,6 +494,15 @@ const VALID_CELLS = [
   [1,1,1,0,0,0,0],  // 29-31
 ];
 
+// Convert SVG coords to screen coords (accounting for zoom/pan)
+function svgToScreen(svgX, svgY) {
+  const centerX = w / 2, centerY = h / 2;
+  return {
+    x: (svgX - centerX) * currentZoom + centerX + zoomPanX,
+    y: (svgY - centerY) * currentZoom + centerY + zoomPanY
+  };
+}
+
 // Check if puzzle is solved and fire confetti if so
 let confettiModule = null;
 let lastCelebratedState = null;  // Track last celebrated state to avoid repeat confetti
@@ -466,12 +516,14 @@ async function checkPuzzleSolved() {
     for (let col = 0; col < 7; col++) {
       if (!VALID_CELLS[row][col]) continue;
 
-      // Get center of this cell in screen coordinates
-      const cx = svgRect.left + x0 + col * boxel + boxel / 2;
-      const cy = svgRect.top + y0 + row * boxel + boxel / 2;
+      // Get center of this cell in SVG coords, then convert to screen coords
+      const cellCenterSvg = { x: x0 + col * boxel + boxel / 2, y: y0 + row * boxel + boxel / 2 };
+      const cellCenterScreen = svgToScreen(cellCenterSvg.x, cellCenterSvg.y);
+      const screenX = svgRect.left + cellCenterScreen.x;
+      const screenY = svgRect.top + cellCenterScreen.y;
 
       // Check what's at this point
-      const el = document.elementFromPoint(cx, cy);
+      const el = document.elementFromPoint(screenX, screenY);
       const isPieceCovered = el && el.closest &&
         [...pieceNames].some(name => el.closest(`#${name}`));
 
@@ -796,7 +848,7 @@ window.solveOnceAllDates = function() { return Solver.solveOnceAllDates(shapes) 
 // Draw circles around target date cells
 function drawDateCircles(targetCells) {
   removeDateCircles(); // Clean up any existing
-  const circleGroup = svg.group().attr('id', 'date-circles');
+  const circleGroup = zoomContainer.group().attr('id', 'date-circles');
   for (const [r, c] of targetCells) {
     const cx = x0 + c * boxel + boxel / 2;
     const cy = y0 + r * boxel + boxel / 2;
@@ -839,8 +891,8 @@ function drawPendingPieces(progress, failedPieceName = null, orderedRemaining = 
   
   // Convert names to piece objects for drawing
   const pendingPieces = pendingNames.map(name => ({ name }));
-  
-  const pendingGroup = svg.group().attr('id', 'pending-pieces');
+
+  const pendingGroup = zoomContainer.group().attr('id', 'pending-pieces');
   
   // Calculate layout - pieces in a row ABOVE the grid
   const previewScale = boxel * DOCKET_SCALE;
@@ -994,7 +1046,7 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
   }
   
   // Draw pruned regions and legend (legend hidden only when solution found)
-  const deadGroup = svg.group().attr('id', 'dead-cells');
+  const deadGroup = zoomContainer.group().attr('id', 'dead-cells');
   
   // Draw striped overlays on pruned cells and forced regions
   drawPrunedRegions(deadGroup, sizePruning.cells,
@@ -1141,7 +1193,7 @@ function drawCalendar() {
                    [ "22",  "23",  "24",  "25",  "26",  "27", "28"],
                    [ "29",  "30",  "31",    "",    "",    "",   ""] ];
 
-  const gridGroup = svg.group().attr('id', 'grid');
+  const gridGroup = zoomContainer.group().attr('id', 'grid');
   gridGroup.addClass('grid-lines');
 
   const trX = x => x + x0;
@@ -1192,9 +1244,44 @@ function scatterShapes() {
 
 window.addEventListener("load", function () {
   svg = SVG().addTo(document.querySelector(".graph")).size("100%", "100%");
+  svg.node.style.touchAction = 'none';  // Prevent browser from hijacking touch for scroll/zoom
+
+  // Create zoom container that holds all content
+  zoomContainer = svg.group().attr('id', 'zoom-container');
+
   drawCalendar();
   scatterShapes();
 
   // Initialize solver with piece data
   Solver.initPieceData(shapes);
+
+  // Set up pinch-to-zoom on SVG background (2-finger gestures only)
+  const svgHammer = new Hammer.Manager(svg.node, {
+    recognizers: [
+      [Hammer.Pinch, { enable: true }],
+      [Hammer.Pan, { enable: true, pointers: 2 }]  // 2-finger pan only
+    ]
+  });
+
+  let startZoom, startPanX, startPanY;
+
+  svgHammer.on('pinchstart', () => {
+    startZoom = currentZoom;
+  });
+
+  svgHammer.on('pinchmove', (e) => {
+    currentZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, startZoom * e.scale));
+    applyZoomTransform();
+  });
+
+  svgHammer.on('panstart', () => {
+    startPanX = zoomPanX;
+    startPanY = zoomPanY;
+  });
+
+  svgHammer.on('panmove', (e) => {
+    zoomPanX = startPanX + e.deltaX;
+    zoomPanY = startPanY + e.deltaY;
+    applyZoomTransform();
+  });
 });
