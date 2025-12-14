@@ -1192,8 +1192,6 @@ function scatterShapes() {
 
 window.addEventListener("load", function () {
   svg = SVG().addTo(document.querySelector(".graph")).size("100%", "100%");
-  // Ensure SVG element doesn't intercept touch for scrolling
-  svg.node.style.touchAction = 'none';
   drawCalendar();
   scatterShapes();
 
