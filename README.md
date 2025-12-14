@@ -29,6 +29,8 @@ Regions of unfillable shape:
 If a region has fewer cells than the sum of the smallest two pieces in the queue, that region must have the same shape as one of the pieces in the queue.
 We test if a piece and a region have the same shape by picking a canonical orientation and position and seeing if all their cells coincide.
 
+(Current code actually only checks the shape if the size exactly equals one of the sizes in the queue of pieces. i guess the problem with the current code is that we could (in theory) have a piece that's as big as 2 other pieces combined. say we have a size-2 piece, a size-4 piece, and a size-6 piece in the queue. and supposed there's a size-6 region. it may be that no single piece fits in that region but the size-2 and size-4 piece together do fit.)
+
 Tunnels:
 
 1.  If there is more than one distinct piece size in the queue of pieces to place, do nothing. (For this puzzle there will often be only pieces of size 5 in the queue.)

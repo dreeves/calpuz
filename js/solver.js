@@ -291,6 +291,28 @@ window.Solver = (function() {
   // more educational and interesting when watching the solver to see all the
   // unfillable regions highlighted simultaneously. The performance cost is trivial
   // since we're already doing flood-fill on all components anyway.
+  //
+  // PRUNING TYPES (mutually exclusive per region, checked in priority order):
+  // 1. SIZE PRUNING: Region size can't be filled by any subset of remaining pieces
+  //    (e.g., region of 7 cells when all pieces are 5 or 6 cells)
+  // 2. SHAPE PRUNING: Region size matches a piece size, but shape doesn't match
+  //    any available piece (e.g., 5-cell region that's not a valid pentomino)
+  // 3. TUNNEL PRUNING: A "tunnel" (dead-end corridor) within a larger region
+  //    doesn't match any available piece shape
+  // 4. FORCED PLACEMENT: Region/tunnel matches exactly one piece - must place it
+  //
+  // CURRENT BEHAVIOR: These are exclusive - once a region fails size pruning,
+  // we skip shape/tunnel checks (the `continue` on line ~445).
+  //
+  // TO SHOW ALL APPLICABLE SHADINGS: Remove the `continue` after size pruning.
+  // The region would then also get checked for shape (if size matches a piece)
+  // and tunnel issues. But note: if size pruning fails, shape/tunnel checks are
+  // somewhat redundant since the region is already proven unfillable.
+  //
+  // TO ACCUMULATE MULTIPLE SHADING TYPES ON SAME REGION: You'd need to either:
+  // (a) Remove the `continue` statements so all checks run, OR
+  // (b) Track multiple failure reasons per region (change data structure)
+  //
   function analyzeRegions(grid, remainingPieces = []) {
     const visited = Array(7).fill(null).map(() => Array(7).fill(false));
     const deadCells = [];
@@ -442,17 +464,26 @@ window.Solver = (function() {
             deadCells.push(...component);
             sizePruning.cells.push(component);
             sizePruning.sizes.push(size);
-            continue;
+            // EARLY EXIT: Skip shape/tunnel checks since region is already dead.
+            // Remove this `continue` to also run shape/tunnel checks on this region
+            // (they'd add redundant shading but might be useful for visualization).
+            //continue;
           }
           
           // (2) Shape check: region size matches a piece size in queue
+          // NOTE: This only runs if size pruning passed. A region either:
+          //   - Fails shape check → gets shapePruning shading (dead), OR
+          //   - Passes shape check → becomes forcedRegion shading (must place piece)
+          // These are mutually exclusive outcomes for the same region.
           if (distinctSizes.includes(size)) {
             const matchingPiece = shapeToPiece[shapeKey(component)];
             if (!matchingPiece || !remainingSet.has(matchingPiece)) {
-              // Pruning: region doesn't match any available piece
+              // Pruning: region doesn't match any available piece shape
               deadCells.push(...component);
               shapePruning.cells.push(component);
               shapePruning.sizes.push(size);
+              // No `continue` here - tunnel check below still runs on larger regions
+              // (though this region is already marked dead, tunnels are sub-regions)
             } else {
               // Forced placement: region matches exactly one piece shape
               const placement = findForcedPlacement(component, matchingPiece);
@@ -465,6 +496,12 @@ window.Solver = (function() {
           }
           
           // (3) Tunnel check: only if uniform queue (all remaining pieces same size)
+          // NOTE: Tunnels are WITHIN a larger region (size > uniformQueueSize).
+          // A tunnel is a dead-end corridor of exactly uniformQueueSize cells.
+          // If a tunnel's shape doesn't match any available piece, the whole
+          // region is effectively dead (you can't fill the tunnel).
+          // This check runs INDEPENDENTLY of shape check above - a region could
+          // pass shape check but still have an unfillable tunnel inside it.
           if (uniformQueueSize && size > uniformQueueSize) {
             const tunnels = findTunnels(component, uniformQueueSize);
             for (const tunnel of tunnels) {
