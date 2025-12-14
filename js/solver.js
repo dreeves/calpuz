@@ -331,7 +331,7 @@ window.Solver = (function() {
     
     // Check for uniform queue size (all remaining pieces same size)
     let uniformQueueSize = null;
-    if (distinctSizes.length === 1 && distinctSizes[0] > 0) {
+    if (distinctSizes.length === 1) {
       uniformQueueSize = distinctSizes[0];
     }
     
@@ -487,11 +487,10 @@ window.Solver = (function() {
             } else {
               // Forced placement: region matches exactly one piece shape
               const placement = findForcedPlacement(component, matchingPiece);
-              if (placement) {
-                forcedPlacements.push(placement);
-                forcedRegions.cells.push(component);
-                forcedRegions.sizes.push(size);
-              }
+              if (!placement) throw new Error(`findForcedPlacement failed for ${matchingPiece}`);
+              forcedPlacements.push(placement);
+              forcedRegions.cells.push(component);
+              forcedRegions.sizes.push(size);
             }
           }
           
@@ -515,11 +514,10 @@ window.Solver = (function() {
               } else {
                 // Forced placement: tunnel matches exactly one piece shape
                 const placement = findForcedPlacement(tunnel, matchingPiece);
-                if (placement) {
-                  forcedPlacements.push(placement);
-                  forcedRegions.cells.push(tunnel);
-                  forcedRegions.sizes.push(tunnel.length);
-                }
+                if (!placement) throw new Error(`findForcedPlacement failed for ${matchingPiece}`);
+                forcedPlacements.push(placement);
+                forcedRegions.cells.push(tunnel);
+                forcedRegions.sizes.push(tunnel.length);
               }
             }
           }

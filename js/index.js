@@ -118,8 +118,7 @@ let elementsContainer = null;
 
 // Helper to find SVG element by ID (SVG.js v3 compatible)
 function svgGet(id) {
-  const el = SVG.find('#' + id)[0];
-  return el || null;
+  return SVG.find('#' + id)[0];
 }
 
 // ============ PIECE MANIPULATION HELPERS ============
@@ -289,6 +288,7 @@ function setupDraggable(group, onDragEnd, rotateState) {
 
   // Use Hammer.js only for pan (dragging)
   const hammer = new Hammer(node);
+  node.__hammer = hammer;  // Store for cleanup when element is removed
   hammer.get('pan').set({ threshold: 5, direction: Hammer.DIRECTION_ALL });
   hammer.get('tap').set({ enable: false });    // We handle tap ourselves
   hammer.get('press').set({ enable: false });  // We handle press ourselves
@@ -326,10 +326,8 @@ function setupDraggable(group, onDragEnd, rotateState) {
   let lastPointerType = null;  // 'mouse', 'touch', or 'pen'
 
   function cancelPressTimer() {
-    if (pressTimer) {
-      clearTimeout(pressTimer);
-      pressTimer = null;
-    }
+    clearTimeout(pressTimer);
+    pressTimer = null;
   }
 
   function doFlip(x, y) {
@@ -397,6 +395,13 @@ function setupDraggable(group, onDragEnd, rotateState) {
   });
 }
 
+// Clean up and remove a group (destroys Hammer instance to prevent memory leak)
+function removeGroup(group) {
+  if (!group) return;
+  if (group.node.__hammer) group.node.__hammer.destroy();
+  group.remove();
+}
+
 // Get or create the elements container (reuse to prevent DOM leak)
 function getElementsContainer() {
   // Always check if cached container still exists in DOM
@@ -440,7 +445,7 @@ function visualizePlacement(placement) {
 
   const [nom, hue] = shapeMap.get(placement.name);
   const targetGroup = svgGet(placement.name);
-  if (targetGroup) targetGroup.remove();
+  removeGroup(targetGroup);  // Clean up Hammer instance before removing
 
   const container = getElementsContainer();
   const newGroup = container.group().attr('id', nom);
@@ -792,10 +797,10 @@ function drawPendingPieces(progress, failedPieceName = null, orderedRemaining = 
 // Visualize all placements (callback for solver)
 // sizePruning, shapePruning, tunnelPruning, forcedRegions are { cells: [[r,c],...], sizes: [n,...] }
 function visualizeAllPlacements(placements, attempts, progress, deadCells = [], sizePruning = {cells:[], sizes:[]}, shapePruning = {cells:[], sizes:[]}, tunnelPruning = {cells:[], sizes:[]}, forcedRegions = {cells:[], sizes:[]}, nextPiece = null, pieceFailed = false, orderedRemaining = [], allRegionSizes = []) {
-  // Clear all pieces
+  // Clear all pieces (use removeGroup to clean up Hammer instances)
   for (const [name, , ] of shapes) {
     const group = svgGet(name);
-    if (group) group.remove();
+    removeGroup(group);
   }
   
   // Clear any existing dead cell markers, text, and patterns
@@ -984,7 +989,7 @@ window.solvePuzzle = function() {
 function movePoly(polyId, x, y, angle, flip) {
   const [nom, hue, fig] = shapeMap.get(polyId);
   const targetGroup = svgGet(polyId);
-  if (targetGroup) targetGroup.remove();
+  removeGroup(targetGroup);  // Clean up Hammer instance before removing
 
   const container = getElementsContainer();
   const newGroup = container.group().attr('id', nom);
@@ -998,7 +1003,7 @@ function movePoly(polyId, x, y, angle, flip) {
   if (flip) m = m.scale(-1, 1);
   setLocalTransformMatrix(newGroup.node, m);
 
-  let ang = angle ? (angle * 180 / Math.PI) % 360 : 0;
+  let ang = (angle * 180 / Math.PI) % 360;
 
   setupDraggable(newGroup, snapToGrid, {
     getAngle: () => ang,
