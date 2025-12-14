@@ -79,8 +79,19 @@ test('long-press flips piece (no rotation)', async ({ page, baseURL }) => {
     clientY,
   });
 
-  // Wait for flip animation to complete (ROTATION_DURATION_MS = 150)
-  await page.waitForTimeout(200);
+  // Wait for flip to complete (determinant sign toggles).
+  await page.waitForFunction(
+    ({ beforeFlipped }) => {
+      const tf = document.getElementById('corner').getAttribute('transform') || '';
+      const match = tf.match(/matrix\(([^)]+)\)/);
+      if (!match) return false;
+      const [a, b, c, d] = match[1].split(/[\s,]+/).map(Number);
+      const flipped = (a * d - b * c) < 0;
+      return flipped !== beforeFlipped;
+    },
+    { beforeFlipped },
+    { timeout: 2000 }
+  );
 
   // Get final state
   const afterTransform = await page.evaluate(() => {
@@ -117,7 +128,27 @@ test('long-press does not trigger tap rotation', async ({ page, baseURL }) => {
   await page.dispatchEvent('#corner', 'pointerup', {
     pointerId: 1, pointerType: 'touch', isPrimary: true, button: 0, buttons: 0, clientX, clientY,
   });
-  await page.waitForTimeout(200);
+
+  const beforeFlipped = await page.evaluate(() => {
+    const tf = document.getElementById('corner').getAttribute('transform') || '';
+    const match = tf.match(/matrix\(([^)]+)\)/);
+    if (!match) return false;
+    const [a, b, c, d] = match[1].split(/[\s,]+/).map(Number);
+    return (a * d - b * c) < 0;
+  });
+
+  await page.waitForFunction(
+    ({ beforeFlipped }) => {
+      const tf = document.getElementById('corner').getAttribute('transform') || '';
+      const match = tf.match(/matrix\(([^)]+)\)/);
+      if (!match) return false;
+      const [a, b, c, d] = match[1].split(/[\s,]+/).map(Number);
+      const flipped = (a * d - b * c) < 0;
+      return flipped !== beforeFlipped;
+    },
+    { beforeFlipped },
+    { timeout: 2000 }
+  );
 
   const afterAngle = getRotationFromMatrix(
     await page.evaluate(() => document.getElementById('corner').getAttribute('transform') || '')

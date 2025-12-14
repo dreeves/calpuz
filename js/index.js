@@ -164,6 +164,35 @@ function easeInOutSine(t) {
   return (1 - Math.cos(Math.PI * t)) / 2;
 }
 
+// ============ PER-PIECE ACTION QUEUE ============
+
+function ensurePieceQueue(node) {
+  if (!node.__calpuzPieceQueue) {
+    node.__calpuzPieceQueue = { running: false, queue: [] };
+  }
+  return node.__calpuzPieceQueue;
+}
+
+async function processPieceQueue(node) {
+  const state = ensurePieceQueue(node);
+  if (state.running) return;
+  state.running = true;
+  try {
+    while (state.queue.length) {
+      const action = state.queue.shift();
+      await action();
+    }
+  } finally {
+    state.running = false;
+  }
+}
+
+function enqueuePieceAction(node, action) {
+  const state = ensurePieceQueue(node);
+  state.queue.push(action);
+  void processPieceQueue(node);
+}
+
 // Flip piece around a vertical line through the click point with smooth animation.
 // Uses the same DOMMatrix approach as rotation for consistency.
 function flipPiece(node, screenX, screenY) {
@@ -189,6 +218,31 @@ function flipPiece(node, screenX, screenY) {
   });
 }
 
+function flipPieceAsync(node, screenX, screenY) {
+  return new Promise((resolve) => {
+    const svgEl = node.ownerSVGElement;
+    const invScreenCtm = svgEl.getScreenCTM().inverse();
+    const pivot = screenToSvg(screenX, screenY, invScreenCtm);
+    const startMatrix = getLocalTransformMatrix(node);
+    const startTime = performance.now();
+
+    requestAnimationFrame(function tick(now) {
+      const t = Math.min((now - startTime) / ROTATION_DURATION_MS, 1);
+      const eased = easeInOutSine(t);
+      const scale = 1 - 2 * eased;  // 1 → 0 → -1
+
+      const flipAboutPivot = new DOMMatrix()
+        .translate(pivot.x, 0)
+        .scale(scale, 1)
+        .translate(-pivot.x, 0);
+
+      setLocalTransformMatrix(node, flipAboutPivot.multiply(startMatrix));
+      if (t < 1) requestAnimationFrame(tick);
+      else resolve();
+    });
+  });
+}
+
 // Rotate piece 90° around the click point with smooth animation.
 function rotatePiece(node, getAngle, setAngle, screenX, screenY, clockwise) {
   const deltaAngle = clockwise ? 90 : -90;
@@ -210,6 +264,35 @@ function rotatePiece(node, getAngle, setAngle, screenX, screenY, clockwise) {
     setLocalTransformMatrix(node, rotAboutPivot.multiply(startMatrix));
     if (t < 1) requestAnimationFrame(tick);
     else setAngle(getAngle() + deltaAngle);
+  });
+}
+
+function rotatePieceAsync(node, getAngle, setAngle, screenX, screenY, clockwise) {
+  return new Promise((resolve) => {
+    const deltaAngle = clockwise ? 90 : -90;
+    const svgEl = node.ownerSVGElement;
+    const invScreenCtm = svgEl.getScreenCTM().inverse();
+    const pivot = screenToSvg(screenX, screenY, invScreenCtm);
+    const startMatrix = getLocalTransformMatrix(node);
+    const startAngle = getAngle();
+    const startTime = performance.now();
+
+    requestAnimationFrame(function tick(now) {
+      const t = Math.min((now - startTime) / ROTATION_DURATION_MS, 1);
+      const currentDelta = deltaAngle * easeOutCubic(t);
+
+      const rotAboutPivot = new DOMMatrix()
+        .translate(pivot.x, pivot.y)
+        .rotate(currentDelta)
+        .translate(-pivot.x, -pivot.y);
+
+      setLocalTransformMatrix(node, rotAboutPivot.multiply(startMatrix));
+      if (t < 1) requestAnimationFrame(tick);
+      else {
+        setAngle(startAngle + deltaAngle);
+        resolve();
+      }
+    });
   });
 }
 
@@ -299,7 +382,7 @@ function setupDraggable(group, onDragEnd, rotateState) {
     didLongPress = true;
     cancelPressTimer();
     if (!rotateState) return;
-    flipPiece(node, x, y);
+    enqueuePieceAction(node, () => flipPieceAsync(node, x, y));
     if (navigator.vibrate) navigator.vibrate(50);
   }
 
@@ -328,9 +411,9 @@ function setupDraggable(group, onDragEnd, rotateState) {
     // It's a tap
     if (!rotateState) return;
     if (e.ctrlKey || e.metaKey) {
-      flipPiece(node, e.clientX, e.clientY);
+      enqueuePieceAction(node, () => flipPieceAsync(node, e.clientX, e.clientY));
     } else {
-      rotatePiece(node, rotateState.getAngle, rotateState.setAngle, e.clientX, e.clientY, true);
+      enqueuePieceAction(node, () => rotatePieceAsync(node, rotateState.getAngle, rotateState.setAngle, e.clientX, e.clientY, true));
     }
     bringToFront(node);
   });
@@ -350,11 +433,11 @@ function setupDraggable(group, onDragEnd, rotateState) {
     didLongPress = true;  // Prevent pointerup from also acting
     if (!rotateState) return;
     if (e.ctrlKey) {
-      flipPiece(node, e.clientX, e.clientY);
+      enqueuePieceAction(node, () => flipPieceAsync(node, e.clientX, e.clientY));
       bringToFront(node);
       return;
     }
-    rotatePiece(node, rotateState.getAngle, rotateState.setAngle, e.clientX, e.clientY, false);
+    enqueuePieceAction(node, () => rotatePieceAsync(node, rotateState.getAngle, rotateState.setAngle, e.clientX, e.clientY, false));
     bringToFront(node);
   });
 }
