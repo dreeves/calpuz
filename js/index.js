@@ -194,31 +194,8 @@ function enqueuePieceAction(node, action) {
 }
 
 // Flip piece around a vertical line through the click point with smooth animation.
-// Uses the same DOMMatrix approach as rotation for consistency.
+// Returns a promise that resolves when animation completes.
 function flipPiece(node, screenX, screenY) {
-  const svgEl = node.ownerSVGElement;
-  const invScreenCtm = svgEl.getScreenCTM().inverse();
-  const pivot = screenToSvg(screenX, screenY, invScreenCtm);
-  const startMatrix = getLocalTransformMatrix(node);
-  const startTime = performance.now();
-
-  requestAnimationFrame(function tick(now) {
-    const t = Math.min((now - startTime) / ROTATION_DURATION_MS, 1);
-    // Use sine easing for symmetric "squish and expand" effect
-    const eased = easeInOutSine(t);
-    const scale = 1 - 2 * eased;  // Goes smoothly from 1 → 0 → -1
-
-    const flipAboutPivot = new DOMMatrix()
-      .translate(pivot.x, 0)
-      .scale(scale, 1)
-      .translate(-pivot.x, 0);
-
-    setLocalTransformMatrix(node, flipAboutPivot.multiply(startMatrix));
-    if (t < 1) requestAnimationFrame(tick);
-  });
-}
-
-function flipPieceAsync(node, screenX, screenY) {
   return new Promise((resolve) => {
     const svgEl = node.ownerSVGElement;
     const invScreenCtm = svgEl.getScreenCTM().inverse();
@@ -244,30 +221,8 @@ function flipPieceAsync(node, screenX, screenY) {
 }
 
 // Rotate piece 90° around the click point with smooth animation.
+// Returns a promise that resolves when animation completes.
 function rotatePiece(node, getAngle, setAngle, screenX, screenY, clockwise) {
-  const deltaAngle = clockwise ? 90 : -90;
-  const svgEl = node.ownerSVGElement;
-  const invScreenCtm = svgEl.getScreenCTM().inverse();
-  const pivot = screenToSvg(screenX, screenY, invScreenCtm);
-  const startMatrix = getLocalTransformMatrix(node);
-  const startTime = performance.now();
-
-  requestAnimationFrame(function tick(now) {
-    const t = Math.min((now - startTime) / ROTATION_DURATION_MS, 1);
-    const currentDelta = deltaAngle * easeOutCubic(t);
-
-    const rotAboutPivot = new DOMMatrix()
-      .translate(pivot.x, pivot.y)
-      .rotate(currentDelta)
-      .translate(-pivot.x, -pivot.y);
-
-    setLocalTransformMatrix(node, rotAboutPivot.multiply(startMatrix));
-    if (t < 1) requestAnimationFrame(tick);
-    else setAngle(getAngle() + deltaAngle);
-  });
-}
-
-function rotatePieceAsync(node, getAngle, setAngle, screenX, screenY, clockwise) {
   return new Promise((resolve) => {
     const deltaAngle = clockwise ? 90 : -90;
     const svgEl = node.ownerSVGElement;
@@ -382,7 +337,7 @@ function setupDraggable(group, onDragEnd, rotateState) {
     didLongPress = true;
     cancelPressTimer();
     if (!rotateState) return;
-    enqueuePieceAction(node, () => flipPieceAsync(node, x, y));
+    enqueuePieceAction(node, () => flipPiece(node, x, y));
     if (navigator.vibrate) navigator.vibrate(50);
   }
 
@@ -411,9 +366,9 @@ function setupDraggable(group, onDragEnd, rotateState) {
     // It's a tap
     if (!rotateState) return;
     if (e.ctrlKey || e.metaKey) {
-      enqueuePieceAction(node, () => flipPieceAsync(node, e.clientX, e.clientY));
+      enqueuePieceAction(node, () => flipPiece(node, e.clientX, e.clientY));
     } else {
-      enqueuePieceAction(node, () => rotatePieceAsync(node, rotateState.getAngle, rotateState.setAngle, e.clientX, e.clientY, true));
+      enqueuePieceAction(node, () => rotatePiece(node, rotateState.getAngle, rotateState.setAngle, e.clientX, e.clientY, true));
     }
     bringToFront(node);
   });
@@ -433,11 +388,11 @@ function setupDraggable(group, onDragEnd, rotateState) {
     didLongPress = true;  // Prevent pointerup from also acting
     if (!rotateState) return;
     if (e.ctrlKey) {
-      enqueuePieceAction(node, () => flipPieceAsync(node, e.clientX, e.clientY));
+      enqueuePieceAction(node, () => flipPiece(node, e.clientX, e.clientY));
       bringToFront(node);
       return;
     }
-    enqueuePieceAction(node, () => rotatePieceAsync(node, rotateState.getAngle, rotateState.setAngle, e.clientX, e.clientY, false));
+    enqueuePieceAction(node, () => rotatePiece(node, rotateState.getAngle, rotateState.setAngle, e.clientX, e.clientY, false));
     bringToFront(node);
   });
 }

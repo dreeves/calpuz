@@ -116,7 +116,11 @@ test('long-press does not trigger tap rotation', async ({ page, baseURL }) => {
 
   const { x: clientX, y: clientY } = await findClickablePoint(page, 'corner');
 
+  // Capture state BEFORE the long press
   const beforeAngle = getRotationFromMatrix(
+    await page.evaluate(() => document.getElementById('corner').getAttribute('transform') || '')
+  );
+  const beforeFlipped = isFlipped(
     await page.evaluate(() => document.getElementById('corner').getAttribute('transform') || '')
   );
 
@@ -129,14 +133,7 @@ test('long-press does not trigger tap rotation', async ({ page, baseURL }) => {
     pointerId: 1, pointerType: 'touch', isPrimary: true, button: 0, buttons: 0, clientX, clientY,
   });
 
-  const beforeFlipped = await page.evaluate(() => {
-    const tf = document.getElementById('corner').getAttribute('transform') || '';
-    const match = tf.match(/matrix\(([^)]+)\)/);
-    if (!match) return false;
-    const [a, b, c, d] = match[1].split(/[\s,]+/).map(Number);
-    return (a * d - b * c) < 0;
-  });
-
+  // Wait for flip to complete (determinant sign toggles)
   await page.waitForFunction(
     ({ beforeFlipped }) => {
       const tf = document.getElementById('corner').getAttribute('transform') || '';
