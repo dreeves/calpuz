@@ -420,23 +420,142 @@ function snapToGrid(group) {
   // Get current position from data attributes
   const currentX = parseFloat(node.dataset.x) || 0;
   const currentY = parseFloat(node.dataset.y) || 0;
-  
+
   // Get visual position via bounding rect
   const rect = node.getBoundingClientRect();
   const svgRect = svg.node.getBoundingClientRect();
   const visualX = rect.left - svgRect.left;
   const visualY = rect.top - svgRect.top;
-  
+
   // Compute nearest grid cell
   const col = Math.round((visualX - x0) / boxel);
   const row = Math.round((visualY - y0) / boxel);
-  
+
   // Calculate how far visual position is from stored position
   const deltaX = visualX - currentX;
   const deltaY = visualY - currentY;
-  
+
   // Snap: move to grid cell, accounting for the visual offset
   setGroupPosition(node, x0 + col * boxel - deltaX, y0 + row * boxel - deltaY);
+
+  // Check if puzzle is solved after snap
+  setTimeout(checkPuzzleSolved, 50);  // Small delay for DOM to settle
+}
+
+// Valid grid cells (1 = valid, 0 = out of bounds)
+const VALID_CELLS = [
+  [1,1,1,1,1,1,0],  // JAN-JUN
+  [1,1,1,1,1,1,0],  // JUL-DEC
+  [1,1,1,1,1,1,1],  // 1-7
+  [1,1,1,1,1,1,1],  // 8-14
+  [1,1,1,1,1,1,1],  // 15-21
+  [1,1,1,1,1,1,1],  // 22-28
+  [1,1,1,0,0,0,0],  // 29-31
+];
+
+// Check if puzzle is solved and fire confetti if so
+let confettiModule = null;
+let lastCelebratedState = null;  // Track last celebrated state to avoid repeat confetti
+async function checkPuzzleSolved() {
+  const svgRect = svg.node.getBoundingClientRect();
+  const pieceNames = new Set(shapes.map(s => s[0]));
+  const uncoveredCells = [];
+
+  // Check each valid grid cell
+  for (let row = 0; row < 7; row++) {
+    for (let col = 0; col < 7; col++) {
+      if (!VALID_CELLS[row][col]) continue;
+
+      // Get center of this cell in screen coordinates
+      const cx = svgRect.left + x0 + col * boxel + boxel / 2;
+      const cy = svgRect.top + y0 + row * boxel + boxel / 2;
+
+      // Check what's at this point
+      const el = document.elementFromPoint(cx, cy);
+      const isPieceCovered = el && el.closest &&
+        [...pieceNames].some(name => el.closest(`#${name}`));
+
+      if (!isPieceCovered) {
+        uncoveredCells.push([row, col]);
+      }
+    }
+  }
+
+  // Puzzle is solved when exactly 2 cells are uncovered (the date cells)
+  if (uncoveredCells.length !== 2) {
+    lastCelebratedState = null;  // Reset when puzzle unsolved
+    return;
+  }
+
+  // Check if we already celebrated this exact solution
+  const stateKey = uncoveredCells.map(([r, c]) => `${r},${c}`).sort().join('|');
+  if (stateKey === lastCelebratedState) return;
+  lastCelebratedState = stateKey;
+
+  // Get today's date cells
+  const today = new Date();
+  const todayCells = Solver.getDateCells(today.getMonth(), today.getDate());
+
+  // Check if uncovered cells match today
+  const isToday = uncoveredCells.length === 2 &&
+    uncoveredCells.every(([r, c]) =>
+      todayCells.some(([tr, tc]) => tr === r && tc === c));
+
+  // Load confetti module if needed
+  if (!confettiModule) {
+    const module = await import('https://cdn.skypack.dev/canvas-confetti');
+    confettiModule = module.default;
+  }
+
+  if (isToday) {
+    // Celebration! Fire piece-shaped confetti if possible, else regular
+    const pieceColors = shapes.map(s => s[1]);
+    if (confettiModule.shapeFromPath) {
+      // Create piece shapes from polygons (scaled down for confetti)
+      const pieceShapes = shapes.map(([, , verts]) => {
+        const path = 'M' + verts.map(([x, y]) => `${x * 4},${y * 4}`).join('L') + 'Z';
+        return confettiModule.shapeFromPath({ path });
+      });
+      confettiModule({
+        particleCount: 80,
+        spread: 80,
+        origin: { x: 0.5, y: 0.4 },
+        shapes: pieceShapes,
+        colors: pieceColors,
+        scalar: 2.5,
+        ticks: 200
+      });
+    } else {
+      confettiModule({
+        particleCount: 150,
+        spread: 70,
+        origin: { x: 0.5, y: 0.5 },
+        colors: pieceColors
+      });
+    }
+  } else {
+    // Wrong date - poop emoji confetti
+    if (confettiModule.shapeFromText) {
+      const poop = confettiModule.shapeFromText({ text: '💩', scalar: 6 });
+      confettiModule({
+        particleCount: 25,
+        spread: 50,
+        origin: { x: 0.5, y: 0.5 },
+        shapes: [poop],
+        scalar: 4,
+        ticks: 180,
+        gravity: 0.8
+      });
+    } else {
+      // Fallback: brown circles
+      confettiModule({
+        particleCount: 30,
+        spread: 60,
+        origin: { x: 0.5, y: 0.5 },
+        colors: ['#8B4513', '#654321', '#3d2314']
+      });
+    }
+  }
 }
 
 // Visualize a placement from the solver using actual cell positions
