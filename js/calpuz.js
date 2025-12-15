@@ -132,6 +132,19 @@ window.colorChangeButton = function () {
   });
 };
 
+window.toggleSidebar = function () {
+  const sidebar = document.querySelector('.sidebar');
+  if (!sidebar) throw new Error('Sidebar element not found');
+
+  const collapsed = sidebar.classList.toggle('collapsed');
+  const icon = document.getElementById('sidebar-toggle-icon');
+  if (!icon) throw new Error('Sidebar toggle icon not found');
+
+  icon.classList.toggle('octicon-chevron-up', !collapsed);
+  icon.classList.toggle('octicon-chevron-down', collapsed);
+  sidebar.querySelector('.sidebar-toggle')?.setAttribute('title', collapsed ? 'Expand sidebar' : 'Collapse sidebar');
+};
+
 // Apply current zoom transform to the container
 function applyZoomTransform() {
   const cx = w / 2;  // Zoom center X (screen center)

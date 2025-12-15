@@ -50,12 +50,44 @@ ul {
     padding: 0;
 }
 .sidebar {
+  --sidebar-width: 68.5px;
+  --sidebar-toggle-height: 56px;
   background: #425066;
+  width: var(--sidebar-width);
   position: fixed;
   top: 0;
   bottom:0;
   right: 0;
   z-index: 999;
+  overflow: hidden;
+  max-height: 100vh;
+  transition: max-height 0.2s ease;
+}
+
+.sidebar.collapsed {
+  bottom: auto;
+  max-height: var(--sidebar-toggle-height);
+}
+
+.sidebar-item {
+  transition: opacity 0.2s ease;
+}
+
+.sidebar.collapsed .sidebar-item:not(.sidebar-toggle) {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.sidebar-toggle {
+  height: var(--sidebar-toggle-height);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sidebar-toggle span.octicon {
+  font-size: 28px;
+  padding: 0;
 }
 
 .sidebar span.octicon {
