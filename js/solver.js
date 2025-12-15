@@ -314,6 +314,7 @@ window.Solver = (function() {
     const forcedRegions = { cells: [], sizes: [] };    // (4) regions that force a piece placement
     const allRegionSizes = [];                         // All region sizes (for legend)
     const forcedPlacements = [];                       // Pieces that must be placed in specific regions
+    const tunnelDebug = { nadirs: [], paths: [] };     // Debug info for tunnel visualization
     const remainingSet = new Set(remainingPieces);
     
     // Compute piece sizes for generalized pruning
@@ -350,119 +351,184 @@ window.Solver = (function() {
       return count;
     }
     
-    // Find tunnels using the README's cavity-growth algorithm:
-    // 1. Find all nadirs (cells with ≤1 vacant neighbor) - mark as cavities
-    // 2. Iteratively: if a cavity has exactly 1 vacant (non-cavity) neighbor,
-    //    mark that neighbor as a cavity too
-    // 3. Stop when any connected set of cavities (tunnel) reaches size uq
-    // 4. Two separate tunnels can merge during this process (step 8 in README)
+    // Find tunnels using the README's cavity-growth algorithm.
+    // A tunnel is a dead-end corridor of exactly uq cells.
+    // Key insight: grow each tunnel INDEPENDENTLY from each nadir, so tunnels
+    // can't merge and overshoot. A tunnel grows until it hits uq or a junction.
+    // Returns { tunnels: [...], debug: { nadirs: [...], paths: [...] } }
+    //
+    // NOTE: This implementation is preserved for reference/debugging, but the
+    // solver now uses the README's "Alternate Tunnel Detection Algorithm".
     function findTunnels(component, uq) {
-      console.log(`findTunnels called: component.length=${component.length}, uq=${uq}`);
-      if (component.length < uq) {
-        console.log(`  → early exit: component too small`);
-        return [];
-      }
+      const debug = { nadirs: [], paths: [] };
 
       const componentSet = new Set(component.map(([r,c]) => `${r},${c}`));
-      const cavitySet = new Set();
 
-      // Find all initial cavities (nadirs): cells with ≤1 vacant neighbor
+      // Get neighbors of a cell that are in the component
+      function getNeighbors(key) {
+        const [r, c] = key.split(',').map(Number);
+        const neighbors = [];
+        for (const [dr, dc] of [[0,1],[0,-1],[1,0],[-1,0]]) {
+          const nkey = `${r+dr},${c+dc}`;
+          if (componentSet.has(nkey)) neighbors.push(nkey);
+        }
+        return neighbors;
+      }
+
+      // Find nadirs - cells with ≤1 neighbor in component (dead ends)
+      const nadirs = [];
       for (const [r, c] of component) {
         const key = `${r},${c}`;
-        // Count neighbors in component (initially none are cavities)
-        let neighborCount = 0;
-        for (const [dr, dc] of [[0,1],[0,-1],[1,0],[-1,0]]) {
-          if (componentSet.has(`${r+dr},${c+dc}`)) neighborCount++;
+        if (getNeighbors(key).length <= 1) nadirs.push(key);
+      }
+
+      // Record nadirs for debug visualization
+      debug.nadirs = nadirs.map(k => k.split(',').map(Number));
+
+      // Try growing a tunnel from each nadir independently
+      for (const nadirKey of nadirs) {
+        const tunnel = new Set([nadirKey]);
+        const path = [nadirKey]; // Track growth order for visualization
+
+        // Grow until we reach uq cells or can't grow anymore
+        while (tunnel.size < uq) {
+          // Find a tunnel cell with exactly 1 non-tunnel neighbor (the "front")
+          let cellToAdd = null;
+          for (const key of tunnel) {
+            const nonTunnelNeighbors = getNeighbors(key).filter(n => !tunnel.has(n));
+            if (nonTunnelNeighbors.length === 1) {
+              cellToAdd = nonTunnelNeighbors[0];
+              break;
+            }
+          }
+          if (!cellToAdd) break; // Hit a junction or dead end
+          tunnel.add(cellToAdd);
+          path.push(cellToAdd);
         }
-        if (neighborCount <= 1) {
-          cavitySet.add(key);
+
+        // Record the growth path (from nadir to quiescence)
+        debug.paths.push(path.map(k => k.split(',').map(Number)));
+
+        if (tunnel.size === uq) {
+          const cells = [...tunnel].map(k => k.split(',').map(Number));
+          return { tunnels: [cells], debug };
         }
       }
-      console.log(`  → initial nadirs: [${[...cavitySet].join(', ')}]`);
 
-      // Find connected components within cavity set
-      function findConnectedCavityComponents() {
+      return { tunnels: [], debug };
+    }
+
+    // Find tunnels using the README's "Alternate Tunnel Detection Algorithm".
+    //
+    // For each degree-2 cell c with neighbors nbr1,nbr2:
+    // - Flood-fill the component from nbr1 excluding c to get comp1.
+    //   If |comp1| == uq -> comp1 is a tunnel.
+    //   If |comp1| == uq-1 -> comp1 ∪ {c} is a tunnel.
+    //   If |comp1| == uq-2 -> comp1 ∪ {c,nbr2} is a tunnel.
+    // - Repeat symmetrically from nbr2.
+    //
+    // Debug visualization:
+    // - nadirs: all degree<=1 cells
+    // - paths: for each nadir, follow the corridor (unique continuation) until
+    //          reaching a junction / dead-end.
+    // Returns { tunnels: [...], debug: { nadirs: [...], paths: [...] } }
+    function findTunnelsAlternate(component, uq) {
+      const debug = { nadirs: [], paths: [] };
+      const componentSet = new Set(component.map(([r, c]) => `${r},${c}`));
+
+      function getNeighbors(key) {
+        const [r, c] = key.split(',').map(Number);
+        const neighbors = [];
+        for (const [dr, dc] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
+          const nkey = `${r + dr},${c + dc}`;
+          if (componentSet.has(nkey)) neighbors.push(nkey);
+        }
+        return neighbors;
+      }
+
+      // Nadirs for visualization
+      const nadirKeys = [];
+      for (const [r, c] of component) {
+        const key = `${r},${c}`;
+        if (getNeighbors(key).length <= 1) nadirKeys.push(key);
+      }
+      debug.nadirs = nadirKeys.map(k => k.split(',').map(Number));
+
+      // Corridor paths for visualization
+      for (const nadirKey of nadirKeys) {
+        const path = [nadirKey];
+        let prev = null;
+        let cur = nadirKey;
+        while (true) {
+          const neighbors = getNeighbors(cur);
+          const forward = prev === null ? neighbors : neighbors.filter(n => n !== prev);
+          if (forward.length !== 1) break;
+          const next = forward[0];
+          path.push(next);
+          prev = cur;
+          cur = next;
+        }
+        debug.paths.push(path.map(k => k.split(',').map(Number)));
+      }
+
+      function floodFillExcluding(blockedKey, startKey) {
         const visited = new Set();
-        const components = [];
-
-        for (const key of cavitySet) {
+        const stack = [startKey];
+        while (stack.length) {
+          const key = stack.pop();
+          if (key === blockedKey) continue;
           if (visited.has(key)) continue;
-
-          const comp = [];
-          const stack = [key];
-          while (stack.length > 0) {
-            const k = stack.pop();
-            if (visited.has(k) || !cavitySet.has(k)) continue;
-            visited.add(k);
-            const [r, c] = k.split(',').map(Number);
-            comp.push([r, c]);
-            for (const [dr, dc] of [[0,1],[0,-1],[1,0],[-1,0]]) {
-              stack.push(`${r+dr},${c+dc}`);
-            }
-          }
-          if (comp.length > 0) components.push(comp);
+          if (!componentSet.has(key)) continue;
+          visited.add(key);
+          for (const n of getNeighbors(key)) stack.push(n);
         }
-        return components;
+        return visited;
       }
 
-      // Iteratively grow cavities until we find a tunnel of size uq.
-      // Per step 7's parenthetical: we add cells one at a time and check after
-      // each addition, stopping as soon as any tunnel reaches exactly uq cells.
-      // This prevents overshooting (e.g., jumping from 3 to 6 cells in one batch).
-      let iteration = 0;
-      while (true) {
-        iteration++;
-        // Check if any connected cavity component has reached uq
-        const tunnelComponents = findConnectedCavityComponents();
-        console.log(`  → iteration ${iteration}: cavitySet=[${[...cavitySet].join(', ')}], tunnelComponents sizes: [${tunnelComponents.map(t => t.length).join(', ')}]`);
-        for (const tunnel of tunnelComponents) {
-          if (tunnel.length === uq) {
-            console.log(`  → FOUND tunnel of size ${uq}: [${tunnel.map(([r,c]) => `${r},${c}`).join(', ')}]`);
-            return [tunnel];
-          }
-        }
+      const tunnels = [];
+      const seen = new Set();
 
-        // Find all cells that could be added (cavity with exactly 1 vacant neighbor)
-        const candidates = [];
-        for (const key of cavitySet) {
-          const [r, c] = key.split(',').map(Number);
-          const vacantNeighbors = [];
-          for (const [dr, dc] of [[0,1],[0,-1],[1,0],[-1,0]]) {
-            const nkey = `${r+dr},${c+dc}`;
-            if (componentSet.has(nkey) && !cavitySet.has(nkey)) {
-              vacantNeighbors.push(nkey);
-            }
-          }
-          if (vacantNeighbors.length === 1) {
-            candidates.push(vacantNeighbors[0]);
-          }
-        }
+      for (const [r, c] of component) {
+        const key = `${r},${c}`;
+        const neighbors = getNeighbors(key);
+        if (neighbors.length !== 2) continue;
+        const [nbr1, nbr2] = neighbors;
 
-        // If nothing to add, we're done
-        if (candidates.length === 0) {
-          console.log(`  → no more candidates, exiting loop`);
-          break;
-        }
-        console.log(`  → candidates to add: [${candidates.join(', ')}]`);
+        for (const [start, other] of [[nbr1, nbr2], [nbr2, nbr1]]) {
+          const side = floodFillExcluding(key, start);
+          // If the other neighbor is reachable without passing through `key`,
+          // then `key` is not a separator and the README algorithm doesn't apply.
+          if (side.has(other)) continue;
+          const s = side.size;
 
-        // Add cells one at a time, checking after each for a uq-tunnel
-        for (const key of candidates) {
-          if (cavitySet.has(key)) continue; // Already added by earlier candidate
-          cavitySet.add(key);
-
-          // Check if this addition created a uq-tunnel
-          const tunnelsAfter = findConnectedCavityComponents();
-          for (const tunnel of tunnelsAfter) {
-            if (tunnel.length === uq) {
-              return [tunnel];
-            }
+          let tunnelSet = null;
+          if (s === uq) {
+            tunnelSet = side;
+          } else if (s === uq - 1) {
+            tunnelSet = new Set(side);
+            tunnelSet.add(key);
+          } else if (s === uq - 2) {
+            tunnelSet = new Set(side);
+            tunnelSet.add(key);
+            tunnelSet.add(other);
+          } else {
+            tunnelSet = null;
           }
+
+          if (!tunnelSet) continue;
+
+          if (tunnelSet.size !== uq) {
+            throw new Error(`Alternate tunnel detection produced tunnel of size ${tunnelSet.size} (expected ${uq})`);
+          }
+
+          const id = [...tunnelSet].sort().join(';');
+          if (seen.has(id)) continue;
+          seen.add(id);
+          tunnels.push([...tunnelSet].map(k => k.split(',').map(Number)));
         }
       }
 
-      // No tunnel of size uq found
-      console.log(`  → no tunnel of size ${uq} found, returning []`);
-      return [];
+      return { tunnels, debug };
     }
     
     // Find connected components within cavity set
@@ -537,7 +603,10 @@ window.Solver = (function() {
           // This check runs INDEPENDENTLY of shape check above - a region could
           // pass shape check but still have an unfillable tunnel inside it.
           if (uniformQueueSize /*&& size > uniformQueueSize*/) {
-            const tunnels = findTunnels(component, uniformQueueSize);
+            const { tunnels, debug } = findTunnelsAlternate(component, uniformQueueSize);
+            // Accumulate debug info for visualization
+            tunnelDebug.nadirs.push(...debug.nadirs);
+            tunnelDebug.paths.push(...debug.paths);
             for (const tunnel of tunnels) {
               const tunnelKey = shapeKey(tunnel);
               const matchingPiece = shapeToPiece[tunnelKey];
@@ -559,8 +628,8 @@ window.Solver = (function() {
         }
       }
     }
-    
-    return { deadCells, sizePruning, shapePruning, tunnelPruning, forcedRegions, forcedPlacements, allRegionSizes };
+
+    return { deadCells, sizePruning, shapePruning, tunnelPruning, forcedRegions, forcedPlacements, allRegionSizes, tunnelDebug };
   }
   
   function countValidPlacements(grid, pieceName) {
@@ -573,9 +642,9 @@ window.Solver = (function() {
   }
   
   function getEffectiveCounts(grid, remainingPieces) {
-    const { deadCells, sizePruning, shapePruning, tunnelPruning, forcedRegions, forcedPlacements, allRegionSizes } = analyzeRegions(grid, remainingPieces);
+    const { deadCells, sizePruning, shapePruning, tunnelPruning, forcedRegions, forcedPlacements, allRegionSizes, tunnelDebug } = analyzeRegions(grid, remainingPieces);
     const counts = remainingPieces.map(name => ({ name, count: countValidPlacements(grid, name) }));
-    return { counts, deadCells, sizePruning, shapePruning, tunnelPruning, forcedRegions, forcedPlacements, allRegionSizes };
+    return { counts, deadCells, sizePruning, shapePruning, tunnelPruning, forcedRegions, forcedPlacements, allRegionSizes, tunnelDebug };
   }
   
   // Main solve function
@@ -626,7 +695,8 @@ window.Solver = (function() {
         // Convert to array format for visualization
         placements = placedPieces.map(name => placementsByName[name]);
         const emptyPruning = { cells: [], sizes: [] };
-        visualizeCallback(placements, attempts, allPiecesProgress, [], emptyPruning, emptyPruning, emptyPruning, emptyPruning, null, false, [], []);
+        const emptyTunnelDebug = { nadirs: [], paths: [] };
+        visualizeCallback(placements, attempts, allPiecesProgress, [], emptyPruning, emptyPruning, emptyPruning, emptyPruning, null, false, [], [], emptyTunnelDebug);
         
         // Wait while paused (user can resume to find next solution)
         while (paused && solving) {
@@ -703,7 +773,7 @@ window.Solver = (function() {
         placements = newPlaced.map(name => placementsByName[name]);
         visualizeCallback(placements, attempts, allPiecesProgress, newAnalysis.deadCells,
             newAnalysis.sizePruning, newAnalysis.shapePruning, newAnalysis.tunnelPruning,
-            newAnalysis.forcedRegions, nextPieceName, false, orderedNewRemaining, newAnalysis.allRegionSizes);
+          newAnalysis.forcedRegions, nextPieceName, false, orderedNewRemaining, newAnalysis.allRegionSizes, newAnalysis.tunnelDebug);
         
         // Step mode or delay
         if (stepMode) {
@@ -782,10 +852,10 @@ window.Solver = (function() {
           const rawRemaining = orderedRemaining.slice(1);
           const tryAnalysis = getEffectiveCounts(grid, rawRemaining);
           
-          const { counts: remainingCounts, deadCells, sizePruning, shapePruning, tunnelPruning, forcedRegions, allRegionSizes } = tryAnalysis;
+          const { counts: remainingCounts, deadCells, sizePruning, shapePruning, tunnelPruning, forcedRegions, allRegionSizes, tunnelDebug } = tryAnalysis;
           remainingCounts.sort((a, b) => a.count - b.count);
           const newRemaining = remainingCounts.map(x => x.name);
-          
+
           const allPiecesProgress = [
             ...placedPieces.map(name => {
               const p = placementsByName[name];
@@ -803,13 +873,13 @@ window.Solver = (function() {
                   positionIndex: 0, totalPositions: 0 };
             })
           ];
-          
+
           // Next piece to try (first of remaining after current)
           const nextPieceName = newRemaining.length > 0 ? newRemaining[0] : null;
-          
+
           // Convert to array for visualization
           placements = newPlaced.map(name => placementsByName[name]);
-          visualizeCallback(placements, attempts, allPiecesProgress, deadCells, sizePruning, shapePruning, tunnelPruning, forcedRegions, nextPieceName, false, newRemaining, allRegionSizes);
+          visualizeCallback(placements, attempts, allPiecesProgress, deadCells, sizePruning, shapePruning, tunnelPruning, forcedRegions, nextPieceName, false, newRemaining, allRegionSizes, tunnelDebug);
           
           // Step mode: pause after each placement
           if (stepMode) {
@@ -854,7 +924,8 @@ window.Solver = (function() {
         ];
         placements = currentPlaced.map(name => placementsByName[name]);
         const emptyPruning2 = { cells: [], sizes: [] };
-        visualizeCallback(placements, attempts, allPiecesProgress, [], emptyPruning2, emptyPruning2, emptyPruning2, emptyPruning2, pieceName, true, orderedRemaining, []);
+        const emptyTunnelDebug2 = { nadirs: [], paths: [] };
+        visualizeCallback(placements, attempts, allPiecesProgress, [], emptyPruning2, emptyPruning2, emptyPruning2, emptyPruning2, pieceName, true, orderedRemaining, [], emptyTunnelDebug2);
         
         // Step mode or normal delay
         if (stepMode) {

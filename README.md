@@ -31,9 +31,9 @@ We test if a piece and a region have the same shape by picking a canonical orien
 
 (Current code actually only checks the shape if the size exactly equals one of the sizes in the queue of pieces. i guess the problem with the current code is that we could (in theory) have a piece that's as big as 2 other pieces combined. say we have a size-2 piece, a size-4 piece, and a size-6 piece in the queue. and supposed there's a size-6 region. it may be that no single piece fits in that region but the size-2 and size-4 piece together do fit.)
 
-Tunnels:
+Tunnel Detection Algorithm:
 
-1.  If there is more than one distinct piece size in the queue of pieces to place, do nothing. (For this puzzle there will often be only pieces of size 5 in the queue.)
+1.  If there is more than one distinct piece size in the queue of pieces to place, do nothing. (For this puzzle there will often be only pieces of size 5 in the queue. How to generalize this to more than one distinct piece size in the queue is an interesting problem we're setting aside.)
 2.  Let _uq_ (for "uniform queue") be that size. (Again, typically that's 5 for us.)
 3.  Call a cell on the grid _vacant_ if it's available to be covered by a piece and is not marked as a _cavity_ (see next).
 4.  Call a cell on the grid a _cavity_ if it's vacant and has at most 1 vacant neighbor. (Another name for a cavity could be a dead-end but we're defining "cavity" recursively; read on.)
@@ -45,6 +45,17 @@ Tunnels:
 10.  If we do find a tunnel of size uq, treat that tunnel as a size-uq region the same way we do for size-5 and size-6 regions.
 11.  If the tunnel is not fillable by one of the pieces in the queue, mark the cells of the tunnel as unfillable and backtrack.
 12.  If the tunnel is fillable by a piece, immediately place the piece coincident with the tunnel.
+
+Alternate Tunnel Detection Algorithm:
+
+1. As above, only proceed if all pieces in the queue have the same size, uq.
+2. Label every vacant cell with its neighbor count: the number of vacant neighbors it has. 
+3. For each cell c that has a neighbor count of 2, call those 2 vacant neighbors nbr1 and nbr2 and do steps 4-8. (What if nbr1 and nbr2 are connected via another path than through c? That's fine, the right thing should end up happening.)
+4. Do a flood-fill from nbr1. That is, mark as a candidate tunnel every cell connected through nbr1, not including c.
+5. If that candidate tunnel is less than size uq, add cell c to it.
+6. If it's still less than size uq, add cell nbr2 to it.
+7. It's a tunnel if it now has size uq.
+8. Repeat steps 4-7 but with nbr1 and nbr2 swapped (nbr2 in step 4, nbr1 in step 6).
 
 Musing (I haven't tried this yet):
 

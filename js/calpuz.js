@@ -20,11 +20,11 @@ const SHAPE_PRUNE_ANGLE = -45;          // Opposite angle for distinction
 const SHAPE_PRUNE_OPACITY = 0.15;
 
 // Type 3: Unfillable TUNNEL (dead-end corridor can't be filled)
-const TUNNEL_PRUNE_COLOR_1 = '#0000ff';
-const TUNNEL_PRUNE_COLOR_2 = '#ffffff';  // Blue/white = tunnel
+const TUNNEL_PRUNE_COLOR_1 = '#ffffff';
+const TUNNEL_PRUNE_COLOR_2 = '#000000';
 const TUNNEL_PRUNE_WIDTH = 0.1;
 const TUNNEL_PRUNE_ANGLE = 45;           // Perpendicular to red (-45)
-const TUNNEL_PRUNE_OPACITY = 0.15;
+const TUNNEL_PRUNE_OPACITY = 0.25;
 
 // Type 4: FORCED regions (regions that force a specific piece placement)
 const FORCED_REGION_COLOR_1 = '#00cc00';
@@ -32,6 +32,13 @@ const FORCED_REGION_COLOR_2 = '#ffffff';  // Green/white = go/forced
 const FORCED_REGION_WIDTH = 0.1;
 const FORCED_REGION_ANGLE = -45;          // Same as red (opposite to blue/yellow)
 const FORCED_REGION_OPACITY = 0.2;
+
+// Tunnel-debug visualization (nadirs + growth arrows)
+const TUNNEL_DEBUG_OPACITY = 0.15;
+const TUNNEL_DOT_RADIUS = 0.16; // As fraction of boxel
+const TUNNEL_ARROW_MARKER_SIZE = 4;
+const TUNNEL_ARROW_MARKER_VIEWBOX = 10;
+const TUNNEL_ARROW_MARKER_REF_X = 9;
 
 // Legend swatches (small pattern previews next to text)
 const LEGEND_SWATCH_OPACITY = 0.33;
@@ -967,7 +974,7 @@ function drawPendingPieces(progress, failedPieceName = null, orderedRemaining = 
 
 // Visualize all placements (callback for solver)
 // sizePruning, shapePruning, tunnelPruning, forcedRegions are { cells: [[r,c],...], sizes: [n,...] }
-function visualizeAllPlacements(placements, attempts, progress, deadCells = [], sizePruning = {cells:[], sizes:[]}, shapePruning = {cells:[], sizes:[]}, tunnelPruning = {cells:[], sizes:[]}, forcedRegions = {cells:[], sizes:[]}, nextPiece = null, pieceFailed = false, orderedRemaining = [], allRegionSizes = []) {
+function visualizeAllPlacements(placements, attempts, progress, deadCells = [], sizePruning = {cells:[], sizes:[]}, shapePruning = {cells:[], sizes:[]}, tunnelPruning = {cells:[], sizes:[]}, forcedRegions = {cells:[], sizes:[]}, nextPiece = null, pieceFailed = false, orderedRemaining = [], allRegionSizes = [], tunnelDebug = { nadirs: [], paths: [] }) {
   // Clear all pieces (use removeGroup to clean up Hammer instances)
   for (const [name, , ] of shapes) {
     const group = svgGet(name);
@@ -980,6 +987,9 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
   
   // Remove old patterns from defs to prevent memory leak
   document.querySelectorAll('pattern[id^="prune-"], pattern[id^="swatch-"]').forEach(p => p.remove());
+
+  // Remove old tunnel arrow marker (we recreate it each time)
+  document.querySelectorAll('marker#tunnel-arrowhead').forEach(m => m.remove());
   
   // Draw all placements
   for (const p of placements) {
@@ -1057,6 +1067,122 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
     TUNNEL_PRUNE_COLOR_1, TUNNEL_PRUNE_COLOR_2, TUNNEL_PRUNE_WIDTH, TUNNEL_PRUNE_ANGLE, TUNNEL_PRUNE_OPACITY, 'prune-tunnel');
   drawCheckerboardRegions(deadGroup, forcedRegions.cells,
     FORCED_REGION_COLOR_1, FORCED_REGION_COLOR_2, FORCED_REGION_WIDTH, FORCED_REGION_OPACITY, 'prune-forced');
+
+  // Tunnel debug visualization:
+  // - Dot at every nadir
+  // - Polyline from nadir to quiescence with an arrowhead at the end
+  // tunnelDebug = { nadirs: [[r,c],...], paths: [[[r,c],...], ...] }
+  // (paths are ordered growth sequences starting at the nadir)
+  (function drawTunnelDebug() {
+    if (!tunnelDebug) return;
+    const nadirs = tunnelDebug.nadirs || [];
+    const paths = tunnelDebug.paths || [];
+
+    const svgNs = 'http://www.w3.org/2000/svg';
+    let defs = svg.node.querySelector('defs');
+    if (!defs) {
+      defs = document.createElementNS(svgNs, 'defs');
+      svg.node.insertBefore(defs, svg.node.firstChild);
+    }
+
+    const marker = document.createElementNS(svgNs, 'marker');
+    marker.setAttribute('id', 'tunnel-arrowhead');
+    marker.setAttribute('viewBox', '0 0 10 10');
+    marker.setAttribute('refX', String(TUNNEL_ARROW_MARKER_REF_X));
+    marker.setAttribute('refY', '5');
+    marker.setAttribute('markerWidth', String(TUNNEL_ARROW_MARKER_SIZE));
+    marker.setAttribute('markerHeight', String(TUNNEL_ARROW_MARKER_SIZE));
+    marker.setAttribute('orient', 'auto');
+    marker.setAttribute('markerUnits', 'strokeWidth');
+    const arrow = document.createElementNS(svgNs, 'path');
+    arrow.setAttribute('d', 'M 0 0 L 10 5 L 0 10 z');
+    arrow.setAttribute('fill', '#000000');
+    arrow.setAttribute('fill-opacity', String(TUNNEL_DEBUG_OPACITY));
+    marker.appendChild(arrow);
+    defs.appendChild(marker);
+
+    function cellCenter(r, c) {
+      return {
+        x: x0 + c * boxel + boxel / 2,
+        y: y0 + r * boxel + boxel / 2,
+      };
+    }
+
+    const dotSize = Math.max(3, boxel * 2 * TUNNEL_DOT_RADIUS);
+    const dotOuterRadius = dotSize / 2;
+    for (const [r, c] of nadirs) {
+      const { x, y } = cellCenter(r, c);
+      // Fill circle (no stroke) so opacity doesn't stack with stroke.
+      deadGroup.circle(dotSize)
+        .center(x, y)
+        .fill('#000000')
+        .attr({
+          'fill-opacity': String(TUNNEL_DEBUG_OPACITY),
+          stroke: 'none',
+          'stroke-width': 0,
+        });
+    }
+
+    const lineWidth = Math.max(1, boxel * 0.06);
+    for (const path of paths) {
+      if (!path || path.length < 2) continue;
+      const points = path.map(([r, c]) => cellCenter(r, c));
+      const last = points[points.length - 1];
+      const prev = points[points.length - 2];
+      const dx = last.x - prev.x;
+      const dy = last.y - prev.y;
+      const segLen = Math.hypot(dx, dy);
+      if (!(segLen > 0)) throw new Error('Tunnel debug path has zero-length last segment');
+
+      // Trim the start of the visible line so it doesn't overlap the nadir dot.
+      const first = points[0];
+      const second = points[1];
+      const sdx = second.x - first.x;
+      const sdy = second.y - first.y;
+      const firstSegLen = Math.hypot(sdx, sdy);
+      if (!(firstSegLen > 0)) throw new Error('Tunnel debug path has zero-length first segment');
+
+      // Compute how far back the visible line should stop so it meets the base of the marker.
+      // With markerUnits="strokeWidth", markerWidth is in multiples of stroke width.
+      // Mapping viewBox units → user units: 10 units == markerWidth*strokeWidth.
+      // Base of arrow is at x=0; refX aligns x=refX with the end vertex.
+      // So base is refX viewBox-units "behind" the end vertex.
+      const markerBackoff = (TUNNEL_ARROW_MARKER_REF_X / TUNNEL_ARROW_MARKER_VIEWBOX) * TUNNEL_ARROW_MARKER_SIZE * lineWidth;
+
+      // Start the line exactly at the dot boundary (no visible gap).
+      const startBackoff = dotOuterRadius;
+      if (points.length === 2 && !(firstSegLen > startBackoff + markerBackoff)) {
+        throw new Error('Tunnel debug path too short to trim at start and end');
+      }
+
+      const ux = dx / segLen;
+      const uy = dy / segLen;
+      const cut = {
+        x: last.x - ux * markerBackoff,
+        y: last.y - uy * markerBackoff,
+      };
+
+      const sux = sdx / firstSegLen;
+      const suy = sdy / firstSegLen;
+      const startCut = {
+        x: first.x + sux * startBackoff,
+        y: first.y + suy * startBackoff,
+      };
+
+      const visiblePts = [startCut].concat(points.slice(1, -1), [cut]).map(p => `${p.x},${p.y}`).join(' ');
+      deadGroup.polyline(visiblePts)
+        .fill('none')
+        .stroke({ width: lineWidth, color: '#000000', linecap: 'butt', linejoin: 'round', opacity: TUNNEL_DEBUG_OPACITY });
+
+      // Invisible carrier segment for the marker so the arrowhead sits at the true end
+      // without the (semi-transparent) stroke being painted underneath it.
+      const markerPts = [`${cut.x},${cut.y}`, `${last.x},${last.y}`].join(' ');
+      deadGroup.polyline(markerPts)
+        .fill('none')
+        .stroke({ width: lineWidth, color: '#000000', linecap: 'butt', linejoin: 'round', opacity: 0 })
+        .attr({ 'marker-end': 'url(#tunnel-arrowhead)' });
+    }
+  })();
   
   // Legend with color swatches (anti-magic: always show all 3 lines, hide only on solution)
   const showLegend = !allPlaced;
