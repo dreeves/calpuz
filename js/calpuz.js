@@ -40,6 +40,10 @@ const TUNNEL_ARROW_MARKER_SIZE = 4;
 const TUNNEL_ARROW_MARKER_VIEWBOX = 10;
 const TUNNEL_ARROW_MARKER_REF_X = 9;
 
+// Confetti
+const CONFETTI_TICKS = 350;
+const CONFETTI_POOP_TICKS = 300;
+
 // Legend swatches (small pattern previews next to text)
 const LEGEND_SWATCH_OPACITY = 0.33;
 
@@ -582,7 +586,7 @@ async function checkPuzzleSolved() {
         shapes: pieceShapes,
         colors: pieceColors,
         scalar: 2.5,
-        ticks: 200
+        ticks: CONFETTI_TICKS
       });
     } else {
       confettiModule({
@@ -602,7 +606,7 @@ async function checkPuzzleSolved() {
         origin: { x: 0.5, y: 0.5 },
         shapes: [poop],
         scalar: 4,
-        ticks: 180,
+        ticks: CONFETTI_POOP_TICKS,
         gravity: 0.8
       });
     } else {
@@ -1371,6 +1375,10 @@ function scatterShapes() {
 window.addEventListener("load", function () {
   svg = SVG().addTo(document.querySelector(".graph")).size("100%", "100%");
   svg.node.style.touchAction = 'none';  // Prevent browser from hijacking touch for scroll/zoom
+  svg.node.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+
+  // Background hit-area for 1-finger panning (only receives events where no piece is on top)
+  const panBg = svg.rect('100%', '100%').attr({ id: 'pan-background' }).fill({ opacity: 0 });
 
   // Create zoom container that holds all content
   zoomContainer = svg.group().attr('id', 'zoom-container');
@@ -1408,6 +1416,24 @@ window.addEventListener("load", function () {
   svgHammer.on('panmove', (e) => {
     zoomPanX = startPanX + e.deltaX;
     zoomPanY = startPanY + e.deltaY;
+    applyZoomTransform();
+  });
+
+  // One-finger pan on empty background (doesn't interfere with piece drags)
+  const bgHammer = new Hammer.Manager(panBg.node, {
+    touchAction: 'none',
+    recognizers: [
+      [Hammer.Pan, { enable: true, pointers: 1 }]
+    ]
+  });
+  let bgStartPanX, bgStartPanY;
+  bgHammer.on('panstart', () => {
+    bgStartPanX = zoomPanX;
+    bgStartPanY = zoomPanY;
+  });
+  bgHammer.on('panmove', (e) => {
+    zoomPanX = bgStartPanX + e.deltaX;
+    zoomPanY = bgStartPanY + e.deltaY;
     applyZoomTransform();
   });
 });

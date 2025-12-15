@@ -496,35 +496,20 @@ window.Solver = (function() {
 
         for (const [start, other] of [[nbr1, nbr2], [nbr2, nbr1]]) {
           const side = floodFillExcluding(key, start);
-          // If the other neighbor is reachable without passing through `key`,
-          // then `key` is not a separator and the README algorithm doesn't apply.
-          if (side.has(other)) continue;
-          const s = side.size;
+          // README alternate algorithm (procedural):
+          // - Start with the component reachable via `start` without going through `key`.
+          // - If it's still smaller than uq, add `key`.
+          // - If it's still smaller than uq, add `other`.
+          // - It's a tunnel iff the resulting set has size exactly uq.
+          const candidate = new Set(side);
+          if (candidate.size < uq) candidate.add(key);
+          if (candidate.size < uq) candidate.add(other);
+          if (candidate.size !== uq) continue;
 
-          let tunnelSet = null;
-          if (s === uq) {
-            tunnelSet = side;
-          } else if (s === uq - 1) {
-            tunnelSet = new Set(side);
-            tunnelSet.add(key);
-          } else if (s === uq - 2) {
-            tunnelSet = new Set(side);
-            tunnelSet.add(key);
-            tunnelSet.add(other);
-          } else {
-            tunnelSet = null;
-          }
-
-          if (!tunnelSet) continue;
-
-          if (tunnelSet.size !== uq) {
-            throw new Error(`Alternate tunnel detection produced tunnel of size ${tunnelSet.size} (expected ${uq})`);
-          }
-
-          const id = [...tunnelSet].sort().join(';');
+          const id = [...candidate].sort().join(';');
           if (seen.has(id)) continue;
           seen.add(id);
-          tunnels.push([...tunnelSet].map(k => k.split(',').map(Number)));
+          tunnels.push([...candidate].map(k => k.split(',').map(Number)));
         }
       }
 

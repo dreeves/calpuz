@@ -1,3 +1,15 @@
+.graph,
+html,
+body {
+  overscroll-behavior: none;
+}
+
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+}
+
 .graph {
     z-index: 9;
     position: fixed;
