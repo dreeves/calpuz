@@ -120,6 +120,9 @@ With original inspiration from Nicky.
 </p>
 <p>
 Thanks also to Christopher for 3D-printing one of these!
+You can also find physical versions of 
+<a href="https://www.etsy.com/listing/1223897009/similar?ref=internal_similar_listing_bot" target="blank"
+>things like this on Etsy</a>.
 </p>
 `
   })

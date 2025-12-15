@@ -496,6 +496,10 @@ window.Solver = (function() {
 
         for (const [start, other] of [[nbr1, nbr2], [nbr2, nbr1]]) {
           const side = floodFillExcluding(key, start);
+          // README New Tunnel Detection Algorithm, step 6:
+          // If excluding `key` still allows reaching the other neighbor, then `key`
+          // is not actually a bottleneck and this is not a valid tunnel candidate.
+          if (side.has(other)) continue;
           // README alternate algorithm (procedural):
           // - Start with the component reachable via `start` without going through `key`.
           // - If it's still smaller than uq, add `key`.
@@ -1152,6 +1156,8 @@ window.Solver = (function() {
     getDateCells,
     initPieceData,
     getPieceData,
-    setSpeed
+    setSpeed,
+    __testOnly_analyzeRegions: analyzeRegions,
+    __testOnly_getEffectiveCounts: getEffectiveCounts
   };
 })();
