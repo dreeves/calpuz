@@ -60,6 +60,9 @@ Via Faire:
 
 An annoying thing in this implementation is that sometimes when you click to rotate a shape, it rotates in such a way that it's no longer under the mouse cursor. That means you can't click, say, 3 times in a row to get 270 degrees of rotation. Please make it so rotation happens exactly around the point that's clicked on. Also, snap-to-grid should not happen when rotating, only when dragging.
 
+## Wishlist
+
+1. Pinch-to-zoom works on mobile but not panning or pull-to-refresh
 
 ## Quals (this section by GPT-5.2)
 

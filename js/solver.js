@@ -292,7 +292,7 @@ window.Solver = (function() {
   // unfillable regions highlighted simultaneously. The performance cost is trivial
   // since we're already doing flood-fill on all components anyway.
   //
-  // PRUNING TYPES (mutually exclusive per region, checked in priority order):
+  // PRUNING TYPES (can accumulate on same region):
   // 1. SIZE PRUNING: Region size can't be filled by any subset of remaining pieces
   //    (e.g., region of 7 cells when all pieces are 5 or 6 cells)
   // 2. SHAPE PRUNING: Region size matches a piece size, but shape doesn't match
@@ -301,17 +301,8 @@ window.Solver = (function() {
   //    doesn't match any available piece shape
   // 4. FORCED PLACEMENT: Region/tunnel matches exactly one piece - must place it
   //
-  // CURRENT BEHAVIOR: These are exclusive - once a region fails size pruning,
-  // we skip shape/tunnel checks (the `continue` on line ~445).
-  //
-  // TO SHOW ALL APPLICABLE SHADINGS: Remove the `continue` after size pruning.
-  // The region would then also get checked for shape (if size matches a piece)
-  // and tunnel issues. But note: if size pruning fails, shape/tunnel checks are
-  // somewhat redundant since the region is already proven unfillable.
-  //
-  // TO ACCUMULATE MULTIPLE SHADING TYPES ON SAME REGION: You'd need to either:
-  // (a) Remove the `continue` statements so all checks run, OR
-  // (b) Track multiple failure reasons per region (change data structure)
+  // CURRENT BEHAVIOR: All checks run on every region (no early exits). A region
+  // can accumulate multiple shading types. This is intentional for visualization.
   //
   function analyzeRegions(grid, remainingPieces = []) {
     const visited = Array(7).fill(null).map(() => Array(7).fill(false));
@@ -359,70 +350,118 @@ window.Solver = (function() {
       return count;
     }
     
-    // Find tunnels using per-nadir cavity-growth algorithm:
-    // 1. Find all nadirs (cells with ≤1 vacant neighbor)
-    // 2. For each nadir, grow outward independently until size reaches uq
-    // 3. Return the first tunnel that reaches exactly uq cells
+    // Find tunnels using the README's cavity-growth algorithm:
+    // 1. Find all nadirs (cells with ≤1 vacant neighbor) - mark as cavities
+    // 2. Iteratively: if a cavity has exactly 1 vacant (non-cavity) neighbor,
+    //    mark that neighbor as a cavity too
+    // 3. Stop when any connected set of cavities (tunnel) reaches size uq
+    // 4. Two separate tunnels can merge during this process (step 8 in README)
     function findTunnels(component, uq) {
-      if (component.length < uq) return [];
-      
+      console.log(`findTunnels called: component.length=${component.length}, uq=${uq}`);
+      if (component.length < uq) {
+        console.log(`  → early exit: component too small`);
+        return [];
+      }
+
       const componentSet = new Set(component.map(([r,c]) => `${r},${c}`));
-      
-      // Count vacant neighbors within component (not considering any cavity set)
-      function countComponentNeighbors(r, c) {
-        let count = 0;
-        for (const [dr, dc] of [[0,1],[0,-1],[1,0],[-1,0]]) {
-          if (componentSet.has(`${r+dr},${c+dc}`)) count++;
-        }
-        return count;
-      }
-      
-      // Find all nadirs: cells with ≤1 neighbor in component (dead-ends)
-      const nadirs = [];
+      const cavitySet = new Set();
+
+      // Find all initial cavities (nadirs): cells with ≤1 vacant neighbor
       for (const [r, c] of component) {
-        if (countComponentNeighbors(r, c) <= 1) {
-          nadirs.push([r, c]);
+        const key = `${r},${c}`;
+        // Count neighbors in component (initially none are cavities)
+        let neighborCount = 0;
+        for (const [dr, dc] of [[0,1],[0,-1],[1,0],[-1,0]]) {
+          if (componentSet.has(`${r+dr},${c+dc}`)) neighborCount++;
+        }
+        if (neighborCount <= 1) {
+          cavitySet.add(key);
         }
       }
-      
-      // For each nadir, grow a tunnel independently
-      for (const [startR, startC] of nadirs) {
-        const tunnelSet = new Set([`${startR},${startC}`]);
-        const tunnel = [[startR, startC]];
-        
-        // Grow until we reach uq cells or can't grow anymore
-        while (tunnel.length < uq) {
-          // Find a frontier cell that has exactly 1 non-tunnel neighbor
-          let grew = false;
-          for (const key of tunnelSet) {
-            const [r, c] = key.split(',').map(Number);
-            // Find non-tunnel neighbors in component
-            const nonTunnelNeighbors = [];
+      console.log(`  → initial nadirs: [${[...cavitySet].join(', ')}]`);
+
+      // Find connected components within cavity set
+      function findConnectedCavityComponents() {
+        const visited = new Set();
+        const components = [];
+
+        for (const key of cavitySet) {
+          if (visited.has(key)) continue;
+
+          const comp = [];
+          const stack = [key];
+          while (stack.length > 0) {
+            const k = stack.pop();
+            if (visited.has(k) || !cavitySet.has(k)) continue;
+            visited.add(k);
+            const [r, c] = k.split(',').map(Number);
+            comp.push([r, c]);
             for (const [dr, dc] of [[0,1],[0,-1],[1,0],[-1,0]]) {
-              const nkey = `${r+dr},${c+dc}`;
-              if (componentSet.has(nkey) && !tunnelSet.has(nkey)) {
-                nonTunnelNeighbors.push({ key: nkey, r: r+dr, c: c+dc });
-              }
-            }
-            // If this cell has exactly 1 non-tunnel neighbor, add that neighbor
-            if (nonTunnelNeighbors.length === 1) {
-              const n = nonTunnelNeighbors[0];
-              tunnelSet.add(n.key);
-              tunnel.push([n.r, n.c]);
-              grew = true;
-              break; // Restart search from beginning
+              stack.push(`${r+dr},${c+dc}`);
             }
           }
-          if (!grew) break; // Can't grow anymore
+          if (comp.length > 0) components.push(comp);
         }
-        
-        // If this tunnel reached exactly uq, return it
-        if (tunnel.length === uq) {
-          return [tunnel];
+        return components;
+      }
+
+      // Iteratively grow cavities until we find a tunnel of size uq.
+      // Per step 7's parenthetical: we add cells one at a time and check after
+      // each addition, stopping as soon as any tunnel reaches exactly uq cells.
+      // This prevents overshooting (e.g., jumping from 3 to 6 cells in one batch).
+      let iteration = 0;
+      while (true) {
+        iteration++;
+        // Check if any connected cavity component has reached uq
+        const tunnelComponents = findConnectedCavityComponents();
+        console.log(`  → iteration ${iteration}: cavitySet=[${[...cavitySet].join(', ')}], tunnelComponents sizes: [${tunnelComponents.map(t => t.length).join(', ')}]`);
+        for (const tunnel of tunnelComponents) {
+          if (tunnel.length === uq) {
+            console.log(`  → FOUND tunnel of size ${uq}: [${tunnel.map(([r,c]) => `${r},${c}`).join(', ')}]`);
+            return [tunnel];
+          }
+        }
+
+        // Find all cells that could be added (cavity with exactly 1 vacant neighbor)
+        const candidates = [];
+        for (const key of cavitySet) {
+          const [r, c] = key.split(',').map(Number);
+          const vacantNeighbors = [];
+          for (const [dr, dc] of [[0,1],[0,-1],[1,0],[-1,0]]) {
+            const nkey = `${r+dr},${c+dc}`;
+            if (componentSet.has(nkey) && !cavitySet.has(nkey)) {
+              vacantNeighbors.push(nkey);
+            }
+          }
+          if (vacantNeighbors.length === 1) {
+            candidates.push(vacantNeighbors[0]);
+          }
+        }
+
+        // If nothing to add, we're done
+        if (candidates.length === 0) {
+          console.log(`  → no more candidates, exiting loop`);
+          break;
+        }
+        console.log(`  → candidates to add: [${candidates.join(', ')}]`);
+
+        // Add cells one at a time, checking after each for a uq-tunnel
+        for (const key of candidates) {
+          if (cavitySet.has(key)) continue; // Already added by earlier candidate
+          cavitySet.add(key);
+
+          // Check if this addition created a uq-tunnel
+          const tunnelsAfter = findConnectedCavityComponents();
+          for (const tunnel of tunnelsAfter) {
+            if (tunnel.length === uq) {
+              return [tunnel];
+            }
+          }
         }
       }
-      
+
       // No tunnel of size uq found
+      console.log(`  → no tunnel of size ${uq} found, returning []`);
       return [];
     }
     
@@ -471,10 +510,6 @@ window.Solver = (function() {
           }
           
           // (2) Shape check: region size matches a piece size in queue
-          // NOTE: This only runs if size pruning passed. A region either:
-          //   - Fails shape check → gets shapePruning shading (dead), OR
-          //   - Passes shape check → becomes forcedRegion shading (must place piece)
-          // These are mutually exclusive outcomes for the same region.
           if (distinctSizes.includes(size)) {
             const matchingPiece = shapeToPiece[shapeKey(component)];
             if (!matchingPiece || !remainingSet.has(matchingPiece)) {
@@ -501,7 +536,7 @@ window.Solver = (function() {
           // region is effectively dead (you can't fill the tunnel).
           // This check runs INDEPENDENTLY of shape check above - a region could
           // pass shape check but still have an unfillable tunnel inside it.
-          if (uniformQueueSize && size > uniformQueueSize) {
+          if (uniformQueueSize /*&& size > uniformQueueSize*/) {
             const tunnels = findTunnels(component, uniformQueueSize);
             for (const tunnel of tunnels) {
               const tunnelKey = shapeKey(tunnel);
