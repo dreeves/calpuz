@@ -75,7 +75,9 @@ An annoying thing in this implementation is that sometimes when you click to rot
 
 ## Wishlist
 
-1. Um, pull-to-refresh doesn't work but maybe it shouldn't since that would interfere with panning?
+1. Pull-to-refresh doesn't work but maybe it shouldn't since that would interfere with panning?
+2. More standard zoom in/out icons I guess. For some reason "octicon-zoom-in" and "octicon-zoom-out" aren't working.
+3. The solver code is a disaster after endlessly coaxing the robots along.
 
 ## Quals (this section by GPT-5.2)
 

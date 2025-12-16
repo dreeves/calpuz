@@ -108,6 +108,7 @@ window.showTutorial = function () {
     title: "Instructions",
     confirmButtonText: "Roger",
     html: `
+<div style="text-align: left;">
 <p>Drag / rotate / flip the pentominoes (and one hexomino) to fit them all in the grid, covering everything except today's date.</p>
 <p>
 Clicking or tapping rotates 90 degrees. 
@@ -117,6 +118,10 @@ Control-click or long-press to flip a piece over.
 <p>
 Made by Bethany, Danny, and Claude.
 With original inspiration from Nicky.
+And special thanks to 
+<a href="https://github.com/IonicaBizau/tangram" target="blank"
+>Ionică Bizău's Tangram project on GitHub</a>
+that Bee originally adapted this from.
 </p>
 <p>
 Thanks also to Christopher for 3D-printing one of these!
@@ -124,7 +129,7 @@ You can also find physical versions of
 <a href="https://www.etsy.com/listing/1223897009/similar?ref=internal_similar_listing_bot" target="blank"
 >things like this on Etsy</a>.
 </p>
-`
+</div>`
   })
 };
 
@@ -429,7 +434,7 @@ function setupDraggable(group, onDragEnd, rotateState) {
     if (e.ctrlKey || e.metaKey) {
       enqueuePieceAction(node, () => flipPiece(node, e.clientX, e.clientY));
     } else {
-      enqueuePieceAction(node, () => rotatePiece(node, rotateState.getAngle, rotateState.setAngle, e.clientX, e.clientY, true));
+      enqueuePieceAction(node, () => rotatePiece(node, rotateState.getAngle, rotateState.setAngle, e.clientX, e.clientY, false));
     }
     bringToFront(node);
   });
@@ -453,7 +458,7 @@ function setupDraggable(group, onDragEnd, rotateState) {
       bringToFront(node);
       return;
     }
-    enqueuePieceAction(node, () => rotatePiece(node, rotateState.getAngle, rotateState.setAngle, e.clientX, e.clientY, false));
+    enqueuePieceAction(node, () => rotatePiece(node, rotateState.getAngle, rotateState.setAngle, e.clientX, e.clientY, true));
     bringToFront(node);
   });
 }
