@@ -31,7 +31,7 @@ We test if a piece and a region have the same shape by picking a canonical orien
 
 (Current code actually only checks the shape if the size exactly equals one of the sizes in the queue of pieces. i guess the problem with the current code is that we could (in theory) have a piece that's as big as 2 other pieces combined. say we have a size-2 piece, a size-4 piece, and a size-6 piece in the queue. and supposed there's a size-6 region. it may be that no single piece fits in that region but the size-2 and size-4 piece together do fit.)
 
-Old Tunnel Detection Algorithm: #SCHDEL
+Old Tunnel Detection Algorithm:
 
 1. If there is more than one distinct piece size in the queue of pieces to place, do nothing. (For this puzzle there will often be only pieces of size 5 in the queue. How to generalize this to more than one distinct piece size in the queue is an interesting problem we're setting aside.)
 2. Let _uq_ (for "uniform queue") be that size. (Again, typically that's 5 for us.)
@@ -58,6 +58,24 @@ New Tunnel Detection Algorithm:
 8. If it's still less than size uq, add cell nbr2 to it.
 9. It's a tunnel if it now has size uq.
 10. Repeat steps 5-10 but with nbr1 and nbr2 swapped (nbr2 in step 5, nbr1 in step 8).
+
+PS: When tunnel detection from two different nadirs (a nadir is a vacant cell with only one vacant neighbor, like a dead-end) overlap, I think there are additional pruning opportunities we could be taking advantage of.
+Like in the following diagram, we have nadirs at a and b.
+There's a 3-cell tunnel from a to c and a 4-cell tunnel from b to c.
+Say there are only 5-cell pieces left to place.
+Notice that there are 6 cells total in the combined overlapping tunnels.
+So no single piece can fill it.
+But also any piece that fills one of the tunnels will make it impossible to fill the other.
+I'm not sure yet how to codify that as a pruning criterion in general.
+
+```
+XXaX
+XXoX
+XXco
+booX
+XXXX
+```
+
 
 Musing (I haven't tried this yet):
 
