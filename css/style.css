@@ -111,6 +111,20 @@ ul {
   pointer-events: none;
 }
 
+.sidebar-item.zoom-btn {
+  position: relative;
+}
+
+.sidebar-item .zoom-badge {
+  position: absolute;
+  font-size: 16px;
+  font-weight: bold;
+  color: #fff;
+  top: 8px;
+  right: 12px;
+  text-shadow: 0 0 2px rgba(0,0,0,0.5);
+}
+
 /* Solver Progress Panel */
 .solver-progress {
   position: fixed;

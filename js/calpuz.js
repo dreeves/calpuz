@@ -180,6 +180,22 @@ window.zoomReset = function() {
   applyZoomTransform();
 };
 
+// Sound mute toggle
+window.toggleMuteButton = function() {
+  const muted = Sounds.toggleMute();
+  updateMuteIcon(muted);
+  // Play a sound if we just unmuted so user knows sounds work
+  if (!muted) Sounds.ratchet(true);
+};
+
+function updateMuteIcon(muted) {
+  const icon = document.getElementById('mute-icon');
+  if (icon) {
+    icon.classList.toggle('octicon-unmute', !muted);
+    icon.classList.toggle('octicon-mute', muted);
+  }
+}
+
 // Cached elements container to prevent DOM leak
 let elementsContainer = null;
 
@@ -262,6 +278,7 @@ function enqueuePieceAction(node, action) {
 // Flip piece around a vertical line through the click point with smooth animation.
 // Returns a promise that resolves when animation completes.
 function flipPiece(node, screenX, screenY) {
+  Sounds.swoosh();
   return new Promise((resolve) => {
     // Use parent's CTM since piece transforms are relative to parent (accounts for zoom)
     const invScreenCtm = node.parentElement.getScreenCTM().inverse();
@@ -289,6 +306,7 @@ function flipPiece(node, screenX, screenY) {
 // Rotate piece 90° around the click point with smooth animation.
 // Returns a promise that resolves when animation completes.
 function rotatePiece(node, getAngle, setAngle, screenX, screenY, clockwise) {
+  Sounds.ratchet(clockwise);
   return new Promise((resolve) => {
     const deltaAngle = clockwise ? 90 : -90;
     // Use parent's CTM since piece transforms are relative to parent (accounts for zoom)
@@ -484,6 +502,7 @@ function getElementsContainer() {
 
 // Snap a group to the nearest grid position
 function snapToGrid(group) {
+  Sounds.snap();
   const node = group.node;
   // Get current position from data attributes (SVG coords)
   const currentX = parseFloat(node.dataset.x) || 0;
@@ -593,6 +612,7 @@ async function checkPuzzleSolved() {
 
   if (isToday) {
     // Celebration! Fire piece-shaped confetti if possible, else regular
+    Sounds.fanfare();
     const pieceColors = shapes.map(s => s[1]);
     if (confettiModule.shapeFromPath) {
       // Create piece shapes from polygons (scaled down for confetti)
@@ -619,6 +639,7 @@ async function checkPuzzleSolved() {
     }
   } else {
     // Wrong date - poop emoji confetti
+    Sounds.sadTrombone();
     if (confettiModule.shapeFromText) {
       const poop = confettiModule.shapeFromText({ text: '💩', scalar: 6 });
       confettiModule({
@@ -1409,6 +1430,9 @@ window.addEventListener("load", function () {
 
   // Initialize solver with piece data
   Solver.initPieceData(shapes);
+
+  // Initialize mute button state
+  updateMuteIcon(Sounds.isMuted());
 
   // Set up pinch-to-zoom on SVG background (2-finger gestures only)
   const svgHammer = new Hammer.Manager(svg.node, {

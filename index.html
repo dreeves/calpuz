@@ -32,6 +32,7 @@
 
 <script src="js/pieces.js"></script>
 <script src="js/solver.js"></script>
+<script src="js/sounds.js"></script>
 <script src="js/calpuz.js"></script>
 </head>
 <body>
@@ -71,15 +72,20 @@
   onclick="solvePuzzle()">
   <span class="octicon octicon-key"></span>
 </div>
-<div class="sidebar-item"
+<div class="sidebar-item zoom-btn"
   title="Zoom in"
   onclick="zoomIn()">
-  <span class="octicon octicon-plus"></span>
+  <span class="octicon octicon-search"></span><span class="zoom-badge">+</span>
 </div>
-<div class="sidebar-item"
+<div class="sidebar-item zoom-btn"
   title="Zoom out"
   onclick="zoomOut()">
-  <span class="octicon octicon-dash"></span>
+  <span class="octicon octicon-search"></span><span class="zoom-badge">−</span>
+</div>
+<div id="mute-btn" class="sidebar-item"
+  title="Toggle sound effects"
+  onclick="toggleMuteButton()">
+  <span id="mute-icon" class="octicon octicon-unmute"></span>
 </div>
 <!--
 <div class="sidebar-item"
@@ -92,7 +98,7 @@
 </div> <!-- sidebar -->
 
 <div style="position: fixed; bottom: 10px; right: 80px; color: #999; font-size: 12px; z-index: 10;"
->v2025.12.15-h</div>
+>v2025.12.15-i</div>
 
 <div id="solver-progress" class="solver-progress">
   
