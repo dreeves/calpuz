@@ -850,6 +850,7 @@ document.addEventListener('DOMContentLoaded', () => {
 function updateSpeedButtons() {
   const exhausted = Solver.isExhausted();
   const runningAtSpeed = Solver.isSolving() && !Solver.isPaused() && !Solver.isStepMode();
+  const solverActive = Solver.isSolving();
   
   document.querySelectorAll('.speed-btn').forEach(btn => {
     btn.classList.toggle('disabled', exhausted);
@@ -862,6 +863,11 @@ function updateSpeedButtons() {
   const stepBtn = document.querySelector('.speed-btn[data-speed="step"]');
   if (stepBtn) {
     stepBtn.textContent = runningAtSpeed ? '⏸️' : '↩️';
+  }
+
+  const resetBtn = document.getElementById('reset-btn');
+  if (resetBtn) {
+    resetBtn.classList.toggle('disabled', solverActive);
   }
 }
 
@@ -877,6 +883,8 @@ window.runSpeed = async function(ms) {
   }
   
   if (!Solver.isSolving()) {
+    const resetBtn = document.getElementById('reset-btn');
+    if (resetBtn) resetBtn.classList.add('disabled');
     await startSolve();
   }
 }
@@ -891,6 +899,8 @@ window.stepOnce = async function() {
   }
   
   if (!Solver.isSolving()) {
+    const resetBtn = document.getElementById('reset-btn');
+    if (resetBtn) resetBtn.classList.add('disabled');
     await startSolve();
   }
 }
@@ -969,7 +979,7 @@ function drawPendingPieces(progress, failedPieceName = null, orderedRemaining = 
   // Calculate layout - pieces in a row ABOVE the grid
   const previewScale = boxel * DOCKET_SCALE;
   const gap = boxel * DOCKET_GAP;
-  const startY = y0 - boxel * 0.8; // Above grid
+  const startY = y0 - boxel * 0.22; // Above grid
   
   // Start at left edge of grid - first piece always in same position
   let currentX = x0;
@@ -1254,9 +1264,11 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
   const fontSize = Math.max(10, Math.min(16, boxel * 0.28));
   const lineHeight = fontSize * 1.5;
   const swatchSize = fontSize * 0.9;
-  const swatchX = x0;  // Left-align with grid
+  const legendDx = boxel * 3.2;
+  const legendDy = -boxel;
+  const swatchX = x0 + legendDx;  // Left-align with grid
   const textX = swatchX + swatchSize + fontSize * 0.4;
-  let textY = y0 + 7 * boxel + fontSize;  // Below the grid
+  let textY = y0 + 7 * boxel + fontSize + legendDy;  // Below the grid
   
   // Helper to draw a striped swatch
   function drawSwatch(y, color1, color2, angle, patternId) {
