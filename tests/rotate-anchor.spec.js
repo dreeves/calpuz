@@ -33,19 +33,42 @@ test('piece rotates around clicked point (anchor stays fixed)', async ({ page, b
     };
   }, { clientX, clientY });
 
-  await page.mouse.click(clientX, clientY);
+  await page.dispatchEvent('#corner', 'pointerdown', {
+    pointerId: 1,
+    pointerType: 'mouse',
+    isPrimary: true,
+    button: 0,
+    buttons: 1,
+    clientX,
+    clientY,
+  });
+  await page.dispatchEvent('#corner', 'pointerup', {
+    pointerId: 1,
+    pointerType: 'mouse',
+    isPrimary: true,
+    button: 0,
+    buttons: 0,
+    clientX,
+    clientY,
+  });
 
   // ROTATION_DURATION_MS is 150, give it slack.
   await page.waitForTimeout(300);
 
-  const anchorError = await page.evaluate(({ pivot, local }) => {
+  const { anchorError, angleChanged } = await page.evaluate(({ pivot, local }) => {
     const node = document.getElementById('corner');
     const global2 = new DOMPoint(local.x, local.y).matrixTransform(node.getCTM());
     const dx = global2.x - pivot.x;
     const dy = global2.y - pivot.y;
-    return Math.sqrt(dx * dx + dy * dy);
+    const tf = node.getAttribute('transform') || '';
+    const match = tf.match(/matrix\(([^)]+)\)/);
+    if (!match) throw new Error('Expected matrix() transform after rotation');
+    const [a, b] = match[1].split(/[\s,]+/).map(Number);
+    const angle = Math.atan2(b, a) * 180 / Math.PI;
+    return { anchorError: Math.sqrt(dx * dx + dy * dy), angleChanged: Math.abs(angle) > 1 };
   }, before);
 
   // Allow tiny floating-point error.
   expect(anchorError).toBeLessThan(1e-4);
+  expect(angleChanged).toBe(true);
 });

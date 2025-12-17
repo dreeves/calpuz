@@ -180,6 +180,25 @@ window.zoomReset = function() {
   applyZoomTransform();
 };
 
+// Reset pieces to their default scattered positions.
+// Also stops any in-progress solve and clears solver-only UI overlays.
+window.resetPieces = function() {
+  Solver.stop();
+  showProgressPanel(false);
+  updateSpeedButtons();
+
+  resetDocket();
+  lastRowOrder = [];
+
+  const oldDeadMarkers = svgGet('dead-cells');
+  if (oldDeadMarkers) oldDeadMarkers.remove();
+
+  const oldPending = svgGet('pending-pieces');
+  if (oldPending) oldPending.remove();
+
+  scatterShapes();
+};
+
 // Sound mute toggle
 window.toggleMuteButton = function() {
   const muted = Sounds.toggleMute();
