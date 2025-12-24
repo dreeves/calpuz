@@ -154,6 +154,28 @@ window.Solver = (function() {
     }
     return true;
   }
+
+  function tunnelKeyPathsFromTunnels(tunnels = { nadirs: [], paths: [] }) {
+    return (tunnels?.paths || []).map(path =>
+      (path || []).map(([r, c]) => `${r},${c}`)
+    );
+  }
+
+  // Tunnel-completion rule: if a placement overlaps a tunnel path,
+  // it must cover that entire tunnel path.
+  function placementFullyCoversOverlappedTunnels(tunnelKeyPaths, cells, row, col) {
+    if (!tunnelKeyPaths || tunnelKeyPaths.length === 0) return true;
+    const covered = new Set(cells.map(([dr, dc]) => `${row + dr},${col + dc}`));
+    for (const tunnel of tunnelKeyPaths) {
+      if (!tunnel || tunnel.length === 0) continue;
+      let overlap = 0;
+      for (const key of tunnel) {
+        if (covered.has(key)) overlap++;
+      }
+      if (overlap > 0 && overlap < tunnel.length) return false;
+    }
+    return true;
+  }
   
   // Place/remove piece on grid
   function setPiece(grid, cells, row, col, value) {
@@ -326,6 +348,9 @@ window.Solver = (function() {
     if (distinctSizes.length === 1) {
       uniformQueueSize = distinctSizes[0];
     }
+
+    // NOTE: placementFullyCoversOverlappedTunnels is defined at module scope.
+    // (The previous local copy was removed to keep the tunnel rule DRY.)
     
     function floodFill(startR, startC) {
       const component = [];
@@ -554,6 +579,20 @@ window.Solver = (function() {
           const size = component.length;
           allRegionSizes.push(size);  // Track all region sizes
 
+          // Component-local tunnels/caves (tunnel info used for placement validity under the tunnel rule)
+          let componentCaves = [];
+          let componentTunnelKeyPaths = [];
+          if (uniformQueueSize) {
+            const { caves, tunnels: newTunnels } = findCavesAlternate(component, uniformQueueSize);
+            componentCaves = caves;
+            // Accumulate tunnel info for visualization
+            tunnels.nadirs.push(...newTunnels.nadirs);
+            tunnels.paths.push(...newTunnels.paths);
+            componentTunnelKeyPaths = (newTunnels.paths || []).map(path =>
+              (path || []).map(([rr, cc]) => `${rr},${cc}`)
+            );
+          }
+
           // (1) Size pruning: region size not fillable by any combo of remaining pieces
           if (!isFillableSize(size, pieceSizes)) {
             deadCells.push(...component);
@@ -579,9 +618,13 @@ window.Solver = (function() {
               // Forced placement: region matches exactly one piece shape
               const placement = findForcedPlacement(component, matchingPiece);
               if (!placement) throw new Error(`findForcedPlacement failed for ${matchingPiece}`);
-              forcedPlacements.push(placement);
-              forcedRegions.cells.push(component);
-              forcedRegions.sizes.push(size);
+              if (placementFullyCoversOverlappedTunnels(componentTunnelKeyPaths, placement.cells, placement.row, placement.col)) {
+                forcedPlacements.push(placement);
+                forcedRegions.cells.push(component);
+                forcedRegions.sizes.push(size);
+              } else {
+                deadCells.push(...component);
+              }
             }
           }
           
@@ -593,11 +636,7 @@ window.Solver = (function() {
           // This check runs INDEPENDENTLY of shape check above - a region could
           // pass shape check but still have an unfillable cave inside it.
           if (uniformQueueSize /*&& size > uniformQueueSize*/) {
-            const { caves, tunnels: newTunnels } = findCavesAlternate(component, uniformQueueSize);
-            // Accumulate tunnel info for visualization
-            tunnels.nadirs.push(...newTunnels.nadirs);
-            tunnels.paths.push(...newTunnels.paths);
-            for (const cave of caves) {
+            for (const cave of componentCaves) {
               const caveKey = shapeKey(cave);
               const matchingPiece = shapeToPiece[caveKey];
               if (!matchingPiece || !remainingSet.has(matchingPiece)) {
@@ -609,9 +648,13 @@ window.Solver = (function() {
                 // Forced placement: cave matches exactly one piece shape
                 const placement = findForcedPlacement(cave, matchingPiece);
                 if (!placement) throw new Error(`findForcedPlacement failed for ${matchingPiece}`);
-                forcedPlacements.push(placement);
-                forcedRegions.cells.push(cave);
-                forcedRegions.sizes.push(cave.length);
+                if (placementFullyCoversOverlappedTunnels(componentTunnelKeyPaths, placement.cells, placement.row, placement.col)) {
+                  forcedPlacements.push(placement);
+                  forcedRegions.cells.push(cave);
+                  forcedRegions.sizes.push(cave.length);
+                } else {
+                  deadCells.push(...cave);
+                }
               }
             }
           }
@@ -622,18 +665,25 @@ window.Solver = (function() {
     return { deadCells, sizePruning, shapePruning, cavePruning, forcedRegions, forcedPlacements, allRegionSizes, tunnels };
   }
   
-  function countValidPlacements(grid, pieceName) {
+  function countValidPlacements(grid, pieceName, tunnels = { nadirs: [], paths: [] }) {
+    const tunnelKeyPaths = tunnelKeyPathsFromTunnels(tunnels);
+
     const piece = pieceData[pieceName];
     let count = 0;
     for (const orientation of piece.orientations) {
-      count += getValidPositions(grid, orientation.cells).length;
+      const positions = getValidPositions(grid, orientation.cells);
+      for (const [row, col] of positions) {
+        if (placementFullyCoversOverlappedTunnels(tunnelKeyPaths, orientation.cells, row, col)) {
+          count++;
+        }
+      }
     }
     return count;
   }
   
   function getEffectiveCounts(grid, remainingPieces) {
     const { deadCells, sizePruning, shapePruning, cavePruning, forcedRegions, forcedPlacements, allRegionSizes, tunnels } = analyzeRegions(grid, remainingPieces);
-    const counts = remainingPieces.map(name => ({ name, count: countValidPlacements(grid, name) }));
+    const counts = remainingPieces.map(name => ({ name, count: countValidPlacements(grid, name, tunnels) }));
     return { counts, deadCells, sizePruning, shapePruning, cavePruning, forcedRegions, forcedPlacements, allRegionSizes, tunnels };
   }
   
@@ -703,6 +753,12 @@ window.Solver = (function() {
       
       // Check for forced placements and dead cells BEFORE choosing which piece to branch on
       const analysis = getEffectiveCounts(grid, remainingPieces);
+
+      // Tunnel-completion pruning (uniform-queue only):
+      // If a placement overlaps any tunnel path, it must cover that entire tunnel.
+      // (The piece may also cover additional non-tunnel cells.)
+      // This is intentionally NOT used in solveAll/countSolutions (pure brute force).
+      const tunnelKeyPaths = tunnelKeyPathsFromTunnels(analysis.tunnels);
       
       // If dead cells exist at this level, prune immediately
       if (analysis.deadCells.length > 0) {
@@ -819,6 +875,10 @@ window.Solver = (function() {
         // Try each valid position
         for (let posIdx = 0; posIdx < totalPositions; posIdx++) {
           const [row, col] = validPositions[posIdx];
+
+          if (!placementFullyCoversOverlappedTunnels(tunnelKeyPaths, orientation.cells, row, col)) {
+            continue;
+          }
           
           // Place piece
           setPiece(grid, orientation.cells, row, col, 3 + depth);

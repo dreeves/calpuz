@@ -77,6 +77,30 @@ XXXX
 ```
 
 
+Additional by not considering piece placements that block tunnels:
+
+Tunnels are when you find a deadend (cell with 0 or 1 vacant neighbor; aka nadir) and follow it until there's more than one possible neighbor to move to (and stopping if you hit uq cells, as in cave detection above).
+
+When considering a possible placement of a piece, no tunnels can be partially covered. 
+I.e., each tunnel that the piece overlaps with must be completely covered by the piece. 
+If that's not the case, it's not a valid placement.
+
+Said yet another way, to be part of a valid solution, a piece placement that covers *some* cells of a tunnel must cover *all* cells of that tunnel. 
+(The piece may cover additional cells not part of the tunnel.)
+
+Proof:
+
+1. Note that by construction the tunnel is at most uq cells and the piece is exactly uq cells.
+2. Suppose a piece placement covers some of the cells of the tunnel but there's a particular cell c it leaves uncovered.
+3. By construction, if you start at the nadir and find uq connected cells, you will cover every cell of the tunnel.
+4. That means every cell in the tunnel in between the nadir and (let's call it) the mouth separates the nadir from the mouth.
+5. So c can't be one of those cells. If it were, it would leave less than uq cells connected to the nadir.
+6. For the same reason, c can't be the mouth.
+7. Can c be the nadir? No, that would leave the nadir as an isolated and unfillable vacant cell.
+
+(I think I could improve that exposition by combining some of those latter points.)
+
+
 Musing (I haven't tried this yet):
 
 There are 8 pieces to place on a grid of 12+31-2=41 initially vacant cells.
