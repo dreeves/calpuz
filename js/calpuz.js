@@ -688,7 +688,7 @@ async function checkPuzzleSolved() {
 
   if (isToday) {
     // Celebration! Fire piece-shaped confetti if possible, else regular
-    Sounds.fanfare();
+    Sounds.excellentClip();
     const pieceColors = shapes.map(s => s[1]);
     if (confettiModule.shapeFromPath) {
       // Create piece shapes from polygons (scaled down for confetti)
@@ -696,15 +696,55 @@ async function checkPuzzleSolved() {
         const path = 'M' + verts.map(([x, y]) => `${x * 4},${y * 4}`).join('L') + 'Z';
         return confettiModule.shapeFromPath({ path });
       });
-      confettiModule({
-        particleCount: 80,
-        spread: 80,
-        origin: { x: 0.5, y: 0.4 },
+
+      // Multi-burst celebration: keep piece-shaped confetti, just more exciting.
+      const fire = (opts) => confettiModule({
         shapes: pieceShapes,
         colors: pieceColors,
         scalar: 2.5,
-        ticks: CONFETTI_TICKS
+        ticks: CONFETTI_TICKS,
+        ...opts,
       });
+
+      // Big center burst
+      fire({
+        particleCount: 90,
+        spread: 85,
+        origin: { x: 0.5, y: 0.42 },
+        startVelocity: 55,
+        gravity: 0.9,
+      });
+
+      // Side cannons shortly after
+      setTimeout(() => {
+        fire({
+          particleCount: 55,
+          spread: 55,
+          origin: { x: 0.18, y: 0.75 },
+          angle: 60,
+          startVelocity: 52,
+          gravity: 0.95,
+        });
+        fire({
+          particleCount: 55,
+          spread: 55,
+          origin: { x: 0.82, y: 0.75 },
+          angle: 120,
+          startVelocity: 52,
+          gravity: 0.95,
+        });
+      }, 140);
+
+      // Light topper burst
+      setTimeout(() => {
+        fire({
+          particleCount: 35,
+          spread: 110,
+          origin: { x: 0.5, y: 0.18 },
+          startVelocity: 35,
+          gravity: 0.6,
+        });
+      }, 260);
     } else {
       confettiModule({
         particleCount: 150,
@@ -715,27 +755,70 @@ async function checkPuzzleSolved() {
     }
   } else {
     // Wrong date - poop emoji confetti
-    Sounds.sadTrombone();
-    if (confettiModule.shapeFromText) {
-      const poop = confettiModule.shapeFromText({ text: '💩', scalar: 6 });
+    Sounds.bogusClip();
+
+    const fireWrongDayText = (opts = {}) => {
+      if (!confettiModule.shapeFromText) return;
+      const wrong = confettiModule.shapeFromText({ text: 'WRONG', scalar: 2.2 });
+      const day = confettiModule.shapeFromText({ text: 'DAY', scalar: 2.2 });
+
+      const base = {
+        spread: 18,
+        origin: { x: 0.5, y: 0.22 },
+        colors: ['#000000'],
+        scalar: 2.9,
+        ticks: 150,
+        gravity: 0.33,
+        drift: 0,
+        startVelocity: 28,
+        ...opts,
+      };
+
       confettiModule({
-        particleCount: 25,
-        spread: 50,
-        origin: { x: 0.5, y: 0.5 },
-        shapes: [poop],
-        scalar: 4,
-        ticks: CONFETTI_POOP_TICKS,
-        gravity: 0.8
+        particleCount: 4,
+        shapes: [wrong],
+        ...base,
       });
-    } else {
-      // Fallback: brown circles
+
       confettiModule({
-        particleCount: 30,
-        spread: 60,
-        origin: { x: 0.5, y: 0.5 },
-        colors: ['#8B4513', '#654321', '#3d2314']
+        particleCount: 3,
+        shapes: [day],
+        ...base,
       });
-    }
+    };
+
+    const firePoop = (opts) => {
+      if (confettiModule.shapeFromText) {
+        const poop = confettiModule.shapeFromText({ text: '💩', scalar: 6 });
+        confettiModule({
+          shapes: [poop],
+          scalar: 4,
+          ticks: CONFETTI_POOP_TICKS,
+          gravity: 0.85,
+          ...opts,
+        });
+        return;
+      }
+      confettiModule({
+        colors: ['#8B4513', '#654321', '#3d2314'],
+        ...opts,
+      });
+    };
+
+    // Wrong-day sequence: readable WRONG DAY + poop cannons.
+    fireWrongDayText();
+    firePoop({ particleCount: 18, spread: 55, origin: { x: 0.5, y: 0.55 } });
+    setTimeout(() => {
+      firePoop({ particleCount: 16, spread: 45, origin: { x: 0.18, y: 0.78 }, angle: 60, startVelocity: 44 });
+      firePoop({ particleCount: 16, spread: 45, origin: { x: 0.82, y: 0.78 }, angle: 120, startVelocity: 44 });
+
+      // Include WRONG + DAY in the side cannons too.
+      fireWrongDayText({ spread: 20, origin: { x: 0.18, y: 0.78 }, angle: 60, startVelocity: 46, gravity: 0.42 });
+      fireWrongDayText({ spread: 20, origin: { x: 0.82, y: 0.78 }, angle: 120, startVelocity: 46, gravity: 0.42 });
+    }, 130);
+    setTimeout(() => {
+      fireWrongDayText();
+    }, 240);
   }
 }
 
