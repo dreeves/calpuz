@@ -297,9 +297,9 @@ window.Solver = (function() {
   //    (e.g., region of 7 cells when all pieces are 5 or 6 cells)
   // 2. SHAPE PRUNING: Region size matches a piece size, but shape doesn't match
   //    any available piece (e.g., 5-cell region that's not a valid pentomino)
-  // 3. TUNNEL PRUNING: A "tunnel" (dead-end corridor) within a larger region
+  // 3. CAVE PRUNING: A "cave" (dead-end corridor) within a larger region
   //    doesn't match any available piece shape
-  // 4. FORCED PLACEMENT: Region/tunnel matches exactly one piece - must place it
+  // 4. FORCED PLACEMENT: Region/cave matches exactly one piece - must place it
   //
   // CURRENT BEHAVIOR: All checks run on every region (no early exits). A region
   // can accumulate multiple shading types. This is intentional for visualization.
@@ -310,11 +310,11 @@ window.Solver = (function() {
     // Three distinct pruning types with their cell arrays and sizes
     const sizePruning = { cells: [], sizes: [] };      // (1) unfillable size
     const shapePruning = { cells: [], sizes: [] };     // (2) unfillable shape
-    const tunnelPruning = { cells: [], sizes: [] };    // (3) unfillable tunnels
+    const cavePruning = { cells: [], sizes: [] };      // (3) unfillable caves
     const forcedRegions = { cells: [], sizes: [] };    // (4) regions that force a piece placement
     const allRegionSizes = [];                         // All region sizes (for legend)
     const forcedPlacements = [];                       // Pieces that must be placed in specific regions
-    const tunnelDebug = { nadirs: [], paths: [] };     // Debug info for tunnel visualization
+    const graylines = { nadirs: [], paths: [] };       // Debug info for graylines visualization
     const remainingSet = new Set(remainingPieces);
     
     // Compute piece sizes for generalized pruning
@@ -351,16 +351,16 @@ window.Solver = (function() {
       return count;
     }
     
-    // Find tunnels using the README's cavity-growth algorithm.
-    // A tunnel is a dead-end corridor of exactly uq cells.
-    // Key insight: grow each tunnel INDEPENDENTLY from each nadir, so tunnels
-    // can't merge and overshoot. A tunnel grows until it hits uq or a junction.
-    // Returns { tunnels: [...], debug: { nadirs: [...], paths: [...] } }
+    // Find caves using the README's cavity-growth algorithm.
+    // A cave is a dead-end corridor of exactly uq cells.
+    // Key insight: grow each cave INDEPENDENTLY from each nadir, so caves
+    // can't merge and overshoot. A cave grows until it hits uq or a junction.
+    // Returns { caves: [...], graylines: { nadirs: [...], paths: [...] } }
     //
     // NOTE: This implementation is preserved for reference/debugging, but the
-    // solver now uses the README's "Alternate Tunnel Detection Algorithm".
-    function findTunnels(component, uq) {
-      const debug = { nadirs: [], paths: [] };
+    // solver now uses the README's "Alternate Cave Detection Algorithm".
+    function findCaves(component, uq) {
+      const graylines = { nadirs: [], paths: [] };
 
       const componentSet = new Set(component.map(([r,c]) => `${r},${c}`));
 
@@ -382,58 +382,58 @@ window.Solver = (function() {
         if (getNeighbors(key).length <= 1) nadirs.push(key);
       }
 
-      // Record nadirs for debug visualization
-      debug.nadirs = nadirs.map(k => k.split(',').map(Number));
+      // Record nadirs for graylines visualization
+      graylines.nadirs = nadirs.map(k => k.split(',').map(Number));
 
-      // Try growing a tunnel from each nadir independently
+      // Try growing a cave from each nadir independently
       for (const nadirKey of nadirs) {
-        const tunnel = new Set([nadirKey]);
+        const cave = new Set([nadirKey]);
         const path = [nadirKey]; // Track growth order for visualization
 
         // Grow until we reach uq cells or can't grow anymore
-        while (tunnel.size < uq) {
-          // Find a tunnel cell with exactly 1 non-tunnel neighbor (the "front")
+        while (cave.size < uq) {
+          // Find a cave cell with exactly 1 non-cave neighbor (the "front")
           let cellToAdd = null;
-          for (const key of tunnel) {
-            const nonTunnelNeighbors = getNeighbors(key).filter(n => !tunnel.has(n));
-            if (nonTunnelNeighbors.length === 1) {
-              cellToAdd = nonTunnelNeighbors[0];
+          for (const key of cave) {
+            const nonCaveNeighbors = getNeighbors(key).filter(n => !cave.has(n));
+            if (nonCaveNeighbors.length === 1) {
+              cellToAdd = nonCaveNeighbors[0];
               break;
             }
           }
           if (!cellToAdd) break; // Hit a junction or dead end
-          tunnel.add(cellToAdd);
+          cave.add(cellToAdd);
           path.push(cellToAdd);
         }
 
         // Record the growth path (from nadir to quiescence)
-        debug.paths.push(path.map(k => k.split(',').map(Number)));
+        graylines.paths.push(path.map(k => k.split(',').map(Number)));
 
-        if (tunnel.size === uq) {
-          const cells = [...tunnel].map(k => k.split(',').map(Number));
-          return { tunnels: [cells], debug };
+        if (cave.size === uq) {
+          const cells = [...cave].map(k => k.split(',').map(Number));
+          return { caves: [cells], graylines };
         }
       }
 
-      return { tunnels: [], debug };
+      return { caves: [], graylines };
     }
 
-    // Find tunnels using the README's "Alternate Tunnel Detection Algorithm".
+    // Find caves using the README's "Alternate Cave Detection Algorithm".
     //
     // For each degree-2 cell c with neighbors nbr1,nbr2:
     // - Flood-fill the component from nbr1 excluding c to get comp1.
-    //   If |comp1| == uq -> comp1 is a tunnel.
-    //   If |comp1| == uq-1 -> comp1 ∪ {c} is a tunnel.
-    //   If |comp1| == uq-2 -> comp1 ∪ {c,nbr2} is a tunnel.
+    //   If |comp1| == uq -> comp1 is a cave.
+    //   If |comp1| == uq-1 -> comp1 ∪ {c} is a cave.
+    //   If |comp1| == uq-2 -> comp1 ∪ {c,nbr2} is a cave.
     // - Repeat symmetrically from nbr2.
     //
-    // Debug visualization:
+    // Graylines visualization:
     // - nadirs: all degree<=1 cells
     // - paths: for each nadir, follow the corridor (unique continuation) until
     //          reaching a junction / dead-end.
-    // Returns { tunnels: [...], debug: { nadirs: [...], paths: [...] } }
-    function findTunnelsAlternate(component, uq) {
-      const debug = { nadirs: [], paths: [] };
+    // Returns { caves: [...], graylines: { nadirs: [...], paths: [...] } }
+    function findCavesAlternate(component, uq) {
+      const graylines = { nadirs: [], paths: [] };
       const componentSet = new Set(component.map(([r, c]) => `${r},${c}`));
 
       function getNeighbors(key) {
@@ -452,7 +452,7 @@ window.Solver = (function() {
         const key = `${r},${c}`;
         if (getNeighbors(key).length <= 1) nadirKeys.push(key);
       }
-      debug.nadirs = nadirKeys.map(k => k.split(',').map(Number));
+      graylines.nadirs = nadirKeys.map(k => k.split(',').map(Number));
 
       // Corridor paths for visualization
       for (const nadirKey of nadirKeys) {
@@ -468,7 +468,7 @@ window.Solver = (function() {
           prev = cur;
           cur = next;
         }
-        debug.paths.push(path.map(k => k.split(',').map(Number)));
+        graylines.paths.push(path.map(k => k.split(',').map(Number)));
       }
 
       function floodFillExcluding(blockedKey, startKey) {
@@ -485,7 +485,7 @@ window.Solver = (function() {
         return visited;
       }
 
-      const tunnels = [];
+      const caves = [];
       const seen = new Set();
 
       for (const [r, c] of component) {
@@ -496,15 +496,15 @@ window.Solver = (function() {
 
         for (const [start, other] of [[nbr1, nbr2], [nbr2, nbr1]]) {
           const side = floodFillExcluding(key, start);
-          // README New Tunnel Detection Algorithm, step 6:
+          // README New Cave Detection Algorithm, step 6:
           // If excluding `key` still allows reaching the other neighbor, then `key`
-          // is not actually a bottleneck and this is not a valid tunnel candidate.
+          // is not actually a bottleneck and this is not a valid cave candidate.
           if (side.has(other)) continue;
           // README alternate algorithm (procedural):
           // - Start with the component reachable via `start` without going through `key`.
           // - If it's still smaller than uq, add `key`.
           // - If it's still smaller than uq, add `other`.
-          // - It's a tunnel iff the resulting set has size exactly uq.
+          // - It's a cave iff the resulting set has size exactly uq.
           const candidate = new Set(side);
           if (candidate.size < uq) candidate.add(key);
           if (candidate.size < uq) candidate.add(other);
@@ -513,11 +513,11 @@ window.Solver = (function() {
           const id = [...candidate].sort().join(';');
           if (seen.has(id)) continue;
           seen.add(id);
-          tunnels.push([...candidate].map(k => k.split(',').map(Number)));
+          caves.push([...candidate].map(k => k.split(',').map(Number)));
         }
       }
 
-      return { tunnels, debug };
+      return { caves, graylines };
     }
     
     // Find connected components within cavity set
@@ -558,8 +558,8 @@ window.Solver = (function() {
             deadCells.push(...component);
             sizePruning.cells.push(component);
             sizePruning.sizes.push(size);
-            // EARLY EXIT: Skip shape/tunnel checks since region is already dead.
-            // Remove this `continue` to also run shape/tunnel checks on this region
+            // EARLY EXIT: Skip shape/cave checks since region is already dead.
+            // Remove this `continue` to also run shape/cave checks on this region
             // (they'd add redundant shading but might be useful for visualization).
             //continue;
           }
@@ -572,8 +572,8 @@ window.Solver = (function() {
               deadCells.push(...component);
               shapePruning.cells.push(component);
               shapePruning.sizes.push(size);
-              // No `continue` here - tunnel check below still runs on larger regions
-              // (though this region is already marked dead, tunnels are sub-regions)
+              // No `continue` here - cave check below still runs on larger regions
+              // (though this region is already marked dead, caves are sub-regions)
             } else {
               // Forced placement: region matches exactly one piece shape
               const placement = findForcedPlacement(component, matchingPiece);
@@ -584,33 +584,33 @@ window.Solver = (function() {
             }
           }
           
-          // (3) Tunnel check: only if uniform queue (all remaining pieces same size)
-          // NOTE: Tunnels are WITHIN a larger region (size > uniformQueueSize).
-          // A tunnel is a dead-end corridor of exactly uniformQueueSize cells.
-          // If a tunnel's shape doesn't match any available piece, the whole
-          // region is effectively dead (you can't fill the tunnel).
+          // (3) Cave check: only if uniform queue (all remaining pieces same size)
+          // NOTE: Caves are WITHIN a larger region (size > uniformQueueSize).
+          // A cave is a dead-end corridor of exactly uniformQueueSize cells.
+          // If a cave's shape doesn't match any available piece, the whole
+          // region is effectively dead (you can't fill the cave).
           // This check runs INDEPENDENTLY of shape check above - a region could
-          // pass shape check but still have an unfillable tunnel inside it.
+          // pass shape check but still have an unfillable cave inside it.
           if (uniformQueueSize /*&& size > uniformQueueSize*/) {
-            const { tunnels, debug } = findTunnelsAlternate(component, uniformQueueSize);
-            // Accumulate debug info for visualization
-            tunnelDebug.nadirs.push(...debug.nadirs);
-            tunnelDebug.paths.push(...debug.paths);
-            for (const tunnel of tunnels) {
-              const tunnelKey = shapeKey(tunnel);
-              const matchingPiece = shapeToPiece[tunnelKey];
+            const { caves, graylines: newGraylines } = findCavesAlternate(component, uniformQueueSize);
+            // Accumulate graylines info for visualization
+            graylines.nadirs.push(...newGraylines.nadirs);
+            graylines.paths.push(...newGraylines.paths);
+            for (const cave of caves) {
+              const caveKey = shapeKey(cave);
+              const matchingPiece = shapeToPiece[caveKey];
               if (!matchingPiece || !remainingSet.has(matchingPiece)) {
-                // Pruning: tunnel doesn't match any available piece
-                deadCells.push(...tunnel);
-                tunnelPruning.cells.push(tunnel);
-                tunnelPruning.sizes.push(tunnel.length);
+                // Pruning: cave doesn't match any available piece
+                deadCells.push(...cave);
+                cavePruning.cells.push(cave);
+                cavePruning.sizes.push(cave.length);
               } else {
-                // Forced placement: tunnel matches exactly one piece shape
-                const placement = findForcedPlacement(tunnel, matchingPiece);
+                // Forced placement: cave matches exactly one piece shape
+                const placement = findForcedPlacement(cave, matchingPiece);
                 if (!placement) throw new Error(`findForcedPlacement failed for ${matchingPiece}`);
                 forcedPlacements.push(placement);
-                forcedRegions.cells.push(tunnel);
-                forcedRegions.sizes.push(tunnel.length);
+                forcedRegions.cells.push(cave);
+                forcedRegions.sizes.push(cave.length);
               }
             }
           }
@@ -618,7 +618,7 @@ window.Solver = (function() {
       }
     }
 
-    return { deadCells, sizePruning, shapePruning, tunnelPruning, forcedRegions, forcedPlacements, allRegionSizes, tunnelDebug };
+    return { deadCells, sizePruning, shapePruning, cavePruning, forcedRegions, forcedPlacements, allRegionSizes, graylines };
   }
   
   function countValidPlacements(grid, pieceName) {
@@ -631,9 +631,9 @@ window.Solver = (function() {
   }
   
   function getEffectiveCounts(grid, remainingPieces) {
-    const { deadCells, sizePruning, shapePruning, tunnelPruning, forcedRegions, forcedPlacements, allRegionSizes, tunnelDebug } = analyzeRegions(grid, remainingPieces);
+    const { deadCells, sizePruning, shapePruning, cavePruning, forcedRegions, forcedPlacements, allRegionSizes, graylines } = analyzeRegions(grid, remainingPieces);
     const counts = remainingPieces.map(name => ({ name, count: countValidPlacements(grid, name) }));
-    return { counts, deadCells, sizePruning, shapePruning, tunnelPruning, forcedRegions, forcedPlacements, allRegionSizes, tunnelDebug };
+    return { counts, deadCells, sizePruning, shapePruning, cavePruning, forcedRegions, forcedPlacements, allRegionSizes, graylines };
   }
   
   // Main solve function
@@ -684,8 +684,8 @@ window.Solver = (function() {
         // Convert to array format for visualization
         placements = placedPieces.map(name => placementsByName[name]);
         const emptyPruning = { cells: [], sizes: [] };
-        const emptyTunnelDebug = { nadirs: [], paths: [] };
-        visualizeCallback(placements, attempts, allPiecesProgress, [], emptyPruning, emptyPruning, emptyPruning, emptyPruning, null, false, [], [], emptyTunnelDebug);
+        const emptyGraylines = { nadirs: [], paths: [] };
+        visualizeCallback(placements, attempts, allPiecesProgress, [], emptyPruning, emptyPruning, emptyPruning, emptyPruning, null, false, [], [], emptyGraylines);
         
         // Wait while paused (user can resume to find next solution)
         while (paused && solving) {
@@ -761,8 +761,8 @@ window.Solver = (function() {
         const nextPieceName = orderedNewRemaining.length > 0 ? orderedNewRemaining[0] : null;
         placements = newPlaced.map(name => placementsByName[name]);
         visualizeCallback(placements, attempts, allPiecesProgress, newAnalysis.deadCells,
-            newAnalysis.sizePruning, newAnalysis.shapePruning, newAnalysis.tunnelPruning,
-          newAnalysis.forcedRegions, nextPieceName, false, orderedNewRemaining, newAnalysis.allRegionSizes, newAnalysis.tunnelDebug);
+            newAnalysis.sizePruning, newAnalysis.shapePruning, newAnalysis.cavePruning,
+          newAnalysis.forcedRegions, nextPieceName, false, orderedNewRemaining, newAnalysis.allRegionSizes, newAnalysis.graylines);
         
         // Step mode or delay
         if (stepMode) {
@@ -841,7 +841,7 @@ window.Solver = (function() {
           const rawRemaining = orderedRemaining.slice(1);
           const tryAnalysis = getEffectiveCounts(grid, rawRemaining);
           
-          const { counts: remainingCounts, deadCells, sizePruning, shapePruning, tunnelPruning, forcedRegions, allRegionSizes, tunnelDebug } = tryAnalysis;
+          const { counts: remainingCounts, deadCells, sizePruning, shapePruning, cavePruning, forcedRegions, allRegionSizes, graylines } = tryAnalysis;
           remainingCounts.sort((a, b) => a.count - b.count);
           const newRemaining = remainingCounts.map(x => x.name);
 
@@ -868,7 +868,7 @@ window.Solver = (function() {
 
           // Convert to array for visualization
           placements = newPlaced.map(name => placementsByName[name]);
-          visualizeCallback(placements, attempts, allPiecesProgress, deadCells, sizePruning, shapePruning, tunnelPruning, forcedRegions, nextPieceName, false, newRemaining, allRegionSizes, tunnelDebug);
+          visualizeCallback(placements, attempts, allPiecesProgress, deadCells, sizePruning, shapePruning, cavePruning, forcedRegions, nextPieceName, false, newRemaining, allRegionSizes, graylines);
           
           // Step mode: pause after each placement
           if (stepMode) {
@@ -913,8 +913,8 @@ window.Solver = (function() {
         ];
         placements = currentPlaced.map(name => placementsByName[name]);
         const emptyPruning2 = { cells: [], sizes: [] };
-        const emptyTunnelDebug2 = { nadirs: [], paths: [] };
-        visualizeCallback(placements, attempts, allPiecesProgress, [], emptyPruning2, emptyPruning2, emptyPruning2, emptyPruning2, pieceName, true, orderedRemaining, [], emptyTunnelDebug2);
+        const emptyGraylines2 = { nadirs: [], paths: [] };
+        visualizeCallback(placements, attempts, allPiecesProgress, [], emptyPruning2, emptyPruning2, emptyPruning2, emptyPruning2, pieceName, true, orderedRemaining, [], emptyGraylines2);
         
         // Step mode or normal delay
         if (stepMode) {
@@ -1041,7 +1041,9 @@ window.Solver = (function() {
   }
   
   // Count all solutions for a given date (synchronous, no visualization)
-  // NOTE: Uses fixed piece order, not dynamic "most constrained first" ordering
+  // BRUTE FORCE ONLY: This intentionally does no region-pruning / cave-pruning /
+  // forced-placement logic. Only overlap/bounds/date-cell constraints apply.
+  // NOTE: Uses fixed piece order, not dynamic "most constrained first" ordering.
   function countSolutions(shapes, targetCells) {
     if (!pieceData) {
       initPieceData(shapes);
@@ -1057,6 +1059,10 @@ window.Solver = (function() {
     let attempts = 0;
     let firstSolutionAttempts = null;
     
+    if (pieceNames.length !== 8) {
+      throw new Error(`countSolutions expects 8 pieces, got ${pieceNames.length}`);
+    }
+
     function backtrack(pieceIndex) {
       if (pieceIndex === 8) {
         solutionCount++;
@@ -1074,12 +1080,17 @@ window.Solver = (function() {
         for (const [row, col] of validPositions) {
           setPiece(grid, orientation.cells, row, col, 3 + pieceIndex);
           attempts++;
-          
-          // Prune if dead cells exist
-          const { deadCells } = analyzeRegions(grid);
-          if (deadCells.length === 0) {
-            backtrack(pieceIndex + 1);
-          }
+
+          // Brute force: always recurse.
+          backtrack(pieceIndex + 1);
+
+          // Previous pruning (kept for reference, intentionally disabled):
+          //
+          // // Prune if dead cells exist
+          // const { deadCells } = analyzeRegions(grid);
+          // if (deadCells.length === 0) {
+          //   backtrack(pieceIndex + 1);
+          // }
           
           setPiece(grid, orientation.cells, row, col, 1); // Backtrack
         }

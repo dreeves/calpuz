@@ -1,6 +1,6 @@
 /** @type {import('@playwright/test').PlaywrightTestConfig} */
 const config = {
-  testDir: './tests',
+  testDir: './quals',
   timeout: 30_000,
   use: {
     baseURL: 'http://127.0.0.1:5003',

@@ -19,12 +19,12 @@ const SHAPE_PRUNE_WIDTH = 0.1;
 const SHAPE_PRUNE_ANGLE = -45;          // Opposite angle for distinction
 const SHAPE_PRUNE_OPACITY = 0.15;
 
-// Type 3: Unfillable TUNNEL (dead-end corridor can't be filled)
-const TUNNEL_PRUNE_COLOR_1 = '#ffffff';
-const TUNNEL_PRUNE_COLOR_2 = '#000000';
-const TUNNEL_PRUNE_WIDTH = 0.1;
-const TUNNEL_PRUNE_ANGLE = 45;           // Perpendicular to red (-45)
-const TUNNEL_PRUNE_OPACITY = 0.25;
+// Type 3: Unfillable CAVE (dead-end corridor can't be filled)
+const CAVE_PRUNE_COLOR_1 = '#ffffff';
+const CAVE_PRUNE_COLOR_2 = '#000000';
+const CAVE_PRUNE_WIDTH = 0.1;
+const CAVE_PRUNE_ANGLE = 45;           // Perpendicular to red (-45)
+const CAVE_PRUNE_OPACITY = 0.25;
 
 // Type 4: FORCED regions (regions that force a specific piece placement)
 const FORCED_REGION_COLOR_1 = '#00cc00';
@@ -33,12 +33,12 @@ const FORCED_REGION_WIDTH = 0.1;
 const FORCED_REGION_ANGLE = -45;          // Same as red (opposite to blue/yellow)
 const FORCED_REGION_OPACITY = 0.2;
 
-// Tunnel-debug visualization (nadirs + growth arrows)
-const TUNNEL_DEBUG_OPACITY = 0.15;
-const TUNNEL_DOT_RADIUS = 0.16; // As fraction of boxel
-const TUNNEL_ARROW_MARKER_SIZE = 4;
-const TUNNEL_ARROW_MARKER_VIEWBOX = 10;
-const TUNNEL_ARROW_MARKER_REF_X = 9;
+// Graylines visualization (nadirs + growth arrows)
+const GRAYLINES_OPACITY = 0.15;
+const GRAYLINES_DOT_RADIUS = 0.16; // As fraction of boxel
+const GRAYLINES_ARROW_MARKER_SIZE = 4;
+const GRAYLINES_ARROW_MARKER_VIEWBOX = 10;
+const GRAYLINES_ARROW_MARKER_REF_X = 9;
 
 // Confetti
 const CONFETTI_TICKS = 350;
@@ -1048,8 +1048,8 @@ function drawPendingPieces(progress, failedPieceName = null, orderedRemaining = 
 }
 
 // Visualize all placements (callback for solver)
-// sizePruning, shapePruning, tunnelPruning, forcedRegions are { cells: [[r,c],...], sizes: [n,...] }
-function visualizeAllPlacements(placements, attempts, progress, deadCells = [], sizePruning = {cells:[], sizes:[]}, shapePruning = {cells:[], sizes:[]}, tunnelPruning = {cells:[], sizes:[]}, forcedRegions = {cells:[], sizes:[]}, nextPiece = null, pieceFailed = false, orderedRemaining = [], allRegionSizes = [], tunnelDebug = { nadirs: [], paths: [] }) {
+// sizePruning, shapePruning, cavePruning, forcedRegions are { cells: [[r,c],...], sizes: [n,...] }
+function visualizeAllPlacements(placements, attempts, progress, deadCells = [], sizePruning = {cells:[], sizes:[]}, shapePruning = {cells:[], sizes:[]}, cavePruning = {cells:[], sizes:[]}, forcedRegions = {cells:[], sizes:[]}, nextPiece = null, pieceFailed = false, orderedRemaining = [], allRegionSizes = [], graylines = { nadirs: [], paths: [] }) {
   // Clear all pieces (use removeGroup to clean up Hammer instances)
   for (const [name, , ] of shapes) {
     const group = svgGet(name);
@@ -1063,8 +1063,8 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
   // Remove old patterns from defs to prevent memory leak
   document.querySelectorAll('pattern[id^="prune-"], pattern[id^="swatch-"]').forEach(p => p.remove());
 
-  // Remove old tunnel arrow marker (we recreate it each time)
-  document.querySelectorAll('marker#tunnel-arrowhead').forEach(m => m.remove());
+  // Remove old graylines arrow marker (we recreate it each time)
+  document.querySelectorAll('marker#graylines-arrowhead').forEach(m => m.remove());
   
   // Draw all placements
   for (const p of placements) {
@@ -1138,20 +1138,20 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
     SIZE_PRUNE_COLOR_1, SIZE_PRUNE_COLOR_2, SIZE_PRUNE_WIDTH, SIZE_PRUNE_ANGLE, SIZE_PRUNE_OPACITY, 'prune-size');
   drawPrunedRegions(deadGroup, shapePruning.cells,
     SHAPE_PRUNE_COLOR_1, SHAPE_PRUNE_COLOR_2, SHAPE_PRUNE_WIDTH, SHAPE_PRUNE_ANGLE, SHAPE_PRUNE_OPACITY, 'prune-shape');
-  drawPrunedRegions(deadGroup, tunnelPruning.cells,
-    TUNNEL_PRUNE_COLOR_1, TUNNEL_PRUNE_COLOR_2, TUNNEL_PRUNE_WIDTH, TUNNEL_PRUNE_ANGLE, TUNNEL_PRUNE_OPACITY, 'prune-tunnel');
+  drawPrunedRegions(deadGroup, cavePruning.cells,
+    CAVE_PRUNE_COLOR_1, CAVE_PRUNE_COLOR_2, CAVE_PRUNE_WIDTH, CAVE_PRUNE_ANGLE, CAVE_PRUNE_OPACITY, 'prune-cave');
   drawCheckerboardRegions(deadGroup, forcedRegions.cells,
     FORCED_REGION_COLOR_1, FORCED_REGION_COLOR_2, FORCED_REGION_WIDTH, FORCED_REGION_OPACITY, 'prune-forced');
 
-  // Tunnel debug visualization:
+  // Graylines visualization:
   // - Dot at every nadir
   // - Polyline from nadir to quiescence with an arrowhead at the end
-  // tunnelDebug = { nadirs: [[r,c],...], paths: [[[r,c],...], ...] }
+  // graylines = { nadirs: [[r,c],...], paths: [[[r,c],...], ...] }
   // (paths are ordered growth sequences starting at the nadir)
-  (function drawTunnelDebug() {
-    if (!tunnelDebug) return;
-    const nadirs = tunnelDebug.nadirs || [];
-    const paths = tunnelDebug.paths || [];
+  (function drawGraylines() {
+    if (!graylines) return;
+    const nadirs = graylines.nadirs || [];
+    const paths = graylines.paths || [];
 
     const svgNs = 'http://www.w3.org/2000/svg';
     let defs = svg.node.querySelector('defs');
@@ -1161,18 +1161,18 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
     }
 
     const marker = document.createElementNS(svgNs, 'marker');
-    marker.setAttribute('id', 'tunnel-arrowhead');
+    marker.setAttribute('id', 'graylines-arrowhead');
     marker.setAttribute('viewBox', '0 0 10 10');
-    marker.setAttribute('refX', String(TUNNEL_ARROW_MARKER_REF_X));
+    marker.setAttribute('refX', String(GRAYLINES_ARROW_MARKER_REF_X));
     marker.setAttribute('refY', '5');
-    marker.setAttribute('markerWidth', String(TUNNEL_ARROW_MARKER_SIZE));
-    marker.setAttribute('markerHeight', String(TUNNEL_ARROW_MARKER_SIZE));
+    marker.setAttribute('markerWidth', String(GRAYLINES_ARROW_MARKER_SIZE));
+    marker.setAttribute('markerHeight', String(GRAYLINES_ARROW_MARKER_SIZE));
     marker.setAttribute('orient', 'auto');
     marker.setAttribute('markerUnits', 'strokeWidth');
     const arrow = document.createElementNS(svgNs, 'path');
     arrow.setAttribute('d', 'M 0 0 L 10 5 L 0 10 z');
     arrow.setAttribute('fill', '#000000');
-    arrow.setAttribute('fill-opacity', String(TUNNEL_DEBUG_OPACITY));
+    arrow.setAttribute('fill-opacity', String(GRAYLINES_OPACITY));
     marker.appendChild(arrow);
     defs.appendChild(marker);
 
@@ -1183,7 +1183,7 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
       };
     }
 
-    const dotSize = Math.max(3, boxel * 2 * TUNNEL_DOT_RADIUS);
+    const dotSize = Math.max(3, boxel * 2 * GRAYLINES_DOT_RADIUS);
     const dotOuterRadius = dotSize / 2;
     for (const [r, c] of nadirs) {
       const { x, y } = cellCenter(r, c);
@@ -1192,7 +1192,7 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
         .center(x, y)
         .fill('#000000')
         .attr({
-          'fill-opacity': String(TUNNEL_DEBUG_OPACITY),
+          'fill-opacity': String(GRAYLINES_OPACITY),
           stroke: 'none',
           'stroke-width': 0,
         });
@@ -1207,7 +1207,7 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
       const dx = last.x - prev.x;
       const dy = last.y - prev.y;
       const segLen = Math.hypot(dx, dy);
-      if (!(segLen > 0)) throw new Error('Tunnel debug path has zero-length last segment');
+      if (!(segLen > 0)) throw new Error('Graylines path has zero-length last segment');
 
       // Trim the start of the visible line so it doesn't overlap the nadir dot.
       const first = points[0];
@@ -1215,19 +1215,19 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
       const sdx = second.x - first.x;
       const sdy = second.y - first.y;
       const firstSegLen = Math.hypot(sdx, sdy);
-      if (!(firstSegLen > 0)) throw new Error('Tunnel debug path has zero-length first segment');
+      if (!(firstSegLen > 0)) throw new Error('Graylines path has zero-length first segment');
 
       // Compute how far back the visible line should stop so it meets the base of the marker.
       // With markerUnits="strokeWidth", markerWidth is in multiples of stroke width.
       // Mapping viewBox units → user units: 10 units == markerWidth*strokeWidth.
       // Base of arrow is at x=0; refX aligns x=refX with the end vertex.
       // So base is refX viewBox-units "behind" the end vertex.
-      const markerBackoff = (TUNNEL_ARROW_MARKER_REF_X / TUNNEL_ARROW_MARKER_VIEWBOX) * TUNNEL_ARROW_MARKER_SIZE * lineWidth;
+      const markerBackoff = (GRAYLINES_ARROW_MARKER_REF_X / GRAYLINES_ARROW_MARKER_VIEWBOX) * GRAYLINES_ARROW_MARKER_SIZE * lineWidth;
 
       // Start the line exactly at the dot boundary (no visible gap).
       const startBackoff = dotOuterRadius;
       if (points.length === 2 && !(firstSegLen > startBackoff + markerBackoff)) {
-        throw new Error('Tunnel debug path too short to trim at start and end');
+        throw new Error('Graylines path too short to trim at start and end');
       }
 
       const ux = dx / segLen;
@@ -1247,7 +1247,7 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
       const visiblePts = [startCut].concat(points.slice(1, -1), [cut]).map(p => `${p.x},${p.y}`).join(' ');
       deadGroup.polyline(visiblePts)
         .fill('none')
-        .stroke({ width: lineWidth, color: '#000000', linecap: 'butt', linejoin: 'round', opacity: TUNNEL_DEBUG_OPACITY });
+        .stroke({ width: lineWidth, color: '#000000', linecap: 'butt', linejoin: 'round', opacity: GRAYLINES_OPACITY });
 
       // Invisible carrier segment for the marker so the arrowhead sits at the true end
       // without the (semi-transparent) stroke being painted underneath it.
@@ -1255,7 +1255,7 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
       deadGroup.polyline(markerPts)
         .fill('none')
         .stroke({ width: lineWidth, color: '#000000', linecap: 'butt', linejoin: 'round', opacity: 0 })
-        .attr({ 'marker-end': 'url(#tunnel-arrowhead)' });
+        .attr({ 'marker-end': 'url(#graylines-arrowhead)' });
     }
   })();
   
@@ -1299,7 +1299,7 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
   
   // Helper to render sizes in braces with specified ones struck through in red
   function addSizes(add, sizes, strikethroughSet) {
-    add.tspan(' — {');
+    add.tspan(': {');
     sizes.forEach((size, i) => {
       const span = add.tspan(String(size));
       if (strikethroughSet.has(size)) {
@@ -1310,13 +1310,12 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
     add.tspan('}');
   }
 
-  // Helper to draw legend text showing all sizes with unfillable ones struck through
-  function drawLegendText(y, unfillableSizes, italicWord, allSizes) {
-    const sorted = [...allSizes].sort((a, b) => a - b);
+  // Helper to draw legend text showing only the unfillable sizes for a category
+  function drawLegendText(y, unfillableSizes, italicWord) {
+    const sorted = [...unfillableSizes].sort((a, b) => a - b);
     const text = deadGroup.text(function(add) {
-      add.tspan(`${splur(unfillableSizes.length, "region")} of unfillable `);
-      add.tspan(italicWord).attr('font-style', 'italic');
-      addSizes(add, sorted, new Set(unfillableSizes));
+      add.tspan(splur(sorted.length, `unfillable ${italicWord}`));
+      addSizes(add, sorted, new Set());
     });
     text.font({ size: fontSize, weight: 'bold', family: 'Arial' }).fill('#000000').move(textX, y);
   }
@@ -1324,24 +1323,28 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
   // All 3 legend lines unconditionally (opacity 0 when solution found to hide without conditionals)
   const legendOpacity = showLegend ? 1 : 0;
   
+  // Top line: show all region sizes
+  const allSizesSorted = [...allRegionSizes].sort((a, b) => a - b);
+  deadGroup.text(`Region sizes: {${allSizesSorted.join(', ')}}`)
+    .font({ size: fontSize, weight: 'bold', family: 'Arial' })
+    .fill('#000000')
+    .move(textX, textY);
+  textY += lineHeight;
+
   drawSwatch(textY, SIZE_PRUNE_COLOR_1, SIZE_PRUNE_COLOR_2, SIZE_PRUNE_ANGLE, 'swatch-size');
-  drawLegendText(textY, sizePruning.sizes, 'size', allRegionSizes);
+  drawLegendText(textY, sizePruning.sizes, 'size');
   textY += lineHeight;
 
   drawSwatch(textY, SHAPE_PRUNE_COLOR_1, SHAPE_PRUNE_COLOR_2, SHAPE_PRUNE_ANGLE, 'swatch-shape');
-  drawLegendText(textY, shapePruning.sizes, 'shape', allRegionSizes);
+  drawLegendText(textY, shapePruning.sizes, 'shape');
   textY += lineHeight;
-  
-  drawSwatch(textY, TUNNEL_PRUNE_COLOR_1, TUNNEL_PRUNE_COLOR_2, TUNNEL_PRUNE_ANGLE, 'swatch-tunnel');
-  const tunnelText = deadGroup.text(function(add) {
-    add.tspan(splur(tunnelPruning.sizes.length, "unfillable tunnel"));
-    addSizes(add, tunnelPruning.sizes, new Set(tunnelPruning.sizes));
-  });
-  tunnelText.font({ size: fontSize, weight: 'bold', family: 'Arial' }).fill('#000000').move(textX, textY);
+
+  drawSwatch(textY, CAVE_PRUNE_COLOR_1, CAVE_PRUNE_COLOR_2, CAVE_PRUNE_ANGLE, 'swatch-cave');
+  drawLegendText(textY, cavePruning.sizes, 'cave');
   textY += lineHeight;
 
   drawCheckerboardSwatch(textY, FORCED_REGION_COLOR_1, FORCED_REGION_COLOR_2, 'swatch-forced');
-  deadGroup.text(`${splur(forcedRegions.sizes.length, "forced placement")} — {${forcedRegions.sizes.join(', ')}}`)
+  deadGroup.text(`${splur(forcedRegions.sizes.length, "forced placement")}: {${forcedRegions.sizes.join(', ')}}`)
     .font({ size: fontSize, weight: 'bold', family: 'Arial' })
     .fill('#000000')
     .move(textX, textY);

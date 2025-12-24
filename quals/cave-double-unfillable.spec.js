@@ -1,6 +1,6 @@
 const { test, expect } = require('@playwright/test');
 
-test('6-cell corridor yields two distinct unfillable uq=5 tunnels', async ({ page, baseURL }) => {
+test('6-cell corridor yields two distinct unfillable uq=5 caves', async ({ page, baseURL }) => {
   await page.goto(`${baseURL}/`, { waitUntil: 'load' });
 
   // Ensure solver piece data is initialized (needed for shape lookup).
@@ -21,8 +21,8 @@ test('6-cell corridor yields two distinct unfillable uq=5 tunnels', async ({ pag
 
     const analysis = window.Solver.__testOnly_analyzeRegions(grid, remainingPieces);
     return {
-      tunnelSizes: analysis.tunnelPruning.sizes,
-      tunnelCells: analysis.tunnelPruning.cells,
+      caveSizes: analysis.cavePruning.sizes,
+      caveCells: analysis.cavePruning.cells,
       sizeSizes: analysis.sizePruning.sizes,
     };
   });
@@ -30,17 +30,17 @@ test('6-cell corridor yields two distinct unfillable uq=5 tunnels', async ({ pag
   // The region is size 6 which is unfillable by 5s.
   expect(result.sizeSizes).toContain(6);
 
-  // But it contains two distinct 5-cell tunnels (cells 0-4 and 1-5).
-  expect(result.tunnelSizes).toEqual([5, 5]);
-  expect(result.tunnelCells).toHaveLength(2);
-  expect(result.tunnelCells[0]).toHaveLength(5);
-  expect(result.tunnelCells[1]).toHaveLength(5);
+  // But it contains two distinct 5-cell caves (cells 0-4 and 1-5).
+  expect(result.caveSizes).toEqual([5, 5]);
+  expect(result.caveCells).toHaveLength(2);
+  expect(result.caveCells[0]).toHaveLength(5);
+  expect(result.caveCells[1]).toHaveLength(5);
 
-  const tunnelKey = (cells) => cells.map(([rr, cc]) => `${rr},${cc}`).sort().join(';');
-  expect(tunnelKey(result.tunnelCells[0])).not.toEqual(tunnelKey(result.tunnelCells[1]));
+  const caveKey = (cells) => cells.map(([rr, cc]) => `${rr},${cc}`).sort().join(';');
+  expect(caveKey(result.caveCells[0])).not.toEqual(caveKey(result.caveCells[1]));
 });
 
-test('non-bottleneck degree-2 cells yield no tunnels (cycle)', async ({ page, baseURL }) => {
+test('non-bottleneck degree-2 cells yield no caves (cycle)', async ({ page, baseURL }) => {
   await page.goto(`${baseURL}/`, { waitUntil: 'load' });
 
   await page.waitForFunction(() => typeof window.Solver?.initPieceData === 'function');
@@ -50,7 +50,7 @@ test('non-bottleneck degree-2 cells yield no tunnels (cycle)', async ({ page, ba
 
   const result = await page.evaluate(() => {
     // 2x3 filled rectangle is cyclic enough that corner degree-2 cells are not bottlenecks.
-    // With uq=5, the old (incorrect) logic could manufacture tunnels; the new algorithm
+    // With uq=5, the old (incorrect) logic could manufacture caves; the new algorithm
     // must reject them because nbr1 can still reach nbr2 when excluding c.
     const grid = Array.from({ length: 7 }, () => Array(7).fill(0));
     for (let r = 2; r <= 3; r++) {
@@ -62,18 +62,18 @@ test('non-bottleneck degree-2 cells yield no tunnels (cycle)', async ({ page, ba
 
     const analysis = window.Solver.__testOnly_analyzeRegions(grid, remainingPieces);
     return {
-      tunnelSizes: analysis.tunnelPruning.sizes,
-      tunnelCells: analysis.tunnelPruning.cells,
+      caveSizes: analysis.cavePruning.sizes,
+      caveCells: analysis.cavePruning.cells,
       sizeSizes: analysis.sizePruning.sizes,
     };
   });
 
   expect(result.sizeSizes).toContain(6);
-  expect(result.tunnelSizes).toEqual([]);
-  expect(result.tunnelCells).toHaveLength(0);
+  expect(result.caveSizes).toEqual([]);
+  expect(result.caveCells).toHaveLength(0);
 });
 
-test('legend shows tunnel count (2 unfillable tunnels)', async ({ page, baseURL }) => {
+test('legend shows cave count (2 unfillable caves)', async ({ page, baseURL }) => {
   await page.goto(`${baseURL}/`, { waitUntil: 'load' });
 
   await page.waitForFunction(() => typeof window.Solver?.initPieceData === 'function');
@@ -98,7 +98,7 @@ test('legend shows tunnel count (2 unfillable tunnels)', async ({ page, baseURL 
       analysis.deadCells,
       analysis.sizePruning,
       analysis.shapePruning,
-      analysis.tunnelPruning,
+      analysis.cavePruning,
       analysis.forcedRegions,
       null,
       false,
@@ -112,6 +112,6 @@ test('legend shows tunnel count (2 unfillable tunnels)', async ({ page, baseURL 
     return deadGroup.textContent || '';
   });
 
-  expect(legendText).toMatch(/\b2 unfillable tunnels\b/);
-  expect(legendText).not.toMatch(/\b1 unfillable tunnel\b/);
+  expect(legendText).toMatch(/\b2 unfillable caves\b/);
+  expect(legendText).not.toMatch(/\b1 unfillable cave\b/);
 });

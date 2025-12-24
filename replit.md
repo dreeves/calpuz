@@ -57,7 +57,7 @@ Preferred communication style: Simple, everyday language.
    - **Four visualization types** via `analyzeRegions()`:
      1. **Size pruning**: Bounded subset-sum DP checks if region size is fillable by remaining pieces - black/yellow stripes at 45°
      2. **Shape pruning**: Regions matching any distinct piece size in queue checked against available shapes - red/white stripes at -45°
-     3. **Tunnel pruning**: Dead-end corridors in uniform-size queues that can't be filled - blue/white stripes at 45°
+   3. **Cave pruning**: Dead-end corridors in uniform-size queues that can't be filled - blue/white stripes at 45°
      4. **Forced regions**: Regions that force a specific piece placement - green/white stripes at -45°
    - Each visualization type has configurable colors, angles, widths, and opacity in index.js constants
    - **Shape lookup via `shapeKeyToOrientation`**: Maps normalized shape keys to piece name + orientation index for O(1) forced placement lookup
