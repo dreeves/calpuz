@@ -314,7 +314,7 @@ window.Solver = (function() {
     const forcedRegions = { cells: [], sizes: [] };    // (4) regions that force a piece placement
     const allRegionSizes = [];                         // All region sizes (for legend)
     const forcedPlacements = [];                       // Pieces that must be placed in specific regions
-    const graylines = { nadirs: [], paths: [] };       // Debug info for graylines visualization
+    const tunnels = { nadirs: [], paths: [] };         // Debug info for tunnel visualization
     const remainingSet = new Set(remainingPieces);
     
     // Compute piece sizes for generalized pruning
@@ -355,12 +355,12 @@ window.Solver = (function() {
     // A cave is a dead-end corridor of exactly uq cells.
     // Key insight: grow each cave INDEPENDENTLY from each nadir, so caves
     // can't merge and overshoot. A cave grows until it hits uq or a junction.
-    // Returns { caves: [...], graylines: { nadirs: [...], paths: [...] } }
+    // Returns { caves: [...], tunnels: { nadirs: [...], paths: [...] } }
     //
     // NOTE: This implementation is preserved for reference/debugging, but the
     // solver now uses the README's "Alternate Cave Detection Algorithm".
     function findCaves(component, uq) {
-      const graylines = { nadirs: [], paths: [] };
+      const tunnels = { nadirs: [], paths: [] };
 
       const componentSet = new Set(component.map(([r,c]) => `${r},${c}`));
 
@@ -382,8 +382,8 @@ window.Solver = (function() {
         if (getNeighbors(key).length <= 1) nadirs.push(key);
       }
 
-      // Record nadirs for graylines visualization
-      graylines.nadirs = nadirs.map(k => k.split(',').map(Number));
+      // Record nadirs for tunnel visualization
+      tunnels.nadirs = nadirs.map(k => k.split(',').map(Number));
 
       // Try growing a cave from each nadir independently
       for (const nadirKey of nadirs) {
@@ -407,15 +407,15 @@ window.Solver = (function() {
         }
 
         // Record the growth path (from nadir to quiescence)
-        graylines.paths.push(path.map(k => k.split(',').map(Number)));
+        tunnels.paths.push(path.map(k => k.split(',').map(Number)));
 
         if (cave.size === uq) {
           const cells = [...cave].map(k => k.split(',').map(Number));
-          return { caves: [cells], graylines };
+          return { caves: [cells], tunnels };
         }
       }
 
-      return { caves: [], graylines };
+      return { caves: [], tunnels };
     }
 
     // Find caves using the README's "Alternate Cave Detection Algorithm".
@@ -427,13 +427,13 @@ window.Solver = (function() {
     //   If |comp1| == uq-2 -> comp1 ∪ {c,nbr2} is a cave.
     // - Repeat symmetrically from nbr2.
     //
-    // Graylines visualization:
+    // Tunnel visualization:
     // - nadirs: all degree<=1 cells
     // - paths: for each nadir, follow the corridor (unique continuation) until
-    //          reaching a junction / dead-end.
-    // Returns { caves: [...], graylines: { nadirs: [...], paths: [...] } }
+    //          reaching a junction / dead-end, or until length uq.
+    // Returns { caves: [...], tunnels: { nadirs: [...], paths: [...] } }
     function findCavesAlternate(component, uq) {
-      const graylines = { nadirs: [], paths: [] };
+      const tunnels = { nadirs: [], paths: [] };
       const componentSet = new Set(component.map(([r, c]) => `${r},${c}`));
 
       function getNeighbors(key) {
@@ -452,7 +452,7 @@ window.Solver = (function() {
         const key = `${r},${c}`;
         if (getNeighbors(key).length <= 1) nadirKeys.push(key);
       }
-      graylines.nadirs = nadirKeys.map(k => k.split(',').map(Number));
+      tunnels.nadirs = nadirKeys.map(k => k.split(',').map(Number));
 
       // Corridor paths for visualization
       for (const nadirKey of nadirKeys) {
@@ -460,6 +460,7 @@ window.Solver = (function() {
         let prev = null;
         let cur = nadirKey;
         while (true) {
+          if (path.length >= uq) break;
           const neighbors = getNeighbors(cur);
           const forward = prev === null ? neighbors : neighbors.filter(n => n !== prev);
           if (forward.length !== 1) break;
@@ -468,7 +469,7 @@ window.Solver = (function() {
           prev = cur;
           cur = next;
         }
-        graylines.paths.push(path.map(k => k.split(',').map(Number)));
+        tunnels.paths.push(path.map(k => k.split(',').map(Number)));
       }
 
       function floodFillExcluding(blockedKey, startKey) {
@@ -517,7 +518,7 @@ window.Solver = (function() {
         }
       }
 
-      return { caves, graylines };
+      return { caves, tunnels };
     }
     
     // Find connected components within cavity set
@@ -592,10 +593,10 @@ window.Solver = (function() {
           // This check runs INDEPENDENTLY of shape check above - a region could
           // pass shape check but still have an unfillable cave inside it.
           if (uniformQueueSize /*&& size > uniformQueueSize*/) {
-            const { caves, graylines: newGraylines } = findCavesAlternate(component, uniformQueueSize);
-            // Accumulate graylines info for visualization
-            graylines.nadirs.push(...newGraylines.nadirs);
-            graylines.paths.push(...newGraylines.paths);
+            const { caves, tunnels: newTunnels } = findCavesAlternate(component, uniformQueueSize);
+            // Accumulate tunnel info for visualization
+            tunnels.nadirs.push(...newTunnels.nadirs);
+            tunnels.paths.push(...newTunnels.paths);
             for (const cave of caves) {
               const caveKey = shapeKey(cave);
               const matchingPiece = shapeToPiece[caveKey];
@@ -618,7 +619,7 @@ window.Solver = (function() {
       }
     }
 
-    return { deadCells, sizePruning, shapePruning, cavePruning, forcedRegions, forcedPlacements, allRegionSizes, graylines };
+    return { deadCells, sizePruning, shapePruning, cavePruning, forcedRegions, forcedPlacements, allRegionSizes, tunnels };
   }
   
   function countValidPlacements(grid, pieceName) {
@@ -631,9 +632,9 @@ window.Solver = (function() {
   }
   
   function getEffectiveCounts(grid, remainingPieces) {
-    const { deadCells, sizePruning, shapePruning, cavePruning, forcedRegions, forcedPlacements, allRegionSizes, graylines } = analyzeRegions(grid, remainingPieces);
+    const { deadCells, sizePruning, shapePruning, cavePruning, forcedRegions, forcedPlacements, allRegionSizes, tunnels } = analyzeRegions(grid, remainingPieces);
     const counts = remainingPieces.map(name => ({ name, count: countValidPlacements(grid, name) }));
-    return { counts, deadCells, sizePruning, shapePruning, cavePruning, forcedRegions, forcedPlacements, allRegionSizes, graylines };
+    return { counts, deadCells, sizePruning, shapePruning, cavePruning, forcedRegions, forcedPlacements, allRegionSizes, tunnels };
   }
   
   // Main solve function
@@ -684,8 +685,8 @@ window.Solver = (function() {
         // Convert to array format for visualization
         placements = placedPieces.map(name => placementsByName[name]);
         const emptyPruning = { cells: [], sizes: [] };
-        const emptyGraylines = { nadirs: [], paths: [] };
-        visualizeCallback(placements, attempts, allPiecesProgress, [], emptyPruning, emptyPruning, emptyPruning, emptyPruning, null, false, [], [], emptyGraylines);
+        const emptyTunnels = { nadirs: [], paths: [] };
+        visualizeCallback(placements, attempts, allPiecesProgress, [], emptyPruning, emptyPruning, emptyPruning, emptyPruning, null, false, [], [], emptyTunnels);
         
         // Wait while paused (user can resume to find next solution)
         while (paused && solving) {
@@ -762,7 +763,7 @@ window.Solver = (function() {
         placements = newPlaced.map(name => placementsByName[name]);
         visualizeCallback(placements, attempts, allPiecesProgress, newAnalysis.deadCells,
             newAnalysis.sizePruning, newAnalysis.shapePruning, newAnalysis.cavePruning,
-          newAnalysis.forcedRegions, nextPieceName, false, orderedNewRemaining, newAnalysis.allRegionSizes, newAnalysis.graylines);
+          newAnalysis.forcedRegions, nextPieceName, false, orderedNewRemaining, newAnalysis.allRegionSizes, newAnalysis.tunnels);
         
         // Step mode or delay
         if (stepMode) {
@@ -841,7 +842,7 @@ window.Solver = (function() {
           const rawRemaining = orderedRemaining.slice(1);
           const tryAnalysis = getEffectiveCounts(grid, rawRemaining);
           
-          const { counts: remainingCounts, deadCells, sizePruning, shapePruning, cavePruning, forcedRegions, allRegionSizes, graylines } = tryAnalysis;
+          const { counts: remainingCounts, deadCells, sizePruning, shapePruning, cavePruning, forcedRegions, allRegionSizes, tunnels } = tryAnalysis;
           remainingCounts.sort((a, b) => a.count - b.count);
           const newRemaining = remainingCounts.map(x => x.name);
 
@@ -868,7 +869,7 @@ window.Solver = (function() {
 
           // Convert to array for visualization
           placements = newPlaced.map(name => placementsByName[name]);
-          visualizeCallback(placements, attempts, allPiecesProgress, deadCells, sizePruning, shapePruning, cavePruning, forcedRegions, nextPieceName, false, newRemaining, allRegionSizes, graylines);
+          visualizeCallback(placements, attempts, allPiecesProgress, deadCells, sizePruning, shapePruning, cavePruning, forcedRegions, nextPieceName, false, newRemaining, allRegionSizes, tunnels);
           
           // Step mode: pause after each placement
           if (stepMode) {
@@ -913,8 +914,8 @@ window.Solver = (function() {
         ];
         placements = currentPlaced.map(name => placementsByName[name]);
         const emptyPruning2 = { cells: [], sizes: [] };
-        const emptyGraylines2 = { nadirs: [], paths: [] };
-        visualizeCallback(placements, attempts, allPiecesProgress, [], emptyPruning2, emptyPruning2, emptyPruning2, emptyPruning2, pieceName, true, orderedRemaining, [], emptyGraylines2);
+        const emptyTunnels2 = { nadirs: [], paths: [] };
+        visualizeCallback(placements, attempts, allPiecesProgress, [], emptyPruning2, emptyPruning2, emptyPruning2, emptyPruning2, pieceName, true, orderedRemaining, [], emptyTunnels2);
         
         // Step mode or normal delay
         if (stepMode) {
