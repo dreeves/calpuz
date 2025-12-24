@@ -43,7 +43,8 @@ const TUNNELS_ARROW_MARKER_REF_X = 9;
 // Confetti
 const CONFETTI_TICKS = 2000;
 const CONFETTI_POOP_TICKS = 2000;
-const EXCELLENT_CONFETTI_DELAY_MS = 500;
+const WRONG_DAY_TEXT_TICKS = CONFETTI_POOP_TICKS;
+const EXCELLENT_CONFETTI_DELAY_MS = 100;
 const BOGUS_CONFETTI_DELAY_MS = 100;
 
 // Legend swatches (small pattern previews next to text)
@@ -771,7 +772,7 @@ async function checkPuzzleSolved() {
         origin: { x: 0.5, y: 0.22 },
         colors: ['#000000'],
         scalar: 2.9,
-        ticks: 150,
+        ticks: WRONG_DAY_TEXT_TICKS,
         gravity: 0.33,
         drift: 0,
         startVelocity: 28,
