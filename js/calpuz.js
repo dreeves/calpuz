@@ -519,9 +519,59 @@ function getElementsContainer() {
   return elementsContainer;
 }
 
+const PIECE_CELLS = getPieceCells();
+
+function getCellCenterScreenCoords(row, col) {
+  const svgRect = svg.node.getBoundingClientRect();
+  const cellCenterSvg = { x: x0 + col * boxel + boxel / 2, y: y0 + row * boxel + boxel / 2 };
+  const cellCenterScreen = svgToScreen(cellCenterSvg.x, cellCenterSvg.y);
+  return {
+    x: svgRect.left + cellCenterScreen.x,
+    y: svgRect.top + cellCenterScreen.y,
+  };
+}
+
+function getCoveredGridCellsByPiece(node) {
+  const covered = [];
+  for (let row = 0; row < 7; row++) {
+    for (let col = 0; col < 7; col++) {
+      const { x, y } = getCellCenterScreenCoords(row, col);
+      const stack = document.elementsFromPoint(x, y);
+      const coveredByThisPiece = stack.some(el => el && el.closest && el.closest(`#${node.id}`));
+      if (coveredByThisPiece) {
+        covered.push([row, col]);
+      }
+    }
+  }
+  return covered;
+}
+
+function placementIsValidAndNonOverlappingOnCalendar(node) {
+  const expected = PIECE_CELLS[node.id];
+  if (!expected) throw new Error(`Unknown piece id: ${node.id}`);
+  const expectedCount = expected.length;
+
+  const covered = getCoveredGridCellsByPiece(node);
+  if (covered.length !== expectedCount) return false;
+
+  for (const [r, c] of covered) {
+    if (!VALID_CELLS[r][c]) return false;
+  }
+
+  const pieceNames = new Set(shapes.map(s => s[0]));
+  for (const [r, c] of covered) {
+    const { x, y } = getCellCenterScreenCoords(r, c);
+    const stack = document.elementsFromPoint(x, y);
+    const isCoveredByOtherPiece = stack.some(el => el && el.closest &&
+      [...pieceNames].some(name => name !== node.id && el.closest(`#${name}`)));
+    if (isCoveredByOtherPiece) return false;
+  }
+
+  return true;
+}
+
 // Snap a group to the nearest grid position
 function snapToGrid(group) {
-  Sounds.snap();
   const node = group.node;
   // Get current position from data attributes (SVG coords)
   const currentX = parseFloat(node.dataset.x) || 0;
@@ -546,10 +596,17 @@ function snapToGrid(group) {
   const deltaX = svgX - currentX;
   const deltaY = svgY - currentY;
 
-  // Snap: move to grid cell, accounting for the visual offset
-  setGroupPosition(node, x0 + col * boxel - deltaX, y0 + row * boxel - deltaY);
+  const nextX = x0 + col * boxel - deltaX;
+  const nextY = y0 + row * boxel - deltaY;
 
-  // Check if puzzle is solved after snap
+  setGroupPosition(node, nextX, nextY);
+  const isValid = placementIsValidAndNonOverlappingOnCalendar(node);
+  if (!isValid) {
+    setGroupPosition(node, currentX, currentY);
+    return;
+  }
+
+  Sounds.snap();
   setTimeout(checkPuzzleSolved, 50);  // Small delay for DOM to settle
 }
 
