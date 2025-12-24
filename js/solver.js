@@ -665,9 +665,7 @@ window.Solver = (function() {
     return { deadCells, sizePruning, shapePruning, cavePruning, forcedRegions, forcedPlacements, allRegionSizes, tunnels };
   }
   
-  function countValidPlacements(grid, pieceName, tunnels = { nadirs: [], paths: [] }) {
-    const tunnelKeyPaths = tunnelKeyPathsFromTunnels(tunnels);
-
+  function countValidPlacements(grid, pieceName, tunnelKeyPaths = []) {
     const piece = pieceData[pieceName];
     let count = 0;
     for (const orientation of piece.orientations) {
@@ -683,7 +681,8 @@ window.Solver = (function() {
   
   function getEffectiveCounts(grid, remainingPieces) {
     const { deadCells, sizePruning, shapePruning, cavePruning, forcedRegions, forcedPlacements, allRegionSizes, tunnels } = analyzeRegions(grid, remainingPieces);
-    const counts = remainingPieces.map(name => ({ name, count: countValidPlacements(grid, name, tunnels) }));
+    const tunnelKeyPaths = tunnelKeyPathsFromTunnels(tunnels);
+    const counts = remainingPieces.map(name => ({ name, count: countValidPlacements(grid, name, tunnelKeyPaths) }));
     return { counts, deadCells, sizePruning, shapePruning, cavePruning, forcedRegions, forcedPlacements, allRegionSizes, tunnels };
   }
   
@@ -865,7 +864,10 @@ window.Solver = (function() {
       // Try each orientation
       for (let orientIdx = 0; orientIdx < totalOrientations; orientIdx++) {
         const orientation = piece.orientations[orientIdx];
-        const validPositions = getValidPositions(grid, orientation.cells);
+        const allPositions = getValidPositions(grid, orientation.cells);
+        const validPositions = allPositions.filter(([row, col]) =>
+          placementFullyCoversOverlappedTunnels(tunnelKeyPaths, orientation.cells, row, col)
+        );
         const totalPositions = validPositions.length;
         
         if (totalPositions > 0) {
@@ -875,10 +877,6 @@ window.Solver = (function() {
         // Try each valid position
         for (let posIdx = 0; posIdx < totalPositions; posIdx++) {
           const [row, col] = validPositions[posIdx];
-
-          if (!placementFullyCoversOverlappedTunnels(tunnelKeyPaths, orientation.cells, row, col)) {
-            continue;
-          }
           
           // Place piece
           setPiece(grid, orientation.cells, row, col, 3 + depth);
