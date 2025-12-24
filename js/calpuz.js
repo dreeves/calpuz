@@ -41,8 +41,10 @@ const TUNNELS_ARROW_MARKER_VIEWBOX = 10;
 const TUNNELS_ARROW_MARKER_REF_X = 9;
 
 // Confetti
-const CONFETTI_TICKS = 350;
-const CONFETTI_POOP_TICKS = 300;
+const CONFETTI_TICKS = 2000;
+const CONFETTI_POOP_TICKS = 2000;
+const EXCELLENT_CONFETTI_DELAY_MS = 500;
+const BOGUS_CONFETTI_DELAY_MS = 100;
 
 // Legend swatches (small pattern previews next to text)
 const LEGEND_SWATCH_OPACITY = 0.33;
@@ -690,69 +692,71 @@ async function checkPuzzleSolved() {
     // Celebration! Fire piece-shaped confetti if possible, else regular
     Sounds.excellentClip();
     const pieceColors = shapes.map(s => s[1]);
-    if (confettiModule.shapeFromPath) {
-      // Create piece shapes from polygons (scaled down for confetti)
-      const pieceShapes = shapes.map(([, , verts]) => {
-        const path = 'M' + verts.map(([x, y]) => `${x * 4},${y * 4}`).join('L') + 'Z';
-        return confettiModule.shapeFromPath({ path });
-      });
-
-      // Multi-burst celebration: keep piece-shaped confetti, just more exciting.
-      const fire = (opts) => confettiModule({
-        shapes: pieceShapes,
-        colors: pieceColors,
-        scalar: 2.5,
-        ticks: CONFETTI_TICKS,
-        ...opts,
-      });
-
-      // Big center burst
-      fire({
-        particleCount: 90,
-        spread: 85,
-        origin: { x: 0.5, y: 0.42 },
-        startVelocity: 55,
-        gravity: 0.9,
-      });
-
-      // Side cannons shortly after
-      setTimeout(() => {
-        fire({
-          particleCount: 55,
-          spread: 55,
-          origin: { x: 0.18, y: 0.75 },
-          angle: 60,
-          startVelocity: 52,
-          gravity: 0.95,
+    setTimeout(() => {
+      if (confettiModule.shapeFromPath) {
+        // Create piece shapes from polygons (scaled down for confetti)
+        const pieceShapes = shapes.map(([, , verts]) => {
+          const path = 'M' + verts.map(([x, y]) => `${x * 4},${y * 4}`).join('L') + 'Z';
+          return confettiModule.shapeFromPath({ path });
         });
-        fire({
-          particleCount: 55,
-          spread: 55,
-          origin: { x: 0.82, y: 0.75 },
-          angle: 120,
-          startVelocity: 52,
-          gravity: 0.95,
-        });
-      }, 140);
 
-      // Light topper burst
-      setTimeout(() => {
-        fire({
-          particleCount: 35,
-          spread: 110,
-          origin: { x: 0.5, y: 0.18 },
-          startVelocity: 35,
-          gravity: 0.6,
+        // Multi-burst celebration: keep piece-shaped confetti, just more exciting.
+        const fire = (opts) => confettiModule({
+          shapes: pieceShapes,
+          colors: pieceColors,
+          scalar: 2.5,
+          ticks: CONFETTI_TICKS,
+          ...opts,
         });
-      }, 260);
-    } else {
-      confettiModule({
-        particleCount: 150,
-        spread: 70,
-        origin: { x: 0.5, y: 0.5 },
-        colors: pieceColors
-      });
-    }
+
+        // Big center burst
+        fire({
+          particleCount: 90,
+          spread: 85,
+          origin: { x: 0.5, y: 0.42 },
+          startVelocity: 55,
+          gravity: 0.9,
+        });
+
+        // Side cannons shortly after
+        setTimeout(() => {
+          fire({
+            particleCount: 55,
+            spread: 55,
+            origin: { x: 0.18, y: 0.75 },
+            angle: 60,
+            startVelocity: 52,
+            gravity: 0.95,
+          });
+          fire({
+            particleCount: 55,
+            spread: 55,
+            origin: { x: 0.82, y: 0.75 },
+            angle: 120,
+            startVelocity: 52,
+            gravity: 0.95,
+          });
+        }, 140);
+
+        // Light topper burst
+        setTimeout(() => {
+          fire({
+            particleCount: 35,
+            spread: 110,
+            origin: { x: 0.5, y: 0.18 },
+            startVelocity: 35,
+            gravity: 0.6,
+          });
+        }, 260);
+      } else {
+        confettiModule({
+          particleCount: 150,
+          spread: 70,
+          origin: { x: 0.5, y: 0.5 },
+          colors: pieceColors
+        });
+      }
+    }, EXCELLENT_CONFETTI_DELAY_MS);
   } else {
     // Wrong date - poop emoji confetti
     Sounds.bogusClip();
@@ -805,20 +809,22 @@ async function checkPuzzleSolved() {
       });
     };
 
-    // Wrong-day sequence: readable WRONG DAY + poop cannons.
-    fireWrongDayText();
-    firePoop({ particleCount: 18, spread: 55, origin: { x: 0.5, y: 0.55 } });
     setTimeout(() => {
-      firePoop({ particleCount: 16, spread: 45, origin: { x: 0.18, y: 0.78 }, angle: 60, startVelocity: 44 });
-      firePoop({ particleCount: 16, spread: 45, origin: { x: 0.82, y: 0.78 }, angle: 120, startVelocity: 44 });
-
-      // Include WRONG + DAY in the side cannons too.
-      fireWrongDayText({ spread: 20, origin: { x: 0.18, y: 0.78 }, angle: 60, startVelocity: 46, gravity: 0.42 });
-      fireWrongDayText({ spread: 20, origin: { x: 0.82, y: 0.78 }, angle: 120, startVelocity: 46, gravity: 0.42 });
-    }, 130);
-    setTimeout(() => {
+      // Wrong-day sequence: readable WRONG DAY + poop cannons.
       fireWrongDayText();
-    }, 240);
+      firePoop({ particleCount: 18, spread: 55, origin: { x: 0.5, y: 0.55 } });
+      setTimeout(() => {
+        firePoop({ particleCount: 16, spread: 45, origin: { x: 0.18, y: 0.78 }, angle: 60, startVelocity: 44 });
+        firePoop({ particleCount: 16, spread: 45, origin: { x: 0.82, y: 0.78 }, angle: 120, startVelocity: 44 });
+
+        // Include WRONG + DAY in the side cannons too.
+        fireWrongDayText({ spread: 20, origin: { x: 0.18, y: 0.78 }, angle: 60, startVelocity: 46, gravity: 0.42 });
+        fireWrongDayText({ spread: 20, origin: { x: 0.82, y: 0.78 }, angle: 120, startVelocity: 46, gravity: 0.42 });
+      }, 130);
+      setTimeout(() => {
+        fireWrongDayText();
+      }, 240);
+    }, BOGUS_CONFETTI_DELAY_MS);
   }
 }
 
