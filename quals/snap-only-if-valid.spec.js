@@ -5,6 +5,7 @@ test('snap-to-grid only snaps to a valid, non-overlapping placement', async ({ p
   await page.waitForFunction(() => !!document.getElementById('corner'));
 
   const result = await page.evaluate(() => {
+    window.omnisnap = false;
     const anchor = document.getElementById('corner');
     const other = document.getElementById('stair');
 

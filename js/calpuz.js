@@ -573,6 +573,10 @@ function placementIsValidAndNonOverlappingOnCalendar(node) {
   return true;
 }
 
+if (!('omnisnap' in window)) {
+  window.omnisnap = true;
+}
+
 // Snap a group to the nearest grid position
 function snapToGrid(group) {
   const node = group.node;
@@ -603,10 +607,12 @@ function snapToGrid(group) {
   const nextY = y0 + row * boxel - deltaY;
 
   setGroupPosition(node, nextX, nextY);
-  const isValid = placementIsValidAndNonOverlappingOnCalendar(node);
-  if (!isValid) {
-    setGroupPosition(node, currentX, currentY);
-    return;
+  if (!window.omnisnap) {
+    const isValid = placementIsValidAndNonOverlappingOnCalendar(node);
+    if (!isValid) {
+      setGroupPosition(node, currentX, currentY);
+      return;
+    }
   }
 
   Sounds.snap();
