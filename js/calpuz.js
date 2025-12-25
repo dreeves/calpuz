@@ -13,18 +13,28 @@ const SIZE_PRUNE_ANGLE = 45;           // Stripe angle in degrees
 const SIZE_PRUNE_OPACITY = 0.15;
 
 // Type 2: Unfillable SHAPE (size-5/6 region doesn't match any available piece)
-const SHAPE_PRUNE_COLOR_1 = '#ff0000';
-const SHAPE_PRUNE_COLOR_2 = '#ffffff';  // Red/white = danger
-const SHAPE_PRUNE_WIDTH = 0.1;
-const SHAPE_PRUNE_ANGLE = -45;          // Opposite angle for distinction
-const SHAPE_PRUNE_OPACITY = 0.15;
+// Unfillable-shape pruning proved redundant with non-coverable cells.
+// Keeping the red-stripe palette commented out in case we want to reuse it.
+// const SHAPE_PRUNE_COLOR_1 = '#ff0000';
+// const SHAPE_PRUNE_COLOR_2 = '#ffffff';  // Red/white = danger
+// const SHAPE_PRUNE_WIDTH = 0.1;
+// const SHAPE_PRUNE_ANGLE = -45;          // Opposite angle for distinction
+// const SHAPE_PRUNE_OPACITY = 0.15;
 
 // Type 3: Unfillable CAVE (dead-end corridor can't be filled)
-const CAVE_PRUNE_COLOR_1 = '#ffffff';
-const CAVE_PRUNE_COLOR_2 = '#000000';
+// Use the red/white stripe palette (formerly used for unfillable-shape).
+const CAVE_PRUNE_COLOR_1 = '#ff0000';
+const CAVE_PRUNE_COLOR_2 = '#ffffff';
 const CAVE_PRUNE_WIDTH = 0.1;
-const CAVE_PRUNE_ANGLE = 45;           // Perpendicular to red (-45)
+const CAVE_PRUNE_ANGLE = -45;
 const CAVE_PRUNE_OPACITY = 0.25;
+
+// Previous cave palette (kept for reference):
+// const CAVE_PRUNE_COLOR_1 = '#ffffff';
+// const CAVE_PRUNE_COLOR_2 = '#000000';
+// const CAVE_PRUNE_WIDTH = 0.1;
+// const CAVE_PRUNE_ANGLE = 45;
+// const CAVE_PRUNE_OPACITY = 0.25;
 
 // Type 4: FORCED regions (regions that force a specific piece placement)
 const FORCED_REGION_COLOR_1 = '#00cc00';
@@ -1295,8 +1305,8 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
   // Draw striped overlays on pruned cells and forced regions
   drawPrunedRegions(deadGroup, sizePruning.cells,
     SIZE_PRUNE_COLOR_1, SIZE_PRUNE_COLOR_2, SIZE_PRUNE_WIDTH, SIZE_PRUNE_ANGLE, SIZE_PRUNE_OPACITY, 'prune-size');
-  drawPrunedRegions(deadGroup, shapePruning.cells,
-    SHAPE_PRUNE_COLOR_1, SHAPE_PRUNE_COLOR_2, SHAPE_PRUNE_WIDTH, SHAPE_PRUNE_ANGLE, SHAPE_PRUNE_OPACITY, 'prune-shape');
+  // drawPrunedRegions(deadGroup, shapePruning.cells,
+  //   SHAPE_PRUNE_COLOR_1, SHAPE_PRUNE_COLOR_2, SHAPE_PRUNE_WIDTH, SHAPE_PRUNE_ANGLE, SHAPE_PRUNE_OPACITY, 'prune-shape');
   drawPrunedRegions(deadGroup, cavePruning.cells,
     CAVE_PRUNE_COLOR_1, CAVE_PRUNE_COLOR_2, CAVE_PRUNE_WIDTH, CAVE_PRUNE_ANGLE, CAVE_PRUNE_OPACITY, 'prune-cave');
   drawCheckerboardRegions(deadGroup, forcedRegions.cells,
@@ -1444,6 +1454,15 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
     });
     deadGroup.rect(swatchSize, swatchSize).move(swatchX, y).fill(pattern).opacity(LEGEND_SWATCH_OPACITY).stroke({ width: 1, color: '#666' });
   }
+
+  // Helper to draw an empty white swatch (for region sizes)
+  function drawEmptySwatch(y) {
+    deadGroup.rect(swatchSize, swatchSize)
+      .move(swatchX, y)
+      .fill('#ffffff')
+      .opacity(LEGEND_SWATCH_OPACITY)
+      .stroke({ width: 1, color: '#666' });
+  }
   
   // Helper to draw a checkerboard swatch
   function drawCheckerboardSwatch(y, color1, color2, patternId) {
@@ -1484,36 +1503,40 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
   // All 3 legend lines unconditionally (opacity 0 when solution found to hide without conditionals)
   const legendOpacity = showLegend ? 1 : 0;
   
-  // Top line: show all region sizes
+  // 1) Region sizes (with count)
   const allSizesSorted = [...allRegionSizes].sort((a, b) => a - b);
-  deadGroup.text(`Region sizes: {${allSizesSorted.join(', ')}}`)
+  const regionCount = allSizesSorted.length;
+  const regionWord = regionCount === 1 ? 'region' : 'regions';
+  const sizeWord = regionCount === 1 ? 'size' : 'sizes';
+  drawEmptySwatch(textY);
+  deadGroup.text(`${regionCount} ${regionWord} of ${sizeWord}: {${allSizesSorted.join(', ')}}`)
     .font({ size: fontSize, weight: 'bold', family: 'Arial' })
     .fill('#000000')
     .move(textX, textY);
   textY += lineHeight;
 
+  // 2) Unfillable sizes
   drawSwatch(textY, SIZE_PRUNE_COLOR_1, SIZE_PRUNE_COLOR_2, SIZE_PRUNE_ANGLE, 'swatch-size');
   drawLegendText(textY, sizePruning.sizes, 'size');
   textY += lineHeight;
 
-  drawSwatch(textY, SHAPE_PRUNE_COLOR_1, SHAPE_PRUNE_COLOR_2, SHAPE_PRUNE_ANGLE, 'swatch-shape');
-  drawLegendText(textY, shapePruning.sizes, 'shape');
-  textY += lineHeight;
-
+  // 3) Unfillable caves
   drawSwatch(textY, CAVE_PRUNE_COLOR_1, CAVE_PRUNE_COLOR_2, CAVE_PRUNE_ANGLE, 'swatch-cave');
   drawLegendText(textY, cavePruning.sizes, 'cave');
   textY += lineHeight;
 
-  drawCheckerboardSwatch(textY, FORCED_REGION_COLOR_1, FORCED_REGION_COLOR_2, 'swatch-forced');
-  deadGroup.text(`${splur(forcedRegions.sizes.length, "forced placement")}: {${forcedRegions.sizes.join(', ')}}`)
+  // 4) Non-coverable cells
+  const nonCoverableCount = (nonCoverablePruning.cells || []).reduce((acc, region) => acc + (region ? region.length : 0), 0);
+  drawCheckerboardSwatch(textY, NONCOVERABLE_COLOR_1, NONCOVERABLE_COLOR_2, 'swatch-noncoverable');
+  deadGroup.text(`${splur(nonCoverableCount, 'non-coverable cell')}`)
     .font({ size: fontSize, weight: 'bold', family: 'Arial' })
     .fill('#000000')
     .move(textX, textY);
   textY += lineHeight;
 
-  const nonCoverableCount = (nonCoverablePruning.cells || []).reduce((acc, region) => acc + (region ? region.length : 0), 0);
-  drawCheckerboardSwatch(textY, NONCOVERABLE_COLOR_1, NONCOVERABLE_COLOR_2, 'swatch-noncoverable');
-  deadGroup.text(`${splur(nonCoverableCount, 'non-coverable cell')}`)
+  // 5) Forced placements
+  drawCheckerboardSwatch(textY, FORCED_REGION_COLOR_1, FORCED_REGION_COLOR_2, 'swatch-forced');
+  deadGroup.text(`${splur(forcedRegions.sizes.length, "forced placement")}: {${forcedRegions.sizes.join(', ')}}`)
     .font({ size: fontSize, weight: 'bold', family: 'Arial' })
     .fill('#000000')
     .move(textX, textY);

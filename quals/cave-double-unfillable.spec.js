@@ -112,6 +112,6 @@ test('legend shows cave count (2 unfillable caves)', async ({ page, baseURL }) =
     return deadGroup.textContent || '';
   });
 
-  expect(legendText).toMatch(/\b2 unfillable caves\b/);
-  expect(legendText).not.toMatch(/\b1 unfillable cave\b/);
+  expect(legendText).toMatch(/(?<!\d)2 unfillable caves\b/);
+  expect(legendText).not.toMatch(/(?<!\d)1 unfillable cave\b/);
 });

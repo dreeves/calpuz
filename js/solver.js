@@ -349,6 +349,8 @@ window.Solver = (function() {
       uniformQueueSize = distinctSizes[0];
     }
 
+    const disableCavePruning = !!globalThis.disableCavePruning;
+
     // NOTE: placementFullyCoversOverlappedTunnels is defined at module scope.
     // (The previous local copy was removed to keep the tunnel rule DRY.)
     
@@ -605,15 +607,23 @@ window.Solver = (function() {
           }
           
           // (2) Shape check: region size matches a piece size in queue
+          // NOTE: The `disableShapePruning` toggle disables only the "unfillable shape" prune.
+          // Forced placements are still detected.
           if (distinctSizes.includes(size)) {
             const matchingPiece = shapeToPiece[shapeKey(component)];
             if (!matchingPiece || !remainingSet.has(matchingPiece)) {
-              // Pruning: region doesn't match any available piece shape
+              // Unfillable-shape pruning is redundant with non-coverable cells.
+              // (For a size==uq component, any placement that covers one cell must
+              // cover them all; therefore if no piece matches the shape then every
+              // cell has coverCount==0 and the non-coverable prune triggers.)
+              //
+              // Keeping the old shading/prune code commented out in case we want
+              // to resurrect the red-stripe visualization for something else.
+              /*
               deadCells.push(...component);
               shapePruning.cells.push(component);
               shapePruning.sizes.push(size);
-              // No `continue` here - cave check below still runs on larger regions
-              // (though this region is already marked dead, caves are sub-regions)
+              */
             } else {
               // Forced placement: region matches exactly one piece shape
               const placement = findForcedPlacement(component, matchingPiece);
@@ -635,15 +645,19 @@ window.Solver = (function() {
           // region is effectively dead (you can't fill the cave).
           // This check runs INDEPENDENTLY of shape check above - a region could
           // pass shape check but still have an unfillable cave inside it.
+          // NOTE: The `disableCavePruning` toggle disables only the "unfillable cave" prune.
+          // Forced placements are still detected.
           if (uniformQueueSize /*&& size > uniformQueueSize*/) {
             for (const cave of componentCaves) {
               const caveKey = shapeKey(cave);
               const matchingPiece = shapeToPiece[caveKey];
               if (!matchingPiece || !remainingSet.has(matchingPiece)) {
                 // Pruning: cave doesn't match any available piece
-                deadCells.push(...cave);
-                cavePruning.cells.push(cave);
-                cavePruning.sizes.push(cave.length);
+                if (!disableCavePruning) {
+                  deadCells.push(...cave);
+                  cavePruning.cells.push(cave);
+                  cavePruning.sizes.push(cave.length);
+                }
               } else {
                 // Forced placement: cave matches exactly one piece shape
                 const placement = findForcedPlacement(cave, matchingPiece);
