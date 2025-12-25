@@ -1471,8 +1471,16 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
     return o;
   }
 
+  function alignSwatchToText(swatchGroup, textEl) {
+    const tb = textEl.bbox();
+    const sb = swatchGroup.bbox();
+    const targetY = tb.y + (tb.height - sb.height) / 2;
+    swatchGroup.y(targetY);
+  }
+
   // Helper to draw a striped swatch
   function drawSwatch(y, color1, color2, angle, overlayOpacity, patternId) {
+    const g = deadGroup.group();
     const stripeWidth = swatchSize * 0.15;
     const period = stripeWidth * 2;
     const pattern = svg.pattern(period, period, function(add) {
@@ -1482,24 +1490,30 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
       patternUnits: 'userSpaceOnUse',
       patternTransform: `rotate(${angle})`
     });
-    deadGroup.rect(swatchSize, swatchSize)
+    g.rect(swatchSize, swatchSize)
       .move(swatchX, y)
       .fill(pattern)
       .opacity(legendSwatchOpacity(overlayOpacity))
       .stroke({ width: 1, color: '#666' });
+
+    return g;
   }
 
   // Helper to draw an empty white swatch (for region sizes)
   function drawEmptySwatch(y) {
-    deadGroup.rect(swatchSize, swatchSize)
+    const g = deadGroup.group();
+    g.rect(swatchSize, swatchSize)
       .move(swatchX, y)
       .fill('#ffffff')
       .opacity(legendSwatchOpacity(FORCED_REGION_OPACITY))
       .stroke({ width: 1, color: '#666' });
+
+    return g;
   }
   
   // Helper to draw a checkerboard swatch
   function drawCheckerboardSwatch(y, color1, color2, overlayOpacity, patternId) {
+    const g = deadGroup.group();
     const cellSize = swatchSize * 0.15;
     const period = cellSize * 2;
     const pattern = svg.pattern(period, period, function(add) {
@@ -1508,28 +1522,33 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
       add.rect(cellSize, cellSize).move(0, cellSize).fill(color2);
       add.rect(cellSize, cellSize).move(cellSize, cellSize).fill(color1);
     }).id(patternId).attr({ patternUnits: 'userSpaceOnUse' });
-    deadGroup.rect(swatchSize, swatchSize)
+    g.rect(swatchSize, swatchSize)
       .move(swatchX, y)
       .fill(pattern)
       .opacity(legendSwatchOpacity(overlayOpacity))
       .stroke({ width: 1, color: '#666' });
+
+    return g;
   }
 
   function drawXSwatch(y, color, overlayOpacity) {
     const o = legendSwatchOpacity(overlayOpacity);
-    deadGroup.rect(swatchSize, swatchSize)
+    const g = deadGroup.group();
+    g.rect(swatchSize, swatchSize)
       .move(swatchX, y)
       .fill('#ffffff')
       .opacity(o)
       .stroke({ width: 1, color: '#666' });
     const inset = swatchSize * 0.2;
     const strokeWidth = Math.max(1, swatchSize * 0.14);
-    deadGroup.line(swatchX + inset, y + inset, swatchX + swatchSize - inset, y + swatchSize - inset)
+    g.line(swatchX + inset, y + inset, swatchX + swatchSize - inset, y + swatchSize - inset)
       .stroke({ width: strokeWidth, color: color })
       .opacity(o);
-    deadGroup.line(swatchX + inset, y + swatchSize - inset, swatchX + swatchSize - inset, y + inset)
+    g.line(swatchX + inset, y + swatchSize - inset, swatchX + swatchSize - inset, y + inset)
       .stroke({ width: strokeWidth, color: color })
       .opacity(o);
+
+    return g;
   }
   
   // Helper to render sizes in braces with specified ones struck through in red
@@ -1553,6 +1572,8 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
       addSizes(add, sorted, new Set());
     });
     text.font({ size: fontSize, weight: 'bold', family: 'Arial' }).fill('#000000').move(textX, y);
+
+    return text;
   }
   
   // All 3 legend lines unconditionally (opacity 0 when solution found to hide without conditionals)
@@ -1563,38 +1584,43 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
   const regionCount = allSizesSorted.length;
   const regionWord = regionCount === 1 ? 'region' : 'regions';
   const sizeWord = regionCount === 1 ? 'size' : 'sizes';
-  drawEmptySwatch(textY);
-  deadGroup.text(`${regionCount} ${regionWord} of ${sizeWord}: {${allSizesSorted.join(', ')}}`)
+  const regionSwatch = drawEmptySwatch(textY);
+  const regionText = deadGroup.text(`${regionCount} ${regionWord} of ${sizeWord}: {${allSizesSorted.join(', ')}}`)
     .font({ size: fontSize, weight: 'bold', family: 'Arial' })
     .fill('#000000')
     .move(textX, textY);
+  alignSwatchToText(regionSwatch, regionText);
   textY += lineHeight;
 
   // 2) Unfillable sizes
-  drawSwatch(textY, SIZE_PRUNE_COLOR_1, SIZE_PRUNE_COLOR_2, SIZE_PRUNE_ANGLE, SIZE_PRUNE_OPACITY, 'swatch-size');
-  drawLegendText(textY, sizePruning.sizes, 'size');
+  const sizeSwatch = drawSwatch(textY, SIZE_PRUNE_COLOR_1, SIZE_PRUNE_COLOR_2, SIZE_PRUNE_ANGLE, SIZE_PRUNE_OPACITY, 'swatch-size');
+  const sizeText = drawLegendText(textY, sizePruning.sizes, 'size');
+  alignSwatchToText(sizeSwatch, sizeText);
   textY += lineHeight;
 
   // 3) Unfillable caves
-  drawSwatch(textY, CAVE_PRUNE_COLOR_1, CAVE_PRUNE_COLOR_2, CAVE_PRUNE_ANGLE, CAVE_PRUNE_OPACITY, 'swatch-cave');
-  drawLegendText(textY, cavePruning.sizes, 'cave');
+  const caveSwatch = drawSwatch(textY, CAVE_PRUNE_COLOR_1, CAVE_PRUNE_COLOR_2, CAVE_PRUNE_ANGLE, CAVE_PRUNE_OPACITY, 'swatch-cave');
+  const caveText = drawLegendText(textY, cavePruning.sizes, 'cave');
+  alignSwatchToText(caveSwatch, caveText);
   textY += lineHeight;
 
   // 4) Non-coverable cells
   const nonCoverableCount = (nonCoverablePruning.cells || []).reduce((acc, region) => acc + (region ? region.length : 0), 0);
-  drawXSwatch(textY, NONCOVERABLE_COLOR_1, NONCOVERABLE_OPACITY);
-  deadGroup.text(`${splur(nonCoverableCount, 'non-coverable cell')}`)
+  const nonCoverableSwatch = drawXSwatch(textY, NONCOVERABLE_COLOR_1, NONCOVERABLE_OPACITY);
+  const nonCoverableText = deadGroup.text(`${splur(nonCoverableCount, 'non-coverable cell')}`)
     .font({ size: fontSize, weight: 'bold', family: 'Arial' })
     .fill('#000000')
     .move(textX, textY);
+  alignSwatchToText(nonCoverableSwatch, nonCoverableText);
   textY += lineHeight;
 
   // 5) Forced placements
-  drawCheckerboardSwatch(textY, FORCED_REGION_COLOR_1, FORCED_REGION_COLOR_2, FORCED_REGION_OPACITY, 'swatch-forced');
-  deadGroup.text(`${splur(forcedRegions.sizes.length, "forced placement")}: {${forcedRegions.sizes.join(', ')}}`)
+  const forcedSwatch = drawCheckerboardSwatch(textY, FORCED_REGION_COLOR_1, FORCED_REGION_COLOR_2, FORCED_REGION_OPACITY, 'swatch-forced');
+  const forcedText = deadGroup.text(`${splur(forcedRegions.sizes.length, "forced placement")}: {${forcedRegions.sizes.join(', ')}}`)
     .font({ size: fontSize, weight: 'bold', family: 'Arial' })
     .fill('#000000')
     .move(textX, textY);
+  alignSwatchToText(forcedSwatch, forcedText);
   
   deadGroup.opacity(legendOpacity);
   
