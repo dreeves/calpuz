@@ -1282,6 +1282,118 @@ window.Solver = (function() {
     return results;
   }
   
+  // Check if a solution exists given pre-placed pieces (synchronous, no visualization)
+  // prePlaced is an array of { name, cells: [[r,c], ...] } for pieces already on the grid
+  // targetCells are the date cells that must remain uncovered
+  // Returns { solvable: boolean, reason?: string }
+  function checkSolvableWithPlacements(shapes, targetCells, prePlaced) {
+    if (!pieceData) {
+      initPieceData(shapes);
+    }
+
+    const allPieceNames = shapes.map(s => s[0]);
+    const placedNames = new Set(prePlaced.map(p => p.name));
+    const remainingPieces = allPieceNames.filter(name => !placedNames.has(name));
+
+    // Initialize grid
+    const grid = copyGrid(gridTemplate);
+
+    // Mark date cells
+    for (const [r, c] of targetCells) {
+      grid[r][c] = 2;
+    }
+
+    // Place pre-placed pieces on grid
+    let pieceValue = 3;
+    for (const placement of prePlaced) {
+      for (const [r, c] of placement.cells) {
+        if (r < 0 || r >= 7 || c < 0 || c >= 7) {
+          return { solvable: false, reason: `Piece ${placement.name} is out of bounds` };
+        }
+        if (grid[r][c] !== 1) {
+          return { solvable: false, reason: `Piece ${placement.name} overlaps with another piece or invalid cell` };
+        }
+        grid[r][c] = pieceValue;
+      }
+      pieceValue++;
+    }
+
+    // Quick check: analyze regions for immediate pruning
+    const analysis = analyzeRegions(grid, remainingPieces);
+    if (analysis.deadCells.length > 0) {
+      return { solvable: false, reason: 'Current placement creates unfillable regions' };
+    }
+
+    // Check for non-coverable cells
+    const tunnelKeyPaths = tunnelKeyPathsFromTunnels(analysis.tunnels);
+    const { nonCoverablePruning } = buildPlacementCacheAndCoverage(grid, remainingPieces, tunnelKeyPaths);
+    if (nonCoverablePruning.cells.length > 0) {
+      return { solvable: false, reason: 'Some cells cannot be covered by remaining pieces' };
+    }
+
+    // If no remaining pieces, check if all valid cells are covered
+    if (remainingPieces.length === 0) {
+      for (let r = 0; r < 7; r++) {
+        for (let c = 0; c < 7; c++) {
+          if (grid[r][c] === 1) {
+            return { solvable: false, reason: 'Not all cells are covered' };
+          }
+        }
+      }
+      return { solvable: true };
+    }
+
+    // Run backtracking search to find any solution
+    function backtrack(remaining, depth) {
+      if (remaining.length === 0) return true;
+
+      // Analyze and get counts
+      const analysis = analyzeRegions(grid, remaining);
+      if (analysis.deadCells.length > 0) return false;
+
+      const tunnelKeyPaths = tunnelKeyPathsFromTunnels(analysis.tunnels);
+      const { placementCacheByName, counts, nonCoverablePruning } = buildPlacementCacheAndCoverage(grid, remaining, tunnelKeyPaths);
+
+      if (nonCoverablePruning.cells.length > 0) return false;
+
+      // Handle forced placements
+      if (analysis.forcedPlacements.length > 0) {
+        const forced = analysis.forcedPlacements[0];
+        setPiece(grid, forced.cells, forced.row, forced.col, 3 + depth);
+        const newRemaining = remaining.filter(n => n !== forced.name);
+        const result = backtrack(newRemaining, depth + 1);
+        setPiece(grid, forced.cells, forced.row, forced.col, 1);
+        return result;
+      }
+
+      // Sort by most constrained first
+      counts.sort((a, b) => a.count - b.count);
+      const orderedRemaining = counts.map(p => p.name);
+
+      const pieceName = orderedRemaining[0];
+      const cached = placementCacheByName[pieceName];
+
+      for (const orient of cached.orientations) {
+        for (const [row, col] of orient.positions) {
+          setPiece(grid, orient.cells, row, col, 3 + depth);
+
+          const newRemaining = orderedRemaining.slice(1);
+          if (backtrack(newRemaining, depth + 1)) {
+            setPiece(grid, orient.cells, row, col, 1);
+            return true;
+          }
+
+          setPiece(grid, orient.cells, row, col, 1);
+        }
+      }
+
+      return false;
+    }
+
+    const solvable = backtrack(remainingPieces, prePlaced.length);
+    return { solvable, reason: solvable ? undefined : 'No solution exists with current placements' };
+  }
+
   return {
     solve,
     solveOnce,
@@ -1304,6 +1416,7 @@ window.Solver = (function() {
     initPieceData,
     getPieceData,
     setSpeed,
+    checkSolvableWithPlacements,
     __testOnly_analyzeRegions: analyzeRegions,
     __testOnly_getEffectiveCounts: getEffectiveCounts
   };

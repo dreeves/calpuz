@@ -221,6 +221,88 @@ window.resetPieces = function() {
   scatterShapes();
 };
 
+// Check if a solution exists with current piece placements (hint feature)
+window.checkHint = function() {
+  // Don't allow hint while solver is running
+  if (Solver.isSolving()) {
+    Swal.fire({
+      title: 'Solver Running',
+      text: 'Stop the solver first before checking for hints.',
+      icon: 'info',
+      confirmButtonText: 'OK'
+    });
+    return;
+  }
+
+  // Get today's date cells (the cells that should remain uncovered)
+  const today = new Date();
+  const targetCells = Solver.getDateCells(today.getMonth(), today.getDate());
+
+  // Find all pieces that are validly placed on the calendar grid
+  const prePlaced = [];
+  const pieceNames = shapes.map(s => s[0]);
+
+  for (const name of pieceNames) {
+    const group = svgGet(name);
+    if (!group) continue;
+
+    const node = group.node;
+
+    // Check if this piece is validly placed on the grid
+    if (!placementIsValidAndNonOverlappingOnCalendar(node)) continue;
+
+    // Get the cells covered by this piece
+    const coveredCells = getCoveredGridCellsByPiece(node);
+    if (coveredCells.length === 0) continue;
+
+    // Convert to [row, col] format
+    prePlaced.push({
+      name: name,
+      cells: coveredCells
+    });
+  }
+
+  // Show loading indicator for potentially slow computation
+  Swal.fire({
+    title: 'Checking...',
+    text: `Analyzing ${prePlaced.length} placed piece${prePlaced.length === 1 ? '' : 's'}...`,
+    allowOutsideClick: false,
+    allowEscapeKey: false,
+    showConfirmButton: false,
+    didOpen: () => {
+      Swal.showLoading();
+    }
+  });
+
+  // Use setTimeout to allow the loading dialog to render before blocking computation
+  setTimeout(() => {
+    const result = Solver.checkSolvableWithPlacements(shapes, targetCells, prePlaced);
+
+    if (prePlaced.length === 0) {
+      Swal.fire({
+        title: 'No Pieces Placed',
+        html: 'Place some pieces on the grid first, then check if a solution is possible.<br><br><em>A solution always exists when no pieces are placed.</em>',
+        icon: 'info',
+        confirmButtonText: 'Got it'
+      });
+    } else if (result.solvable) {
+      Swal.fire({
+        title: 'Solution Exists!',
+        html: `With your ${prePlaced.length} placed piece${prePlaced.length === 1 ? '' : 's'}, a solution is still possible.<br><br><em>Keep going!</em>`,
+        icon: 'success',
+        confirmButtonText: 'Great!'
+      });
+    } else {
+      Swal.fire({
+        title: 'No Solution',
+        html: `No solution exists with your current ${prePlaced.length} piece${prePlaced.length === 1 ? '' : 's'}.<br><br><em>Try moving or rotating some pieces.</em>`,
+        icon: 'error',
+        confirmButtonText: 'Darn'
+      });
+    }
+  }, 50);
+};
+
 // Sound mute toggle
 window.toggleMuteButton = function() {
   const muted = Sounds.toggleMute();
