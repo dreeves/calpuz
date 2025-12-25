@@ -678,12 +678,71 @@ window.Solver = (function() {
     }
     return count;
   }
+
+  function buildPlacementCacheAndCoverage(grid, remainingPieces, tunnelKeyPaths = []) {
+    const placementCacheByName = {};
+    const counts = [];
+
+    for (const pieceName of remainingPieces) {
+      const piece = pieceData[pieceName];
+      if (!piece) throw new Error(`Unknown piece: ${pieceName}`);
+
+      const orientations = [];
+      let count = 0;
+      for (let orientIdx = 0; orientIdx < piece.orientations.length; orientIdx++) {
+        const orientation = piece.orientations[orientIdx];
+        const allPositions = getValidPositions(grid, orientation.cells);
+        const positions = allPositions.filter(([row, col]) =>
+          placementFullyCoversOverlappedTunnels(tunnelKeyPaths, orientation.cells, row, col)
+        );
+        count += positions.length;
+        orientations.push({
+          orientationIndex: orientIdx,
+          totalOrientations: piece.orientations.length,
+          cells: orientation.cells,
+          rotation: orientation.rotation,
+          flipped: orientation.flipped,
+          positions,
+        });
+      }
+
+      placementCacheByName[pieceName] = { orientations };
+      counts.push({ name: pieceName, count });
+    }
+
+    const coverCounts = Array(7).fill(null).map(() => Array(7).fill(0));
+    for (const pieceName of remainingPieces) {
+      const cached = placementCacheByName[pieceName];
+      for (const orient of cached.orientations) {
+        for (const [row, col] of orient.positions) {
+          for (const [dr, dc] of orient.cells) {
+            coverCounts[row + dr][col + dc]++;
+          }
+        }
+      }
+    }
+
+    const nonCoverableCells = [];
+    for (let r = 0; r < 7; r++) {
+      for (let c = 0; c < 7; c++) {
+        if (grid[r][c] !== 1) continue; // only currently vacant, cover-required cells
+        if (coverCounts[r][c] === 0) nonCoverableCells.push([r, c]);
+      }
+    }
+
+    const nonCoverablePruning = {
+      cells: nonCoverableCells.length > 0 ? [nonCoverableCells] : [],
+      sizes: nonCoverableCells.length > 0 ? [nonCoverableCells.length] : [],
+    };
+
+    return { placementCacheByName, counts, coverCounts, nonCoverablePruning };
+  }
   
   function getEffectiveCounts(grid, remainingPieces) {
     const { deadCells, sizePruning, shapePruning, cavePruning, forcedRegions, forcedPlacements, allRegionSizes, tunnels } = analyzeRegions(grid, remainingPieces);
     const tunnelKeyPaths = tunnelKeyPathsFromTunnels(tunnels);
-    const counts = remainingPieces.map(name => ({ name, count: countValidPlacements(grid, name, tunnelKeyPaths) }));
-    return { counts, deadCells, sizePruning, shapePruning, cavePruning, forcedRegions, forcedPlacements, allRegionSizes, tunnels };
+    const { placementCacheByName, counts, nonCoverablePruning } = buildPlacementCacheAndCoverage(grid, remainingPieces, tunnelKeyPaths);
+    return { counts, placementCacheByName, nonCoverablePruning, deadCells, sizePruning, shapePruning, cavePruning, forcedRegions, forcedPlacements, allRegionSizes, tunnels };
   }
   
   // Main solve function
@@ -735,7 +794,7 @@ window.Solver = (function() {
         placements = placedPieces.map(name => placementsByName[name]);
         const emptyPruning = { cells: [], sizes: [] };
         const emptyTunnels = { nadirs: [], paths: [] };
-        visualizeCallback(placements, attempts, allPiecesProgress, [], emptyPruning, emptyPruning, emptyPruning, emptyPruning, null, false, [], [], emptyTunnels);
+        visualizeCallback(placements, attempts, allPiecesProgress, [], emptyPruning, emptyPruning, emptyPruning, emptyPruning, null, false, [], [], emptyTunnels, emptyPruning);
         
         // Wait while paused (user can resume to find next solution)
         while (paused && solving) {
@@ -761,6 +820,12 @@ window.Solver = (function() {
       
       // If dead cells exist at this level, prune immediately
       if (analysis.deadCells.length > 0) {
+        return false;
+      }
+
+      // New pruning: if any vacant cell is not coverable by any remaining placement, prune.
+      // ("Vacant" here excludes the month/day holes since those are not grid==1.)
+      if (analysis.nonCoverablePruning.cells.length > 0) {
         return false;
       }
       
@@ -818,7 +883,7 @@ window.Solver = (function() {
         placements = newPlaced.map(name => placementsByName[name]);
         visualizeCallback(placements, attempts, allPiecesProgress, newAnalysis.deadCells,
             newAnalysis.sizePruning, newAnalysis.shapePruning, newAnalysis.cavePruning,
-          newAnalysis.forcedRegions, nextPieceName, false, orderedNewRemaining, newAnalysis.allRegionSizes, newAnalysis.tunnels);
+          newAnalysis.forcedRegions, nextPieceName, false, orderedNewRemaining, newAnalysis.allRegionSizes, newAnalysis.tunnels, newAnalysis.nonCoverablePruning);
         
         // Step mode or delay
         if (stepMode) {
@@ -831,7 +896,7 @@ window.Solver = (function() {
         }
         
         // Recurse (next level will handle next forced placement or normal search)
-        if (newAnalysis.deadCells.length === 0) {
+        if (newAnalysis.deadCells.length === 0 && newAnalysis.nonCoverablePruning.cells.length === 0) {
           if (await backtrack(newRemaining, newPlaced)) {
             return true;
           }
@@ -860,14 +925,14 @@ window.Solver = (function() {
       
       // Track if any placement was ever possible
       let hadValidPlacement = false;
+
+      const cached = analysis.placementCacheByName[pieceName];
+      if (!cached) throw new Error(`Missing placement cache for piece: ${pieceName}`);
       
       // Try each orientation
-      for (let orientIdx = 0; orientIdx < totalOrientations; orientIdx++) {
-        const orientation = piece.orientations[orientIdx];
-        const allPositions = getValidPositions(grid, orientation.cells);
-        const validPositions = allPositions.filter(([row, col]) =>
-          placementFullyCoversOverlappedTunnels(tunnelKeyPaths, orientation.cells, row, col)
-        );
+      for (const orient of cached.orientations) {
+        const orientIdx = orient.orientationIndex;
+        const validPositions = orient.positions;
         const totalPositions = validPositions.length;
         
         if (totalPositions > 0) {
@@ -879,14 +944,14 @@ window.Solver = (function() {
           const [row, col] = validPositions[posIdx];
           
           // Place piece
-          setPiece(grid, orientation.cells, row, col, 3 + depth);
+          setPiece(grid, orient.cells, row, col, 3 + depth);
           placementsByName[pieceName] = {
             name: pieceName,
             row,
             col,
-            cells: orientation.cells,
-            rotation: orientation.rotation,
-            flipped: orientation.flipped,
+            cells: orient.cells,
+            rotation: orient.rotation,
+            flipped: orient.flipped,
             orientationIndex: orientIdx,
             totalOrientations,
             positionIndex: posIdx,
@@ -900,7 +965,7 @@ window.Solver = (function() {
           const rawRemaining = orderedRemaining.slice(1);
           const tryAnalysis = getEffectiveCounts(grid, rawRemaining);
           
-          const { counts: remainingCounts, deadCells, sizePruning, shapePruning, cavePruning, forcedRegions, allRegionSizes, tunnels } = tryAnalysis;
+          const { counts: remainingCounts, deadCells, sizePruning, shapePruning, cavePruning, forcedRegions, allRegionSizes, tunnels, nonCoverablePruning } = tryAnalysis;
           remainingCounts.sort((a, b) => a.count - b.count);
           const newRemaining = remainingCounts.map(x => x.name);
 
@@ -927,7 +992,7 @@ window.Solver = (function() {
 
           // Convert to array for visualization
           placements = newPlaced.map(name => placementsByName[name]);
-          visualizeCallback(placements, attempts, allPiecesProgress, deadCells, sizePruning, shapePruning, cavePruning, forcedRegions, nextPieceName, false, newRemaining, allRegionSizes, tunnels);
+          visualizeCallback(placements, attempts, allPiecesProgress, deadCells, sizePruning, shapePruning, cavePruning, forcedRegions, nextPieceName, false, newRemaining, allRegionSizes, tunnels, nonCoverablePruning);
           
           // Step mode: pause after each placement
           if (stepMode) {
@@ -940,14 +1005,14 @@ window.Solver = (function() {
           }
           
           // Prune if dead cells exist, otherwise recurse
-          if (deadCells.length === 0) {
+          if (deadCells.length === 0 && nonCoverablePruning.cells.length === 0) {
             if (await backtrack(newRemaining, newPlaced)) {
               return true;
             }
           }
           
           // Backtrack: undo this piece
-          setPiece(grid, orientation.cells, row, col, 1);
+          setPiece(grid, orient.cells, row, col, 1);
           delete placementsByName[pieceName];
           backtracks++;
           currentDepth = depth;
@@ -973,7 +1038,7 @@ window.Solver = (function() {
         placements = currentPlaced.map(name => placementsByName[name]);
         const emptyPruning2 = { cells: [], sizes: [] };
         const emptyTunnels2 = { nadirs: [], paths: [] };
-        visualizeCallback(placements, attempts, allPiecesProgress, [], emptyPruning2, emptyPruning2, emptyPruning2, emptyPruning2, pieceName, true, orderedRemaining, [], emptyTunnels2);
+        visualizeCallback(placements, attempts, allPiecesProgress, [], emptyPruning2, emptyPruning2, emptyPruning2, emptyPruning2, pieceName, true, orderedRemaining, [], emptyTunnels2, emptyPruning2);
         
         // Step mode or normal delay
         if (stepMode) {

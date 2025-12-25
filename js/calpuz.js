@@ -33,6 +33,12 @@ const FORCED_REGION_WIDTH = 0.1;
 const FORCED_REGION_ANGLE = -45;          // Same as red (opposite to blue/yellow)
 const FORCED_REGION_OPACITY = 0.2;
 
+// Type 5: NON-COVERABLE cells (no remaining placements cover these)
+const NONCOVERABLE_COLOR_1 = '#ff0000';
+const NONCOVERABLE_COLOR_2 = '#ffffff';
+const NONCOVERABLE_WIDTH = 0.16;
+const NONCOVERABLE_OPACITY = 0.22;
+
 // Tunnel visualization (nadirs + corridor arrows)
 const TUNNELS_OPACITY = 0.15;
 const TUNNELS_DOT_RADIUS = 0.16; // As fraction of boxel
@@ -1202,7 +1208,7 @@ function drawPendingPieces(progress, failedPieceName = null, orderedRemaining = 
 
 // Visualize all placements (callback for solver)
 // sizePruning, shapePruning, cavePruning, forcedRegions are { cells: [[r,c],...], sizes: [n,...] }
-function visualizeAllPlacements(placements, attempts, progress, deadCells = [], sizePruning = {cells:[], sizes:[]}, shapePruning = {cells:[], sizes:[]}, cavePruning = {cells:[], sizes:[]}, forcedRegions = {cells:[], sizes:[]}, nextPiece = null, pieceFailed = false, orderedRemaining = [], allRegionSizes = [], tunnels = { nadirs: [], paths: [] }) {
+function visualizeAllPlacements(placements, attempts, progress, deadCells = [], sizePruning = {cells:[], sizes:[]}, shapePruning = {cells:[], sizes:[]}, cavePruning = {cells:[], sizes:[]}, forcedRegions = {cells:[], sizes:[]}, nextPiece = null, pieceFailed = false, orderedRemaining = [], allRegionSizes = [], tunnels = { nadirs: [], paths: [] }, nonCoverablePruning = { cells: [], sizes: [] }) {
   // Clear all pieces (use removeGroup to clean up Hammer instances)
   for (const [name, , ] of shapes) {
     const group = svgGet(name);
@@ -1295,6 +1301,8 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
     CAVE_PRUNE_COLOR_1, CAVE_PRUNE_COLOR_2, CAVE_PRUNE_WIDTH, CAVE_PRUNE_ANGLE, CAVE_PRUNE_OPACITY, 'prune-cave');
   drawCheckerboardRegions(deadGroup, forcedRegions.cells,
     FORCED_REGION_COLOR_1, FORCED_REGION_COLOR_2, FORCED_REGION_WIDTH, FORCED_REGION_OPACITY, 'prune-forced');
+  drawCheckerboardRegions(deadGroup, nonCoverablePruning.cells,
+    NONCOVERABLE_COLOR_1, NONCOVERABLE_COLOR_2, NONCOVERABLE_WIDTH, NONCOVERABLE_OPACITY, 'prune-noncoverable');
 
   // Tunnel visualization:
   // - Dot at every nadir
@@ -1498,6 +1506,14 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
 
   drawCheckerboardSwatch(textY, FORCED_REGION_COLOR_1, FORCED_REGION_COLOR_2, 'swatch-forced');
   deadGroup.text(`${splur(forcedRegions.sizes.length, "forced placement")}: {${forcedRegions.sizes.join(', ')}}`)
+    .font({ size: fontSize, weight: 'bold', family: 'Arial' })
+    .fill('#000000')
+    .move(textX, textY);
+  textY += lineHeight;
+
+  const nonCoverableCount = (nonCoverablePruning.cells || []).reduce((acc, region) => acc + (region ? region.length : 0), 0);
+  drawCheckerboardSwatch(textY, NONCOVERABLE_COLOR_1, NONCOVERABLE_COLOR_2, 'swatch-noncoverable');
+  deadGroup.text(`${splur(nonCoverableCount, 'non-coverable cell')}`)
     .font({ size: fontSize, weight: 'bold', family: 'Arial' })
     .fill('#000000')
     .move(textX, textY);

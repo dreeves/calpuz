@@ -101,6 +101,13 @@ Proof:
 (I think I could improve that exposition by combining some of those latter points.)
 
 
+Yet More Pruning:
+
+1. before placing a piece in the queue, cache every possible placement for every piece in the queue.
+2. while doing so, keep a tally for every vacant cell for the number of possible placements that cover that cell.
+3. if any cell has a tally of zero, backtrack.
+
+
 Musing (I haven't tried this yet):
 
 There are 8 pieces to place on a grid of 12+31-2=41 initially vacant cells.
@@ -127,6 +134,6 @@ An annoying thing in this implementation is that sometimes when you click to rot
 This repo includes Playwright quals that check the invariant that a piece rotates around the point you click/tap.
 
 - Install deps: `npm install`
-- Run tests: `npm test`
+- Run quals: `npm qual` (alias: `npm test`)
 
 Playwright runs a local static server (see `playwright.config.js`) and uses Chromium.
