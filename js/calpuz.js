@@ -47,7 +47,7 @@ const FORCED_REGION_OPACITY = 0.2;
 const NONCOVERABLE_COLOR_1 = '#ff0000';
 const NONCOVERABLE_COLOR_2 = '#ffffff';
 const NONCOVERABLE_WIDTH = 0.16;
-const NONCOVERABLE_OPACITY = 0.22;
+const NONCOVERABLE_OPACITY = 0.44;
 
 // Tunnel visualization (nadirs + corridor arrows)
 const TUNNELS_OPACITY = 0.15;
@@ -64,7 +64,10 @@ const EXCELLENT_CONFETTI_DELAY_MS = 100;
 const BOGUS_CONFETTI_DELAY_MS = 100;
 
 // Legend swatches (small pattern previews next to text)
-const LEGEND_SWATCH_OPACITY = 0.33;
+// Swatch opacity is derived from the corresponding grid overlay opacity
+// via this multiplier. Set to 1.0 to match the grid; >1.0 to make swatches
+// more opaque for readability.
+const LEGEND_OPACITY_MULTIPLIER = 1.0;
 
 // Date circle highlighting
 const DATE_CIRCLE_RADIUS = 0.85;   // As fraction of boxel
@@ -1298,6 +1301,25 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
       }
     });
   }
+
+  // Helper to draw red X marks over individual cells
+  // regions = [[[r,c],...], ...]
+  function drawXRegions(group, regions, color, strokeWidthFrac, insetFrac, opacity) {
+    const strokeWidth = Math.max(1, boxel * strokeWidthFrac);
+    const inset = boxel * insetFrac;
+    regions.forEach((region) => {
+      for (const [r, c] of region) {
+        const cx = x0 + c * boxel;
+        const cy = y0 + r * boxel;
+        group.line(cx + inset, cy + inset, cx + boxel - inset, cy + boxel - inset)
+          .stroke({ width: strokeWidth, color })
+          .opacity(opacity);
+        group.line(cx + inset, cy + boxel - inset, cx + boxel - inset, cy + inset)
+          .stroke({ width: strokeWidth, color })
+          .opacity(opacity);
+      }
+    });
+  }
   
   // Draw pruned regions and legend (legend hidden only when solution found)
   const deadGroup = zoomContainer.group().attr('id', 'dead-cells');
@@ -1311,8 +1333,8 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
     CAVE_PRUNE_COLOR_1, CAVE_PRUNE_COLOR_2, CAVE_PRUNE_WIDTH, CAVE_PRUNE_ANGLE, CAVE_PRUNE_OPACITY, 'prune-cave');
   drawCheckerboardRegions(deadGroup, forcedRegions.cells,
     FORCED_REGION_COLOR_1, FORCED_REGION_COLOR_2, FORCED_REGION_WIDTH, FORCED_REGION_OPACITY, 'prune-forced');
-  drawCheckerboardRegions(deadGroup, nonCoverablePruning.cells,
-    NONCOVERABLE_COLOR_1, NONCOVERABLE_COLOR_2, NONCOVERABLE_WIDTH, NONCOVERABLE_OPACITY, 'prune-noncoverable');
+  drawXRegions(deadGroup, nonCoverablePruning.cells,
+    NONCOVERABLE_COLOR_1, 0.08, 0.18, NONCOVERABLE_OPACITY);
 
   // Tunnel visualization:
   // - Dot at every nadir
@@ -1441,8 +1463,16 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
   const textX = swatchX + swatchSize + fontSize * 0.4;
   let textY = y0 + 7 * boxel + fontSize + legendDy;  // Below the grid
   
+  function legendSwatchOpacity(overlayOpacity) {
+    const o = overlayOpacity * LEGEND_OPACITY_MULTIPLIER;
+    if (!(o >= 0 && o <= 1)) {
+      throw new Error(`Legend swatch opacity out of range: overlay=${overlayOpacity} multiplier=${LEGEND_OPACITY_MULTIPLIER} => ${o}`);
+    }
+    return o;
+  }
+
   // Helper to draw a striped swatch
-  function drawSwatch(y, color1, color2, angle, patternId) {
+  function drawSwatch(y, color1, color2, angle, overlayOpacity, patternId) {
     const stripeWidth = swatchSize * 0.15;
     const period = stripeWidth * 2;
     const pattern = svg.pattern(period, period, function(add) {
@@ -1452,7 +1482,11 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
       patternUnits: 'userSpaceOnUse',
       patternTransform: `rotate(${angle})`
     });
-    deadGroup.rect(swatchSize, swatchSize).move(swatchX, y).fill(pattern).opacity(LEGEND_SWATCH_OPACITY).stroke({ width: 1, color: '#666' });
+    deadGroup.rect(swatchSize, swatchSize)
+      .move(swatchX, y)
+      .fill(pattern)
+      .opacity(legendSwatchOpacity(overlayOpacity))
+      .stroke({ width: 1, color: '#666' });
   }
 
   // Helper to draw an empty white swatch (for region sizes)
@@ -1460,12 +1494,12 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
     deadGroup.rect(swatchSize, swatchSize)
       .move(swatchX, y)
       .fill('#ffffff')
-      .opacity(LEGEND_SWATCH_OPACITY)
+      .opacity(legendSwatchOpacity(FORCED_REGION_OPACITY))
       .stroke({ width: 1, color: '#666' });
   }
   
   // Helper to draw a checkerboard swatch
-  function drawCheckerboardSwatch(y, color1, color2, patternId) {
+  function drawCheckerboardSwatch(y, color1, color2, overlayOpacity, patternId) {
     const cellSize = swatchSize * 0.15;
     const period = cellSize * 2;
     const pattern = svg.pattern(period, period, function(add) {
@@ -1474,7 +1508,28 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
       add.rect(cellSize, cellSize).move(0, cellSize).fill(color2);
       add.rect(cellSize, cellSize).move(cellSize, cellSize).fill(color1);
     }).id(patternId).attr({ patternUnits: 'userSpaceOnUse' });
-    deadGroup.rect(swatchSize, swatchSize).move(swatchX, y).fill(pattern).opacity(LEGEND_SWATCH_OPACITY).stroke({ width: 1, color: '#666' });
+    deadGroup.rect(swatchSize, swatchSize)
+      .move(swatchX, y)
+      .fill(pattern)
+      .opacity(legendSwatchOpacity(overlayOpacity))
+      .stroke({ width: 1, color: '#666' });
+  }
+
+  function drawXSwatch(y, color, overlayOpacity) {
+    const o = legendSwatchOpacity(overlayOpacity);
+    deadGroup.rect(swatchSize, swatchSize)
+      .move(swatchX, y)
+      .fill('#ffffff')
+      .opacity(o)
+      .stroke({ width: 1, color: '#666' });
+    const inset = swatchSize * 0.2;
+    const strokeWidth = Math.max(1, swatchSize * 0.14);
+    deadGroup.line(swatchX + inset, y + inset, swatchX + swatchSize - inset, y + swatchSize - inset)
+      .stroke({ width: strokeWidth, color: color })
+      .opacity(o);
+    deadGroup.line(swatchX + inset, y + swatchSize - inset, swatchX + swatchSize - inset, y + inset)
+      .stroke({ width: strokeWidth, color: color })
+      .opacity(o);
   }
   
   // Helper to render sizes in braces with specified ones struck through in red
@@ -1516,18 +1571,18 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
   textY += lineHeight;
 
   // 2) Unfillable sizes
-  drawSwatch(textY, SIZE_PRUNE_COLOR_1, SIZE_PRUNE_COLOR_2, SIZE_PRUNE_ANGLE, 'swatch-size');
+  drawSwatch(textY, SIZE_PRUNE_COLOR_1, SIZE_PRUNE_COLOR_2, SIZE_PRUNE_ANGLE, SIZE_PRUNE_OPACITY, 'swatch-size');
   drawLegendText(textY, sizePruning.sizes, 'size');
   textY += lineHeight;
 
   // 3) Unfillable caves
-  drawSwatch(textY, CAVE_PRUNE_COLOR_1, CAVE_PRUNE_COLOR_2, CAVE_PRUNE_ANGLE, 'swatch-cave');
+  drawSwatch(textY, CAVE_PRUNE_COLOR_1, CAVE_PRUNE_COLOR_2, CAVE_PRUNE_ANGLE, CAVE_PRUNE_OPACITY, 'swatch-cave');
   drawLegendText(textY, cavePruning.sizes, 'cave');
   textY += lineHeight;
 
   // 4) Non-coverable cells
   const nonCoverableCount = (nonCoverablePruning.cells || []).reduce((acc, region) => acc + (region ? region.length : 0), 0);
-  drawCheckerboardSwatch(textY, NONCOVERABLE_COLOR_1, NONCOVERABLE_COLOR_2, 'swatch-noncoverable');
+  drawXSwatch(textY, NONCOVERABLE_COLOR_1, NONCOVERABLE_OPACITY);
   deadGroup.text(`${splur(nonCoverableCount, 'non-coverable cell')}`)
     .font({ size: fontSize, weight: 'bold', family: 'Arial' })
     .fill('#000000')
@@ -1535,7 +1590,7 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
   textY += lineHeight;
 
   // 5) Forced placements
-  drawCheckerboardSwatch(textY, FORCED_REGION_COLOR_1, FORCED_REGION_COLOR_2, 'swatch-forced');
+  drawCheckerboardSwatch(textY, FORCED_REGION_COLOR_1, FORCED_REGION_COLOR_2, FORCED_REGION_OPACITY, 'swatch-forced');
   deadGroup.text(`${splur(forcedRegions.sizes.length, "forced placement")}: {${forcedRegions.sizes.join(', ')}}`)
     .font({ size: fontSize, weight: 'bold', family: 'Arial' })
     .fill('#000000')
