@@ -134,6 +134,6 @@ An annoying thing in this implementation is that sometimes when you click to rot
 This repo includes Playwright quals that check the invariant that a piece rotates around the point you click/tap.
 
 - Install deps: `npm install`
-- Run quals: `npm qual` (alias: `npm test`)
+- Run quals: `npm run qual` (alias: `npm test`)
 
 Playwright runs a local static server (see `playwright.config.js`) and uses Chromium.
