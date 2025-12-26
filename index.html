@@ -111,12 +111,12 @@
 </div> <!-- sidebar -->
 
 <div style="position: fixed; bottom: 10px; right: 80px; color: #999; font-size: 12px; z-index: 10;"
->v2025.12.25-a</div>
+>v2025.12.26-h</div>
 
 <div id="solver-progress" class="solver-progress">
   
 <button class="close-btn" onclick="showProgressPanel(false)">&times;</button>
-<h3>Solver Progress</h3>
+<h3>Solver</h3>
 <div class="speed-controls">
 <button class="speed-btn" data-speed="step" onclick="stepOnce()"     title="Step">↩️</button>
 <button class="speed-btn" data-speed="1000" onclick="runSpeed(1000)" title="1000ms">🐌</button>
@@ -129,6 +129,15 @@
 <div class="pieces-table" id="pieces-table"></div>
 
 </div> <!-- solver-progress -->
+
+<div id="hint-panel" class="hint-panel">
+<button class="close-btn" onclick="hideHintPanel()">&times;</button>
+<h3>Hint</h3>
+<div class="hint-content">
+  <svg id="hint-grid" class="hint-grid" viewBox="0 0 70 70"></svg>
+  <div id="hint-status" class="hint-status">Click the lightbulb to check</div>
+</div>
+</div> <!-- hint-panel -->
 
 </body>
 </html>

@@ -221,85 +221,214 @@ window.resetPieces = function() {
   scatterShapes();
 };
 
-// Check if a solution exists with current piece placements (hint feature)
-window.checkHint = function() {
-  // Don't allow hint while solver is running
-  if (Solver.isSolving()) {
-    Swal.fire({
-      title: 'Solver Running',
-      text: 'Stop the solver first before checking for hints.',
-      icon: 'info',
-      confirmButtonText: 'OK'
-    });
-    return;
-  }
+// Hint panel functions
+let hintUpdatePending = false;  // Debounce hint updates
 
-  // Get today's date cells (the cells that should remain uncovered)
+window.hideHintPanel = function() {
+  document.getElementById('hint-panel').classList.remove('active');
+};
+
+function showHintPanel() {
+  document.getElementById('hint-panel').classList.add('active');
+}
+
+function isHintPanelVisible() {
+  return document.getElementById('hint-panel').classList.contains('active');
+}
+
+// Update hint panel if visible (called after piece placement)
+function updateHintIfVisible() {
+  if (!isHintPanelVisible()) return;
+  if (hintUpdatePending) return;  // Already pending
+  hintUpdatePending = true;
+  // Small debounce to avoid rapid updates during drag
+  setTimeout(() => {
+    hintUpdatePending = false;
+    if (isHintPanelVisible()) {
+      refreshHint();
+    }
+  }, 100);
+}
+
+// Refresh hint without toggling panel visibility
+function refreshHint() {
   const today = new Date();
   const targetCells = Solver.getDateCells(today.getMonth(), today.getDate());
 
-  // Find all pieces that are validly placed on the calendar grid
-  const prePlaced = [];
+  const prePlaced = [];  // For solver - only valid placements
+  const cellToPiece = {};  // For drawing - all cells covered by any piece
   const pieceNames = shapes.map(s => s[0]);
+  let hasOverlap = false;
 
   for (const name of pieceNames) {
     const group = svgGet(name);
     if (!group) continue;
-
     const node = group.node;
-
-    // Check if this piece is validly placed on the grid
-    if (!placementIsValidAndNonOverlappingOnCalendar(node)) continue;
-
-    // Get the cells covered by this piece
     const coveredCells = getCoveredGridCellsByPiece(node);
-    if (coveredCells.length === 0) continue;
 
-    // Convert to [row, col] format
-    prePlaced.push({
-      name: name,
-      cells: coveredCells
-    });
+    // Record cells on valid grid for drawing (pieces win over everything)
+    const validCoveredCells = coveredCells.filter(([r, c]) => VALID_CELLS[r]?.[c]);
+    for (const [r, c] of validCoveredCells) {
+      const key = `${r},${c}`;
+      hasOverlap = hasOverlap || (key in cellToPiece);
+      cellToPiece[key] = name;
+    }
+
+    // Only add to prePlaced if valid placement (for solver)
+    if (placementIsValidAndNonOverlappingOnCalendar(node) && validCoveredCells.length > 0) {
+      prePlaced.push({ name, cells: validCoveredCells });
+    }
   }
 
-  // Show loading indicator for potentially slow computation
-  Swal.fire({
-    title: 'Checking...',
-    text: `Analyzing ${prePlaced.length} placed piece${prePlaced.length === 1 ? '' : 's'}...`,
-    allowOutsideClick: false,
-    allowEscapeKey: false,
-    showConfirmButton: false,
-    didOpen: () => {
-      Swal.showLoading();
-    }
-  });
+  // Draw the mini grid
+  drawHintGrid(cellToPiece, targetCells);
 
-  // Use setTimeout to allow the loading dialog to render before blocking computation
+  // Check if any piece is on valid grid but not validly placed (partial/overlapping)
+  const piecesOnGrid = new Set(Object.values(cellToPiece));
+  const validPieces = new Set(prePlaced.map(p => p.name));
+  const allPiecesValid = [...piecesOnGrid].every(p => validPieces.has(p));
+
+  const statusEl = document.getElementById('hint-status');
+
+  // Shortcut: overlap or invalid pieces means 0 solutions, skip solver
+  if (hasOverlap || !allPiecesValid) {
+    statusEl.className = 'hint-status';
+    statusEl.textContent = splur(0, "solution");
+    return;
+  }
+
+  // Show counting status and run solver
+  statusEl.className = 'hint-status counting';
+  statusEl.textContent = 'counting solutions';
+  document.body.classList.add('counting');
+
   setTimeout(() => {
-    const result = Solver.checkSolvableWithPlacements(shapes, targetCells, prePlaced);
+    const result = Solver.countSolutionsWithPlacements(shapes, targetCells, prePlaced);
+    statusEl.className = 'hint-status';
+    statusEl.textContent = splur(result.count, "solution");
+    document.body.classList.remove('counting');
+  }, 20);
+}
 
-    if (prePlaced.length === 0) {
-      Swal.fire({
-        title: 'No Pieces Placed',
-        html: 'Place some pieces on the grid first, then check if a solution is possible.<br><br><em>A solution always exists when no pieces are placed.</em>',
-        icon: 'info',
-        confirmButtonText: 'Got it'
-      });
-    } else if (result.solvable) {
-      Swal.fire({
-        title: 'Solution Exists!',
-        html: `With your ${prePlaced.length} placed piece${prePlaced.length === 1 ? '' : 's'}, a solution is still possible.<br><br><em>Keep going!</em>`,
-        icon: 'success',
-        confirmButtonText: 'Great!'
-      });
-    } else {
-      Swal.fire({
-        title: 'No Solution',
-        html: `No solution exists with your current ${prePlaced.length} piece${prePlaced.length === 1 ? '' : 's'}.<br><br><em>Try moving or rotating some pieces.</em>`,
-        icon: 'error',
-        confirmButtonText: 'Darn'
-      });
+// Draw the mini grid in the hint panel showing current placements
+// cellToPiece is a map from "r,c" to piece name for all cells covered by pieces
+function drawHintGrid(cellToPiece, targetCells) {
+  const hintSvg = document.getElementById('hint-grid');
+  hintSvg.innerHTML = '';
+
+  const cellSize = 10;
+  const validCells = [
+    [1,1,1,1,1,1,0],
+    [1,1,1,1,1,1,0],
+    [1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1],
+    [1,1,1,0,0,0,0],
+  ];
+
+  const targetSet = new Set(targetCells.map(([r, c]) => `${r},${c}`));
+
+  const drawX = (x, y) => {
+    const x1 = x + 1, y1 = y + 1, x2 = x + cellSize - 1, y2 = y + cellSize - 1;
+    for (const [ax, ay, bx, by] of [[x1, y1, x2, y2], [x2, y1, x1, y2]]) {
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.setAttribute('x1', ax);
+      line.setAttribute('y1', ay);
+      line.setAttribute('x2', bx);
+      line.setAttribute('y2', by);
+      line.setAttribute('stroke', '#ff4444');
+      line.setAttribute('stroke-width', '1.5');
+      hintSvg.appendChild(line);
     }
+  };
+
+  for (let r = 0; r < 7; r++) {
+    for (let c = 0; c < 7; c++) {
+      const key = `${r},${c}`;
+      const isTarget = targetSet.has(key);
+      const pieceName = cellToPiece[key];
+
+      // Skip: lee cells, or date cells without a piece
+      if (!validCells[r][c] || (isTarget && !pieceName)) continue;
+
+      const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      rect.setAttribute('x', c * cellSize);
+      rect.setAttribute('y', r * cellSize);
+      rect.setAttribute('width', cellSize);
+      rect.setAttribute('height', cellSize);
+      rect.setAttribute('stroke', '#555');
+      rect.setAttribute('stroke-width', '0.5');
+      rect.setAttribute('fill', pieceName ? shapeMap.get(pieceName)[1] : '#1a2a3a');
+      hintSvg.appendChild(rect);
+
+      // Red X if piece covers a date cell
+      isTarget && pieceName && drawX(c * cellSize, r * cellSize);
+    }
+  }
+}
+
+// Check if a solution exists with current piece placements (hint feature)
+window.checkHint = function() {
+  // Get today's date cells (the cells that should remain uncovered)
+  const today = new Date();
+  const targetCells = Solver.getDateCells(today.getMonth(), today.getDate());
+
+  const prePlaced = [];  // For solver - only valid placements
+  const cellToPiece = {};  // For drawing - cells on valid grid covered by any piece
+  const pieceNames = shapes.map(s => s[0]);
+  let hasOverlap = false;
+
+  for (const name of pieceNames) {
+    const group = svgGet(name);
+    if (!group) continue;
+    const node = group.node;
+    const coveredCells = getCoveredGridCellsByPiece(node);
+
+    // Record cells on valid grid for drawing (pieces win over everything)
+    const validCoveredCells = coveredCells.filter(([r, c]) => VALID_CELLS[r]?.[c]);
+    for (const [r, c] of validCoveredCells) {
+      const key = `${r},${c}`;
+      hasOverlap = hasOverlap || (key in cellToPiece);
+      cellToPiece[key] = name;
+    }
+
+    // Only add to prePlaced if valid placement (for solver)
+    if (placementIsValidAndNonOverlappingOnCalendar(node) && validCoveredCells.length > 0) {
+      prePlaced.push({ name, cells: validCoveredCells });
+    }
+  }
+
+  // Show the hint panel
+  showHintPanel();
+
+  // Draw the mini grid
+  drawHintGrid(cellToPiece, targetCells);
+
+  // Check if any piece is on valid grid but not validly placed (partial/overlapping)
+  const piecesOnGrid = new Set(Object.values(cellToPiece));
+  const validPieces = new Set(prePlaced.map(p => p.name));
+  const allPiecesValid = [...piecesOnGrid].every(p => validPieces.has(p));
+
+  const statusEl = document.getElementById('hint-status');
+
+  // Shortcut: overlap or invalid pieces means 0 solutions, skip solver
+  if (hasOverlap || !allPiecesValid) {
+    statusEl.className = 'hint-status';
+    statusEl.textContent = splur(0, "solution");
+    return;
+  }
+
+  // Show counting status and run solver
+  statusEl.className = 'hint-status counting';
+  statusEl.textContent = 'counting solutions';
+  document.body.classList.add('counting');
+
+  setTimeout(() => {
+    const result = Solver.countSolutionsWithPlacements(shapes, targetCells, prePlaced);
+    statusEl.className = 'hint-status';
+    statusEl.textContent = splur(result.count, "solution");
+    document.body.classList.remove('counting');
   }, 50);
 };
 
@@ -386,6 +515,7 @@ async function processPieceQueue(node) {
     while (state.queue.length) {
       const action = state.queue.shift();
       await action();
+      updateHintIfVisible();  // Update hint after each rotation/flip
     }
   } finally {
     state.running = false;
@@ -717,6 +847,7 @@ function snapToGrid(group) {
   }
 
   Sounds.snap();
+  updateHintIfVisible();
   setTimeout(checkPuzzleSolved, 50);  // Small delay for DOM to settle
 }
 
@@ -1061,9 +1192,13 @@ function updateProgressPanel(attempts, allPiecesProgress) {
 window.showProgressPanel = function(show) {
   const panel = document.getElementById('solver-progress');
   const solveBtn = document.getElementById('solve-btn');
-  if (show) initProgressPanel();
+  const hintBtn = document.getElementById('hint-btn');
+  const hintPanel = document.getElementById('hint-panel');
+  show && initProgressPanel();
+  show && hintPanel.classList.remove('active');  // Hide hint panel when solver starts
   panel.classList.toggle('active', show);
   solveBtn.classList.toggle('disabled', show);
+  hintBtn.classList.toggle('disabled', show);
 }
 
 // Make solver panel draggable by its header (mouse + touch)
@@ -1098,6 +1233,36 @@ document.addEventListener('DOMContentLoaded', () => {
   handle.addEventListener('touchstart', e => { startDrag(e.touches[0].clientX, e.touches[0].clientY); e.preventDefault(); }, { passive: false });
   document.addEventListener('touchmove', e => { if (dragging) doDrag(e.touches[0].clientX, e.touches[0].clientY); }, { passive: true });
   document.addEventListener('touchend', endDrag);
+
+  // Make hint panel draggable by its header (mouse + touch)
+  const hintPanel = document.getElementById('hint-panel');
+  const hintHandle = hintPanel.querySelector('h3');
+  let hintDragging = false, hintStartX, hintStartY, hintStartRight, hintStartBottom;
+
+  function startHintDrag(x, y) {
+    hintDragging = true;
+    hintStartX = x;
+    hintStartY = y;
+    const rect = hintPanel.getBoundingClientRect();
+    hintStartRight = window.innerWidth - rect.right;
+    hintStartBottom = window.innerHeight - rect.bottom;
+  }
+
+  function doHintDrag(x, y) {
+    if (!hintDragging) return;
+    hintPanel.style.right = (hintStartRight - (x - hintStartX)) + 'px';
+    hintPanel.style.bottom = (hintStartBottom - (y - hintStartY)) + 'px';
+  }
+
+  function endHintDrag() { hintDragging = false; }
+
+  hintHandle.addEventListener('mousedown', e => { startHintDrag(e.clientX, e.clientY); e.preventDefault(); });
+  document.addEventListener('mousemove', e => doHintDrag(e.clientX, e.clientY));
+  document.addEventListener('mouseup', endHintDrag);
+
+  hintHandle.addEventListener('touchstart', e => { startHintDrag(e.touches[0].clientX, e.touches[0].clientY); e.preventDefault(); }, { passive: false });
+  document.addEventListener('touchmove', e => { if (hintDragging) doHintDrag(e.touches[0].clientX, e.touches[0].clientY); }, { passive: true });
+  document.addEventListener('touchend', endHintDrag);
 });
 
 // Update speed button states - computes everything from solver state

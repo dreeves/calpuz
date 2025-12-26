@@ -306,3 +306,87 @@ ul {
   margin-bottom: 4px;
 }
 
+/* Hint Panel */
+.hint-panel {
+  position: fixed;
+  bottom: 20px;
+  right: 100px;
+  background: rgba(59, 73, 94, 0.95);
+  border-radius: 12px;
+  padding: 16px;
+  color: white;
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+  z-index: 1000;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  display: none;
+  min-width: 180px;
+}
+
+.hint-panel.active {
+  display: block;
+}
+
+.hint-panel .close-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(255,255,255,0.1);
+  border: none;
+  color: #aaa;
+  font-size: 18px;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.hint-panel .close-btn:hover {
+  background: rgba(255,255,255,0.2);
+  color: #fff;
+}
+
+.hint-panel h3 {
+  margin: 0 0 12px 0;
+  font-size: 11px;
+  color: #a0b0c0;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  cursor: grab;
+  user-select: none;
+}
+
+.hint-panel h3:active {
+  cursor: grabbing;
+}
+
+.hint-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.hint-grid {
+  width: 140px;
+  height: 140px;
+  border-radius: 4px;
+}
+
+.hint-status {
+  font-size: 16px;
+  font-weight: bold;
+  color: #4ecdc4;
+  text-align: center;
+}
+
+.hint-status.counting {
+  color: #f0ad4e;
+}
+
+body.counting .graph {
+  opacity: 0.5;
+  pointer-events: none;
+}
+

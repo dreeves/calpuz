@@ -6,9 +6,10 @@ Forked from <https://github.com/bsoule/CalendarPuzzle>
 
 Hosted at <https://calpuz.dreev.es>
 
+
 ## Notes for the solver
 
-A small subset of the things I wrote down while coaxing the robots to write code for me...
+Below is a small subset of the things I wrote down while coaxing the robots to write code...
 
 1. Every piece has from the beginning a list of ORIENT/POS pairs indicating how/where it can potentially be placed. Call that the piece's potential placings. For a piece p we write p.pp for p's potential placings.
 2. Sort the pieces in the queue by length(pp). The heuristic is to place the most constrained pieces first.
@@ -77,7 +78,7 @@ XXXX
 ```
 
 
-Additional by not considering piece placements that block tunnels:
+Additional pruning by not considering piece placements that block tunnels:
 
 Tunnels are when you find a deadend (cell with 0 or 1 vacant neighbor; aka nadir) and follow it until there's more than one possible neighbor to move to (and stopping if you hit uq cells, as in cave detection above).
 
@@ -101,11 +102,11 @@ Proof:
 (I think I could improve that exposition by combining some of those latter points.)
 
 
-Yet More Pruning:
+Pruning by non-coverable cells:
 
-1. before placing a piece in the queue, cache every possible placement for every piece in the queue.
-2. while doing so, keep a tally for every vacant cell for the number of possible placements that cover that cell.
-3. if any cell has a tally of zero, backtrack.
+1. Before placing a piece in the queue, cache every possible placement for every piece in the queue.
+2. While doing so, keep a tally for every vacant cell of the number of possible placements that cover that cell.
+3. If any cell has a tally of zero, backtrack.
 
 
 Musing (I haven't tried this yet):
@@ -125,9 +126,9 @@ An annoying thing in this implementation is that sometimes when you click to rot
 ## Wishlist
 
 1. Pull-to-refresh doesn't work but maybe it shouldn't since that would interfere with panning?
-2. More standard zoom in/out icons I guess. For some reason "octicon-zoom-in" and "octicon-zoom-out" aren't working.
-3. The solver code is a disaster after endlessly coaxing the robots along.
-4. Satisfying clicky/snappy/swooshy sounds, with a mute button in the sidebar.
+2. The solver code is a disaster after endlessly coaxing the robots along.
+3. I think the hint feature is a little buggy.
+4. Replace the hint popup with a little floating box similar to the solver progress box that shows a mini vesrion of placements you have so far and the number of solutions that exist with those placements.
 
 ## Quals (this section by GPT-5.2)
 

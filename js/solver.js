@@ -1138,7 +1138,8 @@ window.Solver = (function() {
           setPiece(grid, orientation.cells, row, col, 3 + pieceIndex);
           attempts++;
           
-          const { deadCells } = analyzeRegions(grid);
+          const remaining = pieceNames.slice(pieceIndex + 1);
+          const { deadCells } = analyzeRegions(grid, remaining);
           if (deadCells.length === 0 && backtrack(pieceIndex + 1)) {
             return true;
           }
@@ -1394,6 +1395,103 @@ window.Solver = (function() {
     return { solvable, reason: solvable ? undefined : 'No solution exists with current placements' };
   }
 
+  // Count all solutions given pre-placed pieces (synchronous, no visualization)
+  // prePlaced is an array of { name, cells: [[r,c], ...] } for pieces already on the grid
+  // targetCells are the date cells that must remain uncovered
+  // Returns { count: number, error?: string }
+  function countSolutionsWithPlacements(shapes, targetCells, prePlaced) {
+    if (!pieceData) {
+      initPieceData(shapes);
+    }
+
+    const allPieceNames = shapes.map(s => s[0]);
+    const placedNames = new Set(prePlaced.map(p => p.name));
+    const remainingPieces = allPieceNames.filter(name => !placedNames.has(name));
+
+    // Initialize grid
+    const grid = copyGrid(gridTemplate);
+
+    // Mark date cells
+    for (const [r, c] of targetCells) {
+      grid[r][c] = 2;
+    }
+
+    // Place pre-placed pieces on grid
+    let pieceValue = 3;
+    for (const placement of prePlaced) {
+      for (const [r, c] of placement.cells) {
+        if (r < 0 || r >= 7 || c < 0 || c >= 7) {
+          return { count: 0, error: `Piece ${placement.name} is out of bounds` };
+        }
+        if (grid[r][c] !== 1) {
+          return { count: 0, error: `Piece ${placement.name} overlaps with another piece or invalid cell` };
+        }
+        grid[r][c] = pieceValue;
+      }
+      pieceValue++;
+    }
+
+    // If no remaining pieces, check if all valid cells are covered
+    if (remainingPieces.length === 0) {
+      for (let r = 0; r < 7; r++) {
+        for (let c = 0; c < 7; c++) {
+          if (grid[r][c] === 1) {
+            return { count: 0 };
+          }
+        }
+      }
+      return { count: 1 };
+    }
+
+    let solutionCount = 0;
+
+    // Run backtracking search to count all solutions
+    function backtrack(remaining, depth) {
+      if (remaining.length === 0) {
+        solutionCount++;
+        return;
+      }
+
+      // Analyze and get counts
+      const analysis = analyzeRegions(grid, remaining);
+      if (analysis.deadCells.length > 0) return;
+
+      const tunnelKeyPaths = tunnelKeyPathsFromTunnels(analysis.tunnels);
+      const { placementCacheByName, counts, nonCoverablePruning } = buildPlacementCacheAndCoverage(grid, remaining, tunnelKeyPaths);
+
+      if (nonCoverablePruning.cells.length > 0) return;
+
+      // Handle forced placements
+      if (analysis.forcedPlacements.length > 0) {
+        const forced = analysis.forcedPlacements[0];
+        setPiece(grid, forced.cells, forced.row, forced.col, 3 + depth);
+        const newRemaining = remaining.filter(n => n !== forced.name);
+        backtrack(newRemaining, depth + 1);
+        setPiece(grid, forced.cells, forced.row, forced.col, 1);
+        return;
+      }
+
+      // Sort by most constrained first
+      counts.sort((a, b) => a.count - b.count);
+      const orderedRemaining = counts.map(p => p.name);
+
+      const pieceName = orderedRemaining[0];
+      const cached = placementCacheByName[pieceName];
+
+      for (const orient of cached.orientations) {
+        for (const [row, col] of orient.positions) {
+          setPiece(grid, orient.cells, row, col, 3 + depth);
+          const newRemaining = orderedRemaining.slice(1);
+          backtrack(newRemaining, depth + 1);
+          setPiece(grid, orient.cells, row, col, 1);
+        }
+      }
+    }
+
+    backtrack(remainingPieces, prePlaced.length);
+    return { count: solutionCount };
+  }
+
   return {
     solve,
     solveOnce,
@@ -1417,6 +1515,7 @@ window.Solver = (function() {
     getPieceData,
     setSpeed,
     checkSolvableWithPlacements,
+    countSolutionsWithPlacements,
     __testOnly_analyzeRegions: analyzeRegions,
     __testOnly_getEffectiveCounts: getEffectiveCounts
   };
