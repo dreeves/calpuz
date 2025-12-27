@@ -84,6 +84,11 @@ const MAX_ZOOM = 3;
 // Animation timing
 const ROTATION_DURATION_MS = 150;
 
+// Flip animation scales X from 1 -> 0 -> -1. A scale of exactly 0 produces a
+// singular SVG matrix, which some browsers can mishandle (e.g., leaving a piece
+// permanently squished if a drag starts mid-flip). Clamp away from 0.
+const FLIP_MIN_ABS_SCALE = 0.01;
+
 // ============ END CONFIGURATION ============
 
 // Singular or plural with comma formatting. Eg, splur(1000, "cat") returns "1,000 cats"
@@ -665,7 +670,9 @@ function flipPiece(node, screenX, screenY) {
       }
       const t = Math.min((now - startTime) / ROTATION_DURATION_MS, 1);
       const eased = easeInOutSine(t);
-      const scale = 1 - 2 * eased;  // 1 → 0 → -1
+      const rawScale = 1 - 2 * eased;  // 1 → 0 → -1
+      const scaleSign = Math.sign(rawScale) || 1;
+      const scale = scaleSign * Math.max(Math.abs(rawScale), FLIP_MIN_ABS_SCALE);
 
       const flipAboutPivot = new DOMMatrix()
         .translate(pivot.x, 0)
