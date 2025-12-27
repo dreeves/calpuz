@@ -788,6 +788,18 @@ function setupDraggable(group, onDragEnd, rotateState) {
       delete node.__animationTarget;
     }
     startMatrix = getLocalTransformMatrix(node);
+    // Normalize partial scaleX from interrupted flip animation (belt-and-suspenders)
+    const scaleX = Math.hypot(startMatrix.a, startMatrix.b);
+    if (scaleX > 0.001 && Math.abs(scaleX - 1) > 0.01) {
+      const det = startMatrix.a * startMatrix.d - startMatrix.b * startMatrix.c;
+      const factor = (det < 0 ? -1 : 1) / (det < 0 ? -scaleX : scaleX);
+      startMatrix = new DOMMatrix([
+        startMatrix.a * factor, startMatrix.b * factor,
+        startMatrix.c, startMatrix.d,
+        startMatrix.e, startMatrix.f
+      ]);
+      setLocalTransformMatrix(node, startMatrix);
+    }
     // Use parent's CTM since piece transforms are relative to parent (accounts for zoom)
     invScreenCtm = node.parentElement.getScreenCTM().inverse();
     const { x, y } = getEventClientCoords(e);
