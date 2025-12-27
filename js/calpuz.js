@@ -658,6 +658,11 @@ function flipPiece(node, screenX, screenY) {
     node.__animationTarget = flipFinal.multiply(startMatrix);
 
     requestAnimationFrame(function tick(now) {
+      // Check if animation was aborted (e.g., user started dragging)
+      if (!node.__animationTarget) {
+        resolve();
+        return;
+      }
       const t = Math.min((now - startTime) / ROTATION_DURATION_MS, 1);
       const eased = easeInOutSine(t);
       const scale = 1 - 2 * eased;  // 1 → 0 → -1
@@ -698,6 +703,12 @@ function rotatePiece(node, getAngle, setAngle, screenX, screenY, clockwise) {
     node.__animationTarget = rotFinal.multiply(startMatrix);
 
     requestAnimationFrame(function tick(now) {
+      // Check if animation was aborted (e.g., user started dragging)
+      if (!node.__animationTarget) {
+        setAngle(startAngle + deltaAngle);  // Still update angle state
+        resolve();
+        return;
+      }
       const t = Math.min((now - startTime) / ROTATION_DURATION_MS, 1);
       const currentDelta = deltaAngle * easeOutCubic(t);
 
