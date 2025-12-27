@@ -650,6 +650,13 @@ function flipPiece(node, screenX, screenY) {
     const startMatrix = getLocalTransformMatrix(node);
     const startTime = performance.now();
 
+    // Pre-compute and store the target end matrix so dragging mid-animation can snap to it
+    const flipFinal = new DOMMatrix()
+      .translate(pivot.x, 0)
+      .scale(-1, 1)
+      .translate(-pivot.x, 0);
+    node.__animationTarget = flipFinal.multiply(startMatrix);
+
     requestAnimationFrame(function tick(now) {
       const t = Math.min((now - startTime) / ROTATION_DURATION_MS, 1);
       const eased = easeInOutSine(t);
@@ -662,7 +669,10 @@ function flipPiece(node, screenX, screenY) {
 
       setLocalTransformMatrix(node, flipAboutPivot.multiply(startMatrix));
       if (t < 1) requestAnimationFrame(tick);
-      else resolve();
+      else {
+        delete node.__animationTarget;
+        resolve();
+      }
     });
   });
 }
@@ -680,6 +690,13 @@ function rotatePiece(node, getAngle, setAngle, screenX, screenY, clockwise) {
     const startAngle = getAngle();
     const startTime = performance.now();
 
+    // Pre-compute and store the target end matrix so dragging mid-animation can snap to it
+    const rotFinal = new DOMMatrix()
+      .translate(pivot.x, pivot.y)
+      .rotate(deltaAngle)
+      .translate(-pivot.x, -pivot.y);
+    node.__animationTarget = rotFinal.multiply(startMatrix);
+
     requestAnimationFrame(function tick(now) {
       const t = Math.min((now - startTime) / ROTATION_DURATION_MS, 1);
       const currentDelta = deltaAngle * easeOutCubic(t);
@@ -692,6 +709,7 @@ function rotatePiece(node, getAngle, setAngle, screenX, screenY, clockwise) {
       setLocalTransformMatrix(node, rotAboutPivot.multiply(startMatrix));
       if (t < 1) requestAnimationFrame(tick);
       else {
+        delete node.__animationTarget;
         setAngle(startAngle + deltaAngle);
         resolve();
       }
@@ -746,6 +764,11 @@ function setupDraggable(group, onDragEnd, rotateState) {
 
   hammer.on('panstart', (e) => {
     cancelPressTimer();  // Drag started, not a tap or press
+    // If mid-animation, snap to the target end state to avoid squished pieces
+    if (node.__animationTarget) {
+      setLocalTransformMatrix(node, node.__animationTarget);
+      delete node.__animationTarget;
+    }
     startMatrix = getLocalTransformMatrix(node);
     // Use parent's CTM since piece transforms are relative to parent (accounts for zoom)
     invScreenCtm = node.parentElement.getScreenCTM().inverse();
