@@ -84,11 +84,6 @@ const MAX_ZOOM = 3;
 // Animation timing
 const ROTATION_DURATION_MS = 150;
 
-// Flip animation scales X from 1 -> 0 -> -1. A scale of exactly 0 produces a
-// singular SVG matrix, which some browsers can mishandle (e.g., leaving a piece
-// permanently squished if a drag starts mid-flip). Clamp away from 0.
-const FLIP_MIN_ABS_SCALE = 0.01;
-
 // ============ END CONFIGURATION ============
 
 // Singular or plural with comma formatting. Eg, splur(1000, "cat") returns "1,000 cats"
@@ -584,10 +579,15 @@ function screenToSvg(screenX, screenY, invCtm) {
 
 // Read the element's *local* SVG transform matrix (ignores parent CTMs)
 function getLocalTransformMatrix(node) {
-  const baseVal = node.transform && node.transform.baseVal;
-  const consolidated = baseVal && baseVal.consolidate && baseVal.consolidate();
-  if (!consolidated) return new DOMMatrix();
-  return DOMMatrix.fromMatrix(consolidated.matrix);
+  const tf = node.getAttribute('transform');
+  if (!tf) return new DOMMatrix();
+  const match = tf.match(/matrix\(([^)]+)\)/);
+  if (!match) throw new Error(`Unexpected SVG transform format on #${node.id}: ${tf}`);
+  const parts = match[1].trim().split(/[\s,]+/).map(Number);
+  if (parts.length !== 6 || parts.some((n) => !Number.isFinite(n))) {
+    throw new Error(`Bad SVG matrix() on #${node.id}: ${tf}`);
+  }
+  return new DOMMatrix(parts);
 }
 
 // Set the element's local transform matrix and keep dataset position in sync
@@ -670,9 +670,7 @@ function flipPiece(node, screenX, screenY) {
       }
       const t = Math.min((now - startTime) / ROTATION_DURATION_MS, 1);
       const eased = easeInOutSine(t);
-      const rawScale = 1 - 2 * eased;  // 1 → 0 → -1
-      const scaleSign = Math.sign(rawScale) || 1;
-      const scale = scaleSign * Math.max(Math.abs(rawScale), FLIP_MIN_ABS_SCALE);
+      const scale = 1 - 2 * eased;  // 1 → 0 → -1
 
       const flipAboutPivot = new DOMMatrix()
         .translate(pivot.x, 0)
@@ -788,18 +786,20 @@ function setupDraggable(group, onDragEnd, rotateState) {
       delete node.__animationTarget;
     }
     startMatrix = getLocalTransformMatrix(node);
-    // Normalize partial scaleX from interrupted flip animation (belt-and-suspenders)
-    const scaleX = Math.hypot(startMatrix.a, startMatrix.b);
-    if (scaleX > 0.001 && Math.abs(scaleX - 1) > 0.01) {
-      const det = startMatrix.a * startMatrix.d - startMatrix.b * startMatrix.c;
-      const factor = (det < 0 ? -1 : 1) / (det < 0 ? -scaleX : scaleX);
-      startMatrix = new DOMMatrix([
-        startMatrix.a * factor, startMatrix.b * factor,
-        startMatrix.c, startMatrix.d,
-        startMatrix.e, startMatrix.f
-      ]);
-      setLocalTransformMatrix(node, startMatrix);
-    }
+    // Buckshot fix attempt (disabled): normalizing partial scaleX here is a
+    // heuristic that can silently change the piece state. Leaving commented out
+    // as a record; safe to delete if we confirm it's unnecessary.
+    // const scaleX = Math.hypot(startMatrix.a, startMatrix.b);
+    // if (scaleX > 0.001 && Math.abs(scaleX - 1) > 0.01) {
+    //   const det = startMatrix.a * startMatrix.d - startMatrix.b * startMatrix.c;
+    //   const factor = (det < 0 ? -1 : 1) / (det < 0 ? -scaleX : scaleX);
+    //   startMatrix = new DOMMatrix([
+    //     startMatrix.a * factor, startMatrix.b * factor,
+    //     startMatrix.c, startMatrix.d,
+    //     startMatrix.e, startMatrix.f
+    //   ]);
+    //   setLocalTransformMatrix(node, startMatrix);
+    // }
     // Use parent's CTM since piece transforms are relative to parent (accounts for zoom)
     invScreenCtm = node.parentElement.getScreenCTM().inverse();
     const { x, y } = getEventClientCoords(e);
