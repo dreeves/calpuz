@@ -219,6 +219,9 @@ window.resetPieces = function() {
   if (oldPending) oldPending.remove();
 
   scatterShapes();
+
+  // Keep hint panel in sync when pieces are reset.
+  if (isHintPanelVisible()) refreshHint();
 };
 
 // Hint panel functions
@@ -250,41 +253,65 @@ function updateHintIfVisible() {
   }, 100);
 }
 
+// During dragging we want the hint grid to track piece motion in real time.
+// We intentionally avoid solver counting here for performance.
+let hintDragRafPending = false;
+function updateHintGridDuringDragIfVisible() {
+  if (!isHintPanelVisible()) return;
+  if (hintDragRafPending) return;
+  hintDragRafPending = true;
+  requestAnimationFrame(() => {
+    hintDragRafPending = false;
+    if (isHintPanelVisible()) {
+      refreshHintGridOnly();
+    }
+  });
+}
+
 // Refresh hint without toggling panel visibility
 function refreshHint() {
   const today = new Date();
   const targetCells = Solver.getDateCells(today.getMonth(), today.getDate());
 
   const prePlaced = [];  // For solver - only valid placements
-  const cellToPiece = {};  // For drawing - all cells covered by any piece
   const pieceNames = shapes.map(s => s[0]);
   let hasOverlap = false;
+
+  const cellToPieceExact = {}; // For overlap detection + date Xs (center-point coverage)
+  const dateCoveredExact = new Set();
 
   for (const name of pieceNames) {
     const group = svgGet(name);
     if (!group) continue;
     const node = group.node;
-    const coveredCells = getCoveredGridCellsByPiece(node);
+    const coveredCellsExact = getCoveredGridCellsByPiece(node);
 
-    // Record cells on valid grid for drawing (pieces win over everything)
-    const validCoveredCells = coveredCells.filter(([r, c]) => VALID_CELLS[r]?.[c]);
-    for (const [r, c] of validCoveredCells) {
+    // Record exact covered cells for overlap detection and date Xs.
+    for (const [r, c] of coveredCellsExact) {
+      if (!VALID_CELLS[r]?.[c]) continue;
       const key = `${r},${c}`;
-      hasOverlap = hasOverlap || (key in cellToPiece);
-      cellToPiece[key] = name;
+      hasOverlap = hasOverlap || (key in cellToPieceExact);
+      cellToPieceExact[key] = name;
     }
 
     // Only add to prePlaced if valid placement (for solver)
-    if (placementIsValidAndNonOverlappingOnCalendar(node) && validCoveredCells.length > 0) {
-      prePlaced.push({ name, cells: validCoveredCells });
+    const validCoveredCellsExact = coveredCellsExact.filter(([r, c]) => VALID_CELLS[r]?.[c]);
+    if (placementIsValidAndNonOverlappingOnCalendar(node) && validCoveredCellsExact.length > 0) {
+      prePlaced.push({ name, cells: validCoveredCellsExact });
     }
   }
 
-  // Draw the mini grid
-  drawHintGrid(cellToPiece, targetCells);
+  // Mark date cells covered by any piece (exact/center-point semantics).
+  const targetSet = new Set(targetCells.map(([r, c]) => `${r},${c}`));
+  for (const key of Object.keys(cellToPieceExact)) {
+    if (targetSet.has(key)) dateCoveredExact.add(key);
+  }
+
+  // Draw the mini grid (true geometric mirroring)
+  drawHintGrid(targetCells, dateCoveredExact);
 
   // Check if any piece is on valid grid but not validly placed (partial/overlapping)
-  const piecesOnGrid = new Set(Object.values(cellToPiece));
+  const piecesOnGrid = new Set(Object.values(cellToPieceExact));
   const validPieces = new Set(prePlaced.map(p => p.name));
   const allPiecesValid = [...piecesOnGrid].every(p => validPieces.has(p));
 
@@ -310,62 +337,142 @@ function refreshHint() {
   }, 20);
 }
 
-// Draw the mini grid in the hint panel showing current placements
-// cellToPiece is a map from "r,c" to piece name for all cells covered by pieces
-function drawHintGrid(cellToPiece, targetCells) {
+// True geometric mini-preview: draw the actual piece polygons, transformed into
+// the hint SVG coordinate system and clipped to valid calendar cells.
+function drawHintGrid(targetCells, dateCoveredSet) {
   const hintSvg = document.getElementById('hint-grid');
   hintSvg.innerHTML = '';
 
   const cellSize = 10;
-  const validCells = [
-    [1,1,1,1,1,1,0],
-    [1,1,1,1,1,1,0],
-    [1,1,1,1,1,1,1],
-    [1,1,1,1,1,1,1],
-    [1,1,1,1,1,1,1],
-    [1,1,1,1,1,1,1],
-    [1,1,1,0,0,0,0],
-  ];
-
+  const scale = cellSize / boxel;
   const targetSet = new Set(targetCells.map(([r, c]) => `${r},${c}`));
+
+  // Background + cell borders (restore the familiar mini-grid look).
+  for (let r = 0; r < 7; r++) {
+    for (let c = 0; c < 7; c++) {
+      if (!VALID_CELLS[r][c]) continue;
+      const key = `${r},${c}`;
+      const isTarget = targetSet.has(key);
+
+      // Match old behavior: date cells are "holes" unless covered by a piece.
+      // We still draw borders for them.
+      if (!isTarget) {
+        const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        bg.setAttribute('x', String(c * cellSize));
+        bg.setAttribute('y', String(r * cellSize));
+        bg.setAttribute('width', String(cellSize));
+        bg.setAttribute('height', String(cellSize));
+        bg.setAttribute('fill', '#1a2a3a');
+        hintSvg.appendChild(bg);
+      }
+
+      const border = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      border.setAttribute('x', String(c * cellSize));
+      border.setAttribute('y', String(r * cellSize));
+      border.setAttribute('width', String(cellSize));
+      border.setAttribute('height', String(cellSize));
+      border.setAttribute('fill', 'none');
+      border.setAttribute('stroke', '#555');
+      border.setAttribute('stroke-width', '0.5');
+      hintSvg.appendChild(border);
+    }
+  }
+
+  // Defs + clipPath for valid cells (same shape as main calendar).
+  const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+  const clip = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
+  clip.setAttribute('id', 'hint-valid-clip');
+  for (let r = 0; r < 7; r++) {
+    for (let c = 0; c < 7; c++) {
+      if (!VALID_CELLS[r][c]) continue;
+      const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      rect.setAttribute('x', String(c * cellSize));
+      rect.setAttribute('y', String(r * cellSize));
+      rect.setAttribute('width', String(cellSize));
+      rect.setAttribute('height', String(cellSize));
+      clip.appendChild(rect);
+    }
+  }
+  defs.appendChild(clip);
+  hintSvg.appendChild(defs);
+
+  const piecesGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  piecesGroup.setAttribute('clip-path', 'url(#hint-valid-clip)');
+  hintSvg.appendChild(piecesGroup);
+
+  // Cache polygon point strings per piece (in main-SVG units).
+  if (!window.__hintPolyPoints) window.__hintPolyPoints = {};
+
+  // Draw each piece polygon using its live transform matrix.
+  for (const [name] of shapes) {
+    const group = svgGet(name);
+    if (!group) continue;
+    const node = group.node;
+    const shape = shapeMap.get(name);
+    if (!shape) continue;
+    const hue = shape[1];
+
+    if (!window.__hintPolyPoints[name]) {
+      const fig = shape[2];
+      window.__hintPolyPoints[name] = polygen(fig, boxel);
+    }
+
+    const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+    poly.setAttribute('points', window.__hintPolyPoints[name]);
+    poly.setAttribute('fill', hue);
+    poly.setAttribute('opacity', '0.8');
+
+    // Map main-SVG coordinates to hint coords:
+    //   p_hint = scale * (p_main - [x0, y0])
+    // Given p_main = m * p_local, we set m_hint = A * m where
+    //   A = [scale 0 0 scale -scale*x0 -scale*y0]
+    const m = getLocalTransformMatrix(node);
+    const a = scale * m.a;
+    const b = scale * m.b;
+    const c = scale * m.c;
+    const d = scale * m.d;
+    const e = scale * m.e - scale * x0;
+    const f = scale * m.f - scale * y0;
+    poly.setAttribute('transform', `matrix(${a} ${b} ${c} ${d} ${e} ${f})`);
+
+    piecesGroup.appendChild(poly);
+  }
+
+  if (!dateCoveredSet) return;
 
   const drawX = (x, y) => {
     const x1 = x + 1, y1 = y + 1, x2 = x + cellSize - 1, y2 = y + cellSize - 1;
     for (const [ax, ay, bx, by] of [[x1, y1, x2, y2], [x2, y1, x1, y2]]) {
       const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-      line.setAttribute('x1', ax);
-      line.setAttribute('y1', ay);
-      line.setAttribute('x2', bx);
-      line.setAttribute('y2', by);
+      line.setAttribute('x1', String(ax));
+      line.setAttribute('y1', String(ay));
+      line.setAttribute('x2', String(bx));
+      line.setAttribute('y2', String(by));
       line.setAttribute('stroke', '#ff4444');
       line.setAttribute('stroke-width', '1.5');
       hintSvg.appendChild(line);
     }
   };
 
-  for (let r = 0; r < 7; r++) {
-    for (let c = 0; c < 7; c++) {
-      const key = `${r},${c}`;
-      const isTarget = targetSet.has(key);
-      const pieceName = cellToPiece[key];
-
-      // Skip: lee cells, or date cells without a piece
-      if (!validCells[r][c] || (isTarget && !pieceName)) continue;
-
-      const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-      rect.setAttribute('x', c * cellSize);
-      rect.setAttribute('y', r * cellSize);
-      rect.setAttribute('width', cellSize);
-      rect.setAttribute('height', cellSize);
-      rect.setAttribute('stroke', '#555');
-      rect.setAttribute('stroke-width', '0.5');
-      rect.setAttribute('fill', pieceName ? shapeMap.get(pieceName)[1] : '#1a2a3a');
-      hintSvg.appendChild(rect);
-
-      // Red X if piece covers a date cell
-      isTarget && pieceName && drawX(c * cellSize, r * cellSize);
-    }
+  // Red X if any piece (by center-point semantics) covers a date cell.
+  for (const key of dateCoveredSet) {
+    if (!targetSet.has(key)) continue;
+    const [rStr, cStr] = key.split(',');
+    const r = Number(rStr);
+    const c = Number(cStr);
+    if (!Number.isFinite(r) || !Number.isFinite(c)) continue;
+    drawX(c * cellSize, r * cellSize);
   }
+}
+
+// Update only the hint mini-grid (no solver counting / status churn).
+function refreshHintGridOnly() {
+  const today = new Date();
+  const targetCells = Solver.getDateCells(today.getMonth(), today.getDate());
+
+  // Fast path during dragging: only redraw piece geometry.
+  // This avoids any hit-testing / solver work.
+  drawHintGrid(targetCells, null);
 }
 
 // Check if a solution exists with current piece placements (hint feature)
@@ -375,27 +482,29 @@ window.checkHint = function() {
   const targetCells = Solver.getDateCells(today.getMonth(), today.getDate());
 
   const prePlaced = [];  // For solver - only valid placements
-  const cellToPiece = {};  // For drawing - cells on valid grid covered by any piece
   const pieceNames = shapes.map(s => s[0]);
   let hasOverlap = false;
+
+  const cellToPieceExact = {}; // For overlap detection + date Xs (center-point coverage)
 
   for (const name of pieceNames) {
     const group = svgGet(name);
     if (!group) continue;
     const node = group.node;
-    const coveredCells = getCoveredGridCellsByPiece(node);
+    const coveredCellsExact = getCoveredGridCellsByPiece(node);
 
-    // Record cells on valid grid for drawing (pieces win over everything)
-    const validCoveredCells = coveredCells.filter(([r, c]) => VALID_CELLS[r]?.[c]);
-    for (const [r, c] of validCoveredCells) {
+    // Record exact covered cells for overlap detection and date Xs.
+    for (const [r, c] of coveredCellsExact) {
+      if (!VALID_CELLS[r]?.[c]) continue;
       const key = `${r},${c}`;
-      hasOverlap = hasOverlap || (key in cellToPiece);
-      cellToPiece[key] = name;
+      hasOverlap = hasOverlap || (key in cellToPieceExact);
+      cellToPieceExact[key] = name;
     }
 
     // Only add to prePlaced if valid placement (for solver)
-    if (placementIsValidAndNonOverlappingOnCalendar(node) && validCoveredCells.length > 0) {
-      prePlaced.push({ name, cells: validCoveredCells });
+    const validCoveredCellsExact = coveredCellsExact.filter(([r, c]) => VALID_CELLS[r]?.[c]);
+    if (placementIsValidAndNonOverlappingOnCalendar(node) && validCoveredCellsExact.length > 0) {
+      prePlaced.push({ name, cells: validCoveredCellsExact });
     }
   }
 
@@ -403,10 +512,12 @@ window.checkHint = function() {
   showHintPanel();
 
   // Draw the mini grid
-  drawHintGrid(cellToPiece, targetCells);
+  const targetSet = new Set(targetCells.map(([r, c]) => `${r},${c}`));
+  const dateCoveredExact = new Set(Object.keys(cellToPieceExact).filter(k => targetSet.has(k)));
+  drawHintGrid(targetCells, dateCoveredExact);
 
   // Check if any piece is on valid grid but not validly placed (partial/overlapping)
-  const piecesOnGrid = new Set(Object.values(cellToPiece));
+  const piecesOnGrid = new Set(Object.values(cellToPieceExact));
   const validPieces = new Set(prePlaced.map(p => p.name));
   const allPiecesValid = [...piecesOnGrid].every(p => validPieces.has(p));
 
@@ -641,6 +752,7 @@ function setupDraggable(group, onDragEnd, rotateState) {
     const { x, y } = getEventClientCoords(e);
     startPt = screenToSvg(x, y, invScreenCtm);
     bringToFront(node);
+    updateHintGridDuringDragIfVisible();
   });
 
   hammer.on('panmove', (e) => {
@@ -651,6 +763,8 @@ function setupDraggable(group, onDragEnd, rotateState) {
       startMatrix.e + curPt.x - startPt.x,
       startMatrix.f + curPt.y - startPt.y,
     ]));
+
+    updateHintGridDuringDragIfVisible();
   });
 
   hammer.on('panend', () => {
@@ -765,6 +879,23 @@ function getCellCenterScreenCoords(row, col) {
   };
 }
 
+function getCellSamplePointsScreenCoords(row, col, svgRect) {
+  // Sample a small grid of points inside the cell to detect partial overlaps.
+  // Fractions are chosen to stay away from exact borders (avoid aliasing).
+  const fracs = [0.2, 0.5, 0.8];
+  const cellX = x0 + col * boxel;
+  const cellY = y0 + row * boxel;
+  const pts = [];
+  for (const fx of fracs) {
+    for (const fy of fracs) {
+      const pSvg = { x: cellX + fx * boxel, y: cellY + fy * boxel };
+      const pScreen = svgToScreen(pSvg.x, pSvg.y);
+      pts.push({ x: svgRect.left + pScreen.x, y: svgRect.top + pScreen.y });
+    }
+  }
+  return pts;
+}
+
 function getCoveredGridCellsByPiece(node) {
   const covered = [];
   for (let row = 0; row < 7; row++) {
@@ -772,6 +903,26 @@ function getCoveredGridCellsByPiece(node) {
       const { x, y } = getCellCenterScreenCoords(row, col);
       const stack = document.elementsFromPoint(x, y);
       const coveredByThisPiece = stack.some(el => el && el.closest && el.closest(`#${node.id}`));
+      if (coveredByThisPiece) {
+        covered.push([row, col]);
+      }
+    }
+  }
+  return covered;
+}
+
+function getPartiallyCoveredGridCellsByPiece(node) {
+  const covered = [];
+  const svgRect = svg.node.getBoundingClientRect();
+  for (let row = 0; row < 7; row++) {
+    for (let col = 0; col < 7; col++) {
+      const samplePts = getCellSamplePointsScreenCoords(row, col, svgRect);
+      let coveredByThisPiece = false;
+      for (const { x, y } of samplePts) {
+        const stack = document.elementsFromPoint(x, y);
+        coveredByThisPiece = stack.some(el => el && el.closest && el.closest(`#${node.id}`));
+        if (coveredByThisPiece) break;
+      }
       if (coveredByThisPiece) {
         covered.push([row, col]);
       }
