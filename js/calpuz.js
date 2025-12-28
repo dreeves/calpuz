@@ -224,6 +224,76 @@ window.resetPieces = function() {
   if (isHintPanelVisible()) refreshHint();
 };
 
+// Arrange pieces in a tight frame around the calendar (aesthetic layout).
+// This intentionally mirrors the screenshot layout: pieces hug the calendar edges.
+window.framePieces = function() {
+  Solver.stop();
+  showProgressPanel(false);
+  updateSpeedButtons();
+
+  resetDocket();
+  lastRowOrder = [];
+
+  const oldDeadMarkers = svgGet('dead-cells');
+  if (oldDeadMarkers) oldDeadMarkers.remove();
+
+  const oldPending = svgGet('pending-pieces');
+  if (oldPending) oldPending.remove();
+
+  frameShapes();
+
+  if (isHintPanelVisible()) refreshHint();
+};
+
+// Dump/copy the current piece transforms so we can hardcode layouts exactly.
+// Usage (in DevTools console):
+//   await copyPieceTransforms()
+// or:
+//   dumpPieceTransforms()
+function dumpPieceTransformsInternal() {
+  const result = {};
+  for (const name of shapeMap.keys()) {
+    const el = svgGet(name);
+    if (!el) throw new Error(`Missing SVG group for piece: ${name}`);
+    const m = getLocalTransformMatrix(el.node);
+    result[name] = {
+      a: m.a, b: m.b, c: m.c, d: m.d, e: m.e, f: m.f,
+      matrix: `matrix(${m.a} ${m.b} ${m.c} ${m.d} ${m.e} ${m.f})`
+    };
+  }
+  return result;
+}
+
+window.dumpPieceTransforms = function() {
+  const result = dumpPieceTransformsInternal();
+  console.log(JSON.stringify(result, null, 2));
+  return result;
+};
+
+window.copyPieceTransforms = async function() {
+  const result = dumpPieceTransformsInternal();
+  const text = JSON.stringify(result, null, 2);
+  if (!navigator.clipboard || !navigator.clipboard.writeText) {
+    throw new Error('Clipboard API unavailable. Use dumpPieceTransforms() and copy from the console output.');
+  }
+  try {
+    await navigator.clipboard.writeText(text);
+    console.log(text);
+    return text;
+  } catch (err) {
+    // Common case: NotAllowedError when the document isn't focused.
+    // Fail loudly, but still emit the JSON so the user can copy manually.
+    console.log(text);
+    const name = err && typeof err === 'object' && 'name' in err ? err.name : null;
+    if (name === 'NotAllowedError') {
+      throw new Error(
+        "Clipboard write blocked (document not focused). Click the game tab/page to focus it and rerun `await copyPieceTransforms()`, or manually copy the JSON printed above."
+      );
+    }
+    throw new Error(`Clipboard write failed: ${err}`);
+  }
+};
+
 // Hint panel functions
 let hintUpdatePending = false;  // Debounce hint updates
 
@@ -2219,6 +2289,31 @@ function scatterShapes() {
   movePoly("chair",      -1.3, -1.3, 0, false)
   movePoly("stilt",       2.2, -2.5, 0, false)
   movePoly("l-shape",     5.2, -1.3, 0, false)
+}
+
+function frameShapes() {
+  // Exact layout captured from a manually arranged "hug/frame".
+  // These are *local* SVG matrices for each piece group.
+  const FRAME_MATRICES = {
+    "rectangle": [0, -1, 1, 0, 588.25, 1023],
+    "z-shape":   [1,  0, 0, 1,  28.25,  783],
+    "stair":     [0,  1, 1, 0, 268.25,  863],
+    "corner":    [0,  1,-1, 0, 348.25,  303],
+    "c-shape":   [-1, 0, 0,-1, 188.25,  783],
+    "stilt":     [0, -1, 1, 0, 348.25,  383],
+    "l-shape":   [1,  0, 0, 1, 748.25,  543],
+    "chair":     [-1, 0, 0, 1, 828.25,  303]
+  };
+
+  // Ensure each piece is created (and draggable) via movePoly, then apply
+  // the exact matrix.
+  for (const name of Object.keys(FRAME_MATRICES)) {
+    movePoly(name, 0, 0, 0, false);
+    const el = svgGet(name);
+    if (!el) throw new Error(`Missing SVG group for piece after movePoly: ${name}`);
+    const [a, b, c, d, e, f] = FRAME_MATRICES[name];
+    setLocalTransformMatrix(el.node, new DOMMatrix([a, b, c, d, e, f]));
+  }
 }
 
 window.addEventListener("load", function () {
