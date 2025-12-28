@@ -60,8 +60,8 @@ test('dragging while a flip is in-progress does not leave piece squished', async
   });
 
   // LONG_PRESS_MS is 500ms; wait beyond that, then into the midpoint of the
-  // 150ms flip animation (worst case: near singular matrix / max squish).
-  await page.waitForTimeout(575);
+  // (currently slowed-down) flip animation.
+  await page.waitForTimeout(900);
 
   // Move > 5px threshold to trigger Hammer panstart/panmove.
   await page.dispatchEvent('#corner', 'pointermove', {
@@ -86,7 +86,7 @@ test('dragging while a flip is in-progress does not leave piece squished', async
   });
 
   // Give RAF animations time to settle.
-  await page.waitForTimeout(300);
+  await page.waitForTimeout(1200);
 
   const after = await page.evaluate(() => {
     return document.getElementById('corner').getAttribute('transform') || '';
@@ -121,8 +121,8 @@ test('ctrl+click flip then immediate drag does not leave piece squished', async 
   await page.mouse.click(clientX, clientY, { button: 'left' });
   await page.keyboard.up('Control');
 
-  // Wait into the midpoint of the 150ms flip animation.
-  await page.waitForTimeout(75);
+  // Wait into the midpoint of the (currently slowed-down) flip animation.
+  await page.waitForTimeout(400);
 
   // Immediately start a drag while the 150ms flip animation is likely still running.
   await page.mouse.move(clientX, clientY);
@@ -130,7 +130,7 @@ test('ctrl+click flip then immediate drag does not leave piece squished', async 
   await page.mouse.move(clientX + 40, clientY + 10);
   await page.mouse.up({ button: 'left' });
 
-  await page.waitForTimeout(300);
+  await page.waitForTimeout(1200);
 
   const after = await page.evaluate(() => {
     return document.getElementById('corner').getAttribute('transform') || '';
@@ -158,15 +158,15 @@ test('tap rotate then drag mid-rotation does not leave piece partially rotated',
   // Tap rotates 90° (counter-clockwise in current implementation).
   await page.mouse.click(clientX, clientY, { button: 'left' });
 
-  // Start drag at the midpoint of the 150ms rotation animation.
-  await page.waitForTimeout(75);
+  // Start drag at the midpoint of the (currently slowed-down) rotation animation.
+  await page.waitForTimeout(400);
   await page.mouse.move(clientX, clientY);
   await page.mouse.down({ button: 'left' });
   await page.mouse.move(clientX + 40, clientY + 10);
   await page.mouse.up({ button: 'left' });
 
   // Give RAF animations time to settle.
-  await page.waitForTimeout(300);
+  await page.waitForTimeout(1200);
 
   const after = await page.evaluate(() => {
     return document.getElementById('corner').getAttribute('transform') || '';

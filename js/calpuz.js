@@ -82,7 +82,9 @@ const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 3;
 
 // Animation timing
-const ROTATION_DURATION_MS = 150;
+// Increase temporarily to make flip/rotate bugs easier to reproduce.
+// (This is the single knob that controls both rotation and flip animation time.)
+const ROTATION_DURATION_MS = 800; // natural is like 150ms
 
 // ============ END CONFIGURATION ============
 
@@ -579,15 +581,21 @@ function screenToSvg(screenX, screenY, invCtm) {
 
 // Read the element's *local* SVG transform matrix (ignores parent CTMs)
 function getLocalTransformMatrix(node) {
-  const tf = node.getAttribute('transform');
-  if (!tf) return new DOMMatrix();
-  const match = tf.match(/matrix\(([^)]+)\)/);
-  if (!match) throw new Error(`Unexpected SVG transform format on #${node.id}: ${tf}`);
-  const parts = match[1].trim().split(/[\s,]+/).map(Number);
-  if (parts.length !== 6 || parts.some((n) => !Number.isFinite(n))) {
-    throw new Error(`Bad SVG matrix() on #${node.id}: ${tf}`);
-  }
-  return new DOMMatrix(parts);
+  const baseVal = node.transform && node.transform.baseVal;
+  const consolidated = baseVal && baseVal.consolidate && baseVal.consolidate();
+  if (!consolidated) return new DOMMatrix();
+  return DOMMatrix.fromMatrix(consolidated.matrix);
+
+  // Strict parser variant (kept for reference; currently disabled):
+  // const tf = node.getAttribute('transform');
+  // if (!tf) return new DOMMatrix();
+  // const match = tf.match(/matrix\(([^)]+)\)/);
+  // if (!match) throw new Error(`Unexpected SVG transform format on #${node.id}: ${tf}`);
+  // const parts = match[1].trim().split(/[\s,]+/).map(Number);
+  // if (parts.length !== 6 || parts.some((n) => !Number.isFinite(n))) {
+  //   throw new Error(`Bad SVG matrix() on #${node.id}: ${tf}`);
+  // }
+  // return new DOMMatrix(parts);
 }
 
 // Set the element's local transform matrix and keep dataset position in sync
@@ -649,6 +657,11 @@ function enqueuePieceAction(node, action) {
 function flipPiece(node, screenX, screenY) {
   Sounds.swoosh();
   return new Promise((resolve) => {
+    // Do not start a new flip if this piece is already animating or being dragged.
+    if (node.__animationTarget || node.__dragging) {
+      resolve();
+      return;
+    }
     // Use parent's CTM since piece transforms are relative to parent (accounts for zoom)
     const invScreenCtm = node.parentElement.getScreenCTM().inverse();
     const pivot = screenToSvg(screenX, screenY, invScreenCtm);
@@ -692,6 +705,11 @@ function flipPiece(node, screenX, screenY) {
 function rotatePiece(node, getAngle, setAngle, screenX, screenY, clockwise) {
   Sounds.ratchet(clockwise);
   return new Promise((resolve) => {
+    // Do not start a new rotation if this piece is already animating or being dragged.
+    if (node.__animationTarget || node.__dragging) {
+      resolve();
+      return;
+    }
     const deltaAngle = clockwise ? 90 : -90;
     // Use parent's CTM since piece transforms are relative to parent (accounts for zoom)
     const invScreenCtm = node.parentElement.getScreenCTM().inverse();
@@ -777,9 +795,27 @@ function setupDraggable(group, onDragEnd, rotateState) {
   hammer.get('press').set({ enable: false });  // We handle press ourselves
 
   let startMatrix, startPt, invScreenCtm;
+  let panActive = false;
 
   hammer.on('panstart', (e) => {
     cancelPressTimer();  // Drag started, not a tap or press
+
+    // Disable dragging while a flip/rotation animation is in progress.
+    // This is intentionally strict: avoids stuck partially-flipped/rotated states.
+    if (node.__animationTarget) {
+      panActive = false;
+      return;
+    }
+
+    // Disable dragging while queued piece actions are running.
+    if (ensurePieceQueue(node).running) {
+      panActive = false;
+      return;
+    }
+
+    panActive = true;
+    node.__dragging = true;
+
     // If mid-animation, snap to the target end state to avoid squished pieces
     if (node.__animationTarget) {
       setLocalTransformMatrix(node, node.__animationTarget);
@@ -809,6 +845,7 @@ function setupDraggable(group, onDragEnd, rotateState) {
   });
 
   hammer.on('panmove', (e) => {
+    if (!panActive) return;
     const { x, y } = getEventClientCoords(e);
     const curPt = screenToSvg(x, y, invScreenCtm);
     setLocalTransformMatrix(node, new DOMMatrix([
@@ -821,6 +858,8 @@ function setupDraggable(group, onDragEnd, rotateState) {
   });
 
   hammer.on('panend', () => {
+    panActive = false;
+    delete node.__dragging;
     if (onDragEnd) onDragEnd(group);
   });
 
@@ -841,6 +880,7 @@ function setupDraggable(group, onDragEnd, rotateState) {
     didLongPress = true;
     cancelPressTimer();
     if (!rotateState) return;
+    if (node.__animationTarget || node.__dragging || ensurePieceQueue(node).running) return;
     enqueuePieceAction(node, () => flipPiece(node, x, y));
     if (navigator.vibrate) navigator.vibrate(50);
   }
@@ -869,6 +909,7 @@ function setupDraggable(group, onDragEnd, rotateState) {
 
     // It's a tap
     if (!rotateState) return;
+    if (node.__animationTarget || node.__dragging || ensurePieceQueue(node).running) return;
     if (e.ctrlKey || e.metaKey) {
       enqueuePieceAction(node, () => flipPiece(node, e.clientX, e.clientY));
     } else {
@@ -891,6 +932,7 @@ function setupDraggable(group, onDragEnd, rotateState) {
     cancelPressTimer();
     didLongPress = true;  // Prevent pointerup from also acting
     if (!rotateState) return;
+    if (node.__animationTarget || node.__dragging || ensurePieceQueue(node).running) return;
     if (e.ctrlKey) {
       enqueuePieceAction(node, () => flipPiece(node, e.clientX, e.clientY));
       bringToFront(node);
