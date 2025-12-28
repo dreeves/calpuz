@@ -279,24 +279,11 @@ window.framePieces = function() {
   // if (isHintPanelVisible()) refreshHint();
 };
 
-// Dump/copy the current piece transforms so we can hardcode layouts exactly.
+// Dump/copy the current piece layout in cell units.
 // Usage (in DevTools console):
-//   await copyPieceTransforms()
+//   await copyPieceLayout()
 // or:
-//   dumpPieceTransforms()
-function dumpPieceTransformsInternal() {
-  const result = {};
-  for (const name of shapeMap.keys()) {
-    const el = svgGet(name);
-    if (!el) throw new Error(`Missing SVG group for piece: ${name}`);
-    const m = getLocalTransformMatrix(el.node);
-    result[name] = {
-      a: m.a, b: m.b, c: m.c, d: m.d, e: m.e, f: m.f,
-      matrix: `matrix(${m.a} ${m.b} ${m.c} ${m.d} ${m.e} ${m.f})`
-    };
-  }
-  return result;
-}
+//   dumpPieceLayout()
 
 const LINEAR_TO_ROT_FLIP = new Map([
   ['1,0,0,1',   { rot: 0,   flip: false }],
@@ -343,40 +330,10 @@ function dumpPieceLayoutInternal() {
   return { version: 1, units: 'cell', pieces: result };
 }
 
-window.dumpPieceTransforms = function() {
-  const result = dumpPieceTransformsInternal();
-  console.log(JSON.stringify(result, null, 2));
-  return result;
-};
-
 window.dumpPieceLayout = function() {
   const result = dumpPieceLayoutInternal();
   console.log(JSON.stringify(result, null, 2));
   return result;
-};
-
-window.copyPieceTransforms = async function() {
-  const result = dumpPieceTransformsInternal();
-  const text = JSON.stringify(result, null, 2);
-  if (!navigator.clipboard || !navigator.clipboard.writeText) {
-    throw new Error('Clipboard API unavailable. Use dumpPieceTransforms() and copy from the console output.');
-  }
-  try {
-    await navigator.clipboard.writeText(text);
-    console.log(text);
-    return text;
-  } catch (err) {
-    // Common case: NotAllowedError when the document isn't focused.
-    // Fail loudly, but still emit the JSON so the user can copy manually.
-    console.log(text);
-    const name = err && typeof err === 'object' && 'name' in err ? err.name : null;
-    if (name === 'NotAllowedError') {
-      throw new Error(
-        "Clipboard write blocked (document not focused). Click the game tab/page to focus it and rerun `await copyPieceTransforms()`, or manually copy the JSON printed above."
-      );
-    }
-    throw new Error(`Clipboard write failed: ${err}`);
-  }
 };
 
 window.copyPieceLayout = async function() {
@@ -2415,7 +2372,7 @@ const LAYOUTS = {
       // Source of truth: captured via `await copyPieceLayout()`.
       "rectangle": { x: 5, y: 8,  rot: 270, flip: false },
       "z-shape":   { x: 1, y: 8,  rot: 180, flip: false },
-      "stair":     { x: 1, y: 6,  rot: 270,  flip: true  },
+      "stair":     { x: 1, y: 6,  rot: 270, flip: true  },
       "corner":    { x: 2, y: -1, rot: 90,  flip: false },
       "c-shape":   { x: 0, y: 5,  rot: 180, flip: false },
       "stilt":     { x: 2, y: 0,  rot: 270, flip: false },
