@@ -202,9 +202,7 @@ window.zoomReset = function() {
   applyZoomTransform();
 };
 
-// Reset pieces to their default scattered positions.
-// Also stops any in-progress solve and clears solver-only UI overlays.
-window.resetPieces = function() {
+function relayoutPieces(layoutFn) {
   Solver.stop();
   showProgressPanel(false);
   updateSpeedButtons();
@@ -218,31 +216,67 @@ window.resetPieces = function() {
   const oldPending = svgGet('pending-pieces');
   if (oldPending) oldPending.remove();
 
-  scatterShapes();
+  layoutFn();
 
-  // Keep hint panel in sync when pieces are reset.
   if (isHintPanelVisible()) refreshHint();
+}
+
+const RELAYOUT_BUTTON_IDS = ['reset-btn', 'frame-btn'];
+
+function setRelayoutButtonsDisabled(disabled) {
+  RELAYOUT_BUTTON_IDS
+    .map((id) => document.getElementById(id))
+    .filter(Boolean)
+    .forEach((btn) => btn.classList.toggle('disabled', disabled));
+}
+
+// Reset pieces to their default scattered positions.
+// Also stops any in-progress solve and clears solver-only UI overlays.
+window.resetPieces = function() {
+  return relayoutPieces(scatterShapes);
+
+  // Previous inline implementation (safe to delete; kept per AGENTS.md rule):
+  // Solver.stop();
+  // showProgressPanel(false);
+  // updateSpeedButtons();
+  //
+  // resetDocket();
+  // lastRowOrder = [];
+  //
+  // const oldDeadMarkers = svgGet('dead-cells');
+  // if (oldDeadMarkers) oldDeadMarkers.remove();
+  //
+  // const oldPending = svgGet('pending-pieces');
+  // if (oldPending) oldPending.remove();
+  //
+  // scatterShapes();
+  //
+  // // Keep hint panel in sync when pieces are reset.
+  // if (isHintPanelVisible()) refreshHint();
 };
 
 // Arrange pieces in a tight frame around the calendar (aesthetic layout).
 // This intentionally mirrors the screenshot layout: pieces hug the calendar edges.
 window.framePieces = function() {
-  Solver.stop();
-  showProgressPanel(false);
-  updateSpeedButtons();
+  return relayoutPieces(frameShapes);
 
-  resetDocket();
-  lastRowOrder = [];
-
-  const oldDeadMarkers = svgGet('dead-cells');
-  if (oldDeadMarkers) oldDeadMarkers.remove();
-
-  const oldPending = svgGet('pending-pieces');
-  if (oldPending) oldPending.remove();
-
-  frameShapes();
-
-  if (isHintPanelVisible()) refreshHint();
+  // Previous inline implementation (safe to delete; kept per AGENTS.md rule):
+  // Solver.stop();
+  // showProgressPanel(false);
+  // updateSpeedButtons();
+  //
+  // resetDocket();
+  // lastRowOrder = [];
+  //
+  // const oldDeadMarkers = svgGet('dead-cells');
+  // if (oldDeadMarkers) oldDeadMarkers.remove();
+  //
+  // const oldPending = svgGet('pending-pieces');
+  // if (oldPending) oldPending.remove();
+  //
+  // frameShapes();
+  //
+  // if (isHintPanelVisible()) refreshHint();
 };
 
 // Dump/copy the current piece transforms so we can hardcode layouts exactly.
@@ -1607,10 +1641,13 @@ function updateSpeedButtons() {
     stepBtn.textContent = runningAtSpeed ? '⏸️' : '↩️';
   }
 
-  const resetBtn = document.getElementById('reset-btn');
-  if (resetBtn) {
-    resetBtn.classList.toggle('disabled', solverActive);
-  }
+  setRelayoutButtonsDisabled(solverActive);
+
+  // Previous reset-only implementation (safe to delete; kept per AGENTS.md rule):
+  // const resetBtn = document.getElementById('reset-btn');
+  // if (resetBtn) {
+  //   resetBtn.classList.toggle('disabled', solverActive);
+  // }
 }
 
 // Start or resume the search at a given speed
@@ -1625,8 +1662,11 @@ window.runSpeed = async function(ms) {
   }
   
   if (!Solver.isSolving()) {
-    const resetBtn = document.getElementById('reset-btn');
-    if (resetBtn) resetBtn.classList.add('disabled');
+    setRelayoutButtonsDisabled(true);
+
+    // Previous reset-only implementation (safe to delete; kept per AGENTS.md rule):
+    // const resetBtn = document.getElementById('reset-btn');
+    // if (resetBtn) resetBtn.classList.add('disabled');
     await startSolve();
   }
 }
@@ -1641,8 +1681,11 @@ window.stepOnce = async function() {
   }
   
   if (!Solver.isSolving()) {
-    const resetBtn = document.getElementById('reset-btn');
-    if (resetBtn) resetBtn.classList.add('disabled');
+    setRelayoutButtonsDisabled(true);
+
+    // Previous reset-only implementation (safe to delete; kept per AGENTS.md rule):
+    // const resetBtn = document.getElementById('reset-btn');
+    // if (resetBtn) resetBtn.classList.add('disabled');
     await startSolve();
   }
 }
@@ -2304,6 +2347,14 @@ function frameShapes() {
     "l-shape":   [1,  0, 0, 1, 748.25,  543],
     "chair":     [-1, 0, 0, 1, 828.25,  303]
   };
+
+  const expected = Array.from(shapeMap.keys()).sort();
+  const actual = Object.keys(FRAME_MATRICES).sort();
+  if (expected.join('|') !== actual.join('|')) {
+    throw new Error(
+      `FRAME_MATRICES must cover exactly the pieces. Expected: ${expected.join(', ')}. Got: ${actual.join(', ')}`
+    );
+  }
 
   // Ensure each piece is created (and draggable) via movePoly, then apply
   // the exact matrix.
