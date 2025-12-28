@@ -298,8 +298,59 @@ function dumpPieceTransformsInternal() {
   return result;
 }
 
+const LINEAR_TO_ROT_FLIP = new Map([
+  ['1,0,0,1',   { rot: 0,   flip: false }],
+  ['0,1,-1,0',  { rot: 90,  flip: false }],
+  ['-1,0,0,-1', { rot: 180, flip: false }],
+  ['0,-1,1,0',  { rot: 270, flip: false }],
+  ['-1,0,0,1',  { rot: 0,   flip: true }],
+  ['0,1,1,0',   { rot: 90,  flip: true }],
+  ['1,0,0,-1',  { rot: 180, flip: true }],
+  ['0,-1,-1,0', { rot: 270, flip: true }]
+]);
+
+function roundNearInt(x) {
+  const r = Math.round(x);
+  if (Math.abs(x - r) > 1e-6) throw new Error(`Expected near-integer matrix component, got ${x}`);
+  return r;
+}
+
+function decodeRotFlipFromMatrix(m) {
+  const a = roundNearInt(m.a);
+  const b = roundNearInt(m.b);
+  const c = roundNearInt(m.c);
+  const d = roundNearInt(m.d);
+  const key = `${a},${b},${c},${d}`;
+  const rf = LINEAR_TO_ROT_FLIP.get(key);
+  if (!rf) throw new Error(`Unexpected linear transform: ${key}`);
+  return rf;
+}
+
+function dumpPieceLayoutInternal() {
+  const result = {};
+  for (const name of shapeMap.keys()) {
+    const el = svgGet(name);
+    if (!el) throw new Error(`Missing SVG group for piece: ${name}`);
+    const m = getLocalTransformMatrix(el.node);
+    const { rot, flip } = decodeRotFlipFromMatrix(m);
+    result[name] = {
+      x: (m.e - x0) / boxel,
+      y: (m.f - y0) / boxel,
+      rot,
+      flip
+    };
+  }
+  return { version: 1, units: 'cell', pieces: result };
+}
+
 window.dumpPieceTransforms = function() {
   const result = dumpPieceTransformsInternal();
+  console.log(JSON.stringify(result, null, 2));
+  return result;
+};
+
+window.dumpPieceLayout = function() {
+  const result = dumpPieceLayoutInternal();
   console.log(JSON.stringify(result, null, 2));
   return result;
 };
@@ -322,6 +373,28 @@ window.copyPieceTransforms = async function() {
     if (name === 'NotAllowedError') {
       throw new Error(
         "Clipboard write blocked (document not focused). Click the game tab/page to focus it and rerun `await copyPieceTransforms()`, or manually copy the JSON printed above."
+      );
+    }
+    throw new Error(`Clipboard write failed: ${err}`);
+  }
+};
+
+window.copyPieceLayout = async function() {
+  const result = dumpPieceLayoutInternal();
+  const text = JSON.stringify(result, null, 2);
+  if (!navigator.clipboard || !navigator.clipboard.writeText) {
+    throw new Error('Clipboard API unavailable. Use dumpPieceLayout() and copy from the console output.');
+  }
+  try {
+    await navigator.clipboard.writeText(text);
+    console.log(text);
+    return text;
+  } catch (err) {
+    console.log(text);
+    const name = err && typeof err === 'object' && 'name' in err ? err.name : null;
+    if (name === 'NotAllowedError') {
+      throw new Error(
+        "Clipboard write blocked (document not focused). Click the game tab/page to focus it and rerun `await copyPieceLayout()`, or manually copy the JSON printed above."
       );
     }
     throw new Error(`Clipboard write failed: ${err}`);
@@ -2334,37 +2407,90 @@ function scatterShapes() {
   movePoly("l-shape",     5.2, -1.3, 0, false)
 }
 
-function frameShapes() {
-  // Exact layout captured from a manually arranged "hug/frame".
-  // These are *local* SVG matrices for each piece group.
-  const FRAME_MATRICES = {
-    "rectangle": [0, -1, 1, 0, 588.25, 1023],
-    "z-shape":   [1,  0, 0, 1,  28.25,  783],
-    "stair":     [0,  1, 1, 0, 268.25,  863],
-    "corner":    [0,  1,-1, 0, 348.25,  303],
-    "c-shape":   [-1, 0, 0,-1, 188.25,  783],
-    "stilt":     [0, -1, 1, 0, 348.25,  383],
-    "l-shape":   [1,  0, 0, 1, 748.25,  543],
-    "chair":     [-1, 0, 0, 1, 828.25,  303]
-  };
+const LAYOUTS = {
+  frame: {
+    version: 1,
+    units: 'cell',
+    pieces: {
+      // Source of truth: captured via `await copyPieceLayout()`.
+      "rectangle": { x: 5, y: 8,  rot: 270, flip: false },
+      "z-shape":   { x: 1, y: 8,  rot: 180, flip: false },
+      "stair":     { x: 1, y: 6,  rot: 270,  flip: true  },
+      "corner":    { x: 2, y: -1, rot: 90,  flip: false },
+      "c-shape":   { x: 0, y: 5,  rot: 180, flip: false },
+      "stilt":     { x: 2, y: 0,  rot: 270, flip: false },
+      "l-shape":   { x: 7, y: 2,  rot: 0,   flip: false },
+      "chair":     { x: 8, y: -1, rot: 0,   flip: true  }
+    }
+  }
+};
+
+function applyCellLayout(layout) {
+  if (!layout || layout.version !== 1 || layout.units !== 'cell') {
+    throw new Error(`Unexpected layout format: ${JSON.stringify(layout)}`);
+  }
 
   const expected = Array.from(shapeMap.keys()).sort();
-  const actual = Object.keys(FRAME_MATRICES).sort();
+  const pieces = layout.pieces;
+  if (!pieces || typeof pieces !== 'object') {
+    throw new Error('Layout missing pieces object');
+  }
+  const actual = Object.keys(pieces).sort();
   if (expected.join('|') !== actual.join('|')) {
     throw new Error(
-      `FRAME_MATRICES must cover exactly the pieces. Expected: ${expected.join(', ')}. Got: ${actual.join(', ')}`
+      `Layout must cover exactly the pieces. Expected: ${expected.join(', ')}. Got: ${actual.join(', ')}`
     );
   }
 
-  // Ensure each piece is created (and draggable) via movePoly, then apply
-  // the exact matrix.
-  for (const name of Object.keys(FRAME_MATRICES)) {
-    movePoly(name, 0, 0, 0, false);
-    const el = svgGet(name);
-    if (!el) throw new Error(`Missing SVG group for piece after movePoly: ${name}`);
-    const [a, b, c, d, e, f] = FRAME_MATRICES[name];
-    setLocalTransformMatrix(el.node, new DOMMatrix([a, b, c, d, e, f]));
+  const validRots = new Set([0, 90, 180, 270]);
+  for (const name of expected) {
+    const p = pieces[name];
+    if (!p || typeof p !== 'object') throw new Error(`Bad layout entry for ${name}: ${p}`);
+    if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) {
+      throw new Error(`Bad x/y for ${name}: ${JSON.stringify(p)}`);
+    }
+    if (!validRots.has(p.rot)) throw new Error(`Bad rot for ${name}: ${p.rot}`);
+    if (typeof p.flip !== 'boolean') throw new Error(`Bad flip for ${name}: ${p.flip}`);
+
+    movePoly(name, p.x, p.y, p.rot * Math.PI / 180, p.flip);
   }
+}
+
+function frameShapes() {
+  // Zoom/viewport independent "hug/frame" layout.
+  // Layout MUST be expressed in cell units; do not hardcode pixel matrices here.
+  applyCellLayout(LAYOUTS.frame);
+
+  // Previous matrix-based implementation (kept per AGENTS.md rule):
+  // const FRAME_MATRICES = {
+  //   "rectangle": [0, -1, 1, 0, 588.25, 1023],
+  //   "z-shape":   [-1, 0, 0, -1, 268.25, 1023],
+  //   "stair":     [0,  1, 1, 0, 268.25,  863],
+  //   "corner":    [0,  1,-1, 0, 348.25,  303],
+  //   "c-shape":   [-1, 0, 0,-1, 188.25,  783],
+  //   "stilt":     [0, -1, 1, 0, 348.25,  383],
+  //   "l-shape":   [1,  0, 0, 1, 748.25,  543],
+  //   "chair":     [-1, 0, 0, 1, 828.25,  303]
+  // };
+  //
+  // for (const name of Object.keys(FRAME_MATRICES)) {
+  //   movePoly(name, 0, 0, 0, false);
+  //   const el = svgGet(name);
+  //   if (!el) throw new Error(`Missing SVG group for piece after movePoly: ${name}`);
+  //   const [a, b, c, d, e, f] = FRAME_MATRICES[name];
+  //   setLocalTransformMatrix(el.node, new DOMMatrix([a, b, c, d, e, f]));
+  // }
+
+  // Previous (wrong) cell-unit attempt (kept per AGENTS.md rule):
+  // const q = Math.PI / 2;
+  // movePoly("rectangle",  3,  9, -q, false);
+  // movePoly("z-shape",   -4,  6,  0, false);
+  // movePoly("stair",     -1,  7,  q, true);
+  // movePoly("corner",     0,  0,  q, false);
+  // movePoly("c-shape",   -2,  6,  Math.PI, false);
+  // movePoly("stilt",      0,  1, -q, false);
+  // movePoly("l-shape",    5,  3,  0, false);
+  // movePoly("chair",      6,  0,  0, true);
 }
 
 window.addEventListener("load", function () {
