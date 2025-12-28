@@ -82,9 +82,7 @@ const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 3;
 
 // Animation timing
-// Increase temporarily to make flip/rotate bugs easier to reproduce.
-// (This is the single knob that controls both rotation and flip animation time.)
-const ROTATION_DURATION_MS = 800; // natural is like 150ms
+const ROTATION_DURATION_MS = 150;
 
 // ============ END CONFIGURATION ============
 
@@ -631,6 +629,10 @@ function ensurePieceQueue(node) {
   return node.__calpuzPieceQueue;
 }
 
+function pieceInputLocked(node) {
+  return !!(node.__dragging || node.__animationTarget || ensurePieceQueue(node).running);
+}
+
 async function processPieceQueue(node) {
   const state = ensurePieceQueue(node);
   if (state.running) return;
@@ -658,6 +660,7 @@ function flipPiece(node, screenX, screenY) {
   Sounds.swoosh();
   return new Promise((resolve) => {
     // Do not start a new flip if this piece is already animating or being dragged.
+    // (Queue-running check intentionally omitted because flipPiece is invoked by the queue.)
     if (node.__animationTarget || node.__dragging) {
       resolve();
       return;
@@ -706,6 +709,7 @@ function rotatePiece(node, getAngle, setAngle, screenX, screenY, clockwise) {
   Sounds.ratchet(clockwise);
   return new Promise((resolve) => {
     // Do not start a new rotation if this piece is already animating or being dragged.
+    // (Queue-running check intentionally omitted because rotatePiece is invoked by the queue.)
     if (node.__animationTarget || node.__dragging) {
       resolve();
       return;
@@ -795,32 +799,31 @@ function setupDraggable(group, onDragEnd, rotateState) {
   hammer.get('press').set({ enable: false });  // We handle press ourselves
 
   let startMatrix, startPt, invScreenCtm;
-  let panActive = false;
+  // let panActive = false;
 
   hammer.on('panstart', (e) => {
     cancelPressTimer();  // Drag started, not a tap or press
 
     // Disable dragging while a flip/rotation animation is in progress.
     // This is intentionally strict: avoids stuck partially-flipped/rotated states.
-    if (node.__animationTarget) {
-      panActive = false;
-      return;
-    }
+    // if (node.__animationTarget) {
+    //   panActive = false;
+    //   return;
+    // }
+    // if (ensurePieceQueue(node).running) {
+    //   panActive = false;
+    //   return;
+    // }
+    if (pieceInputLocked(node)) return;
 
-    // Disable dragging while queued piece actions are running.
-    if (ensurePieceQueue(node).running) {
-      panActive = false;
-      return;
-    }
-
-    panActive = true;
+    // panActive = true;
     node.__dragging = true;
 
-    // If mid-animation, snap to the target end state to avoid squished pieces
-    if (node.__animationTarget) {
-      setLocalTransformMatrix(node, node.__animationTarget);
-      delete node.__animationTarget;
-    }
+    // Redundant after lockout (kept commented as historical attempt):
+    // if (node.__animationTarget) {
+    //   setLocalTransformMatrix(node, node.__animationTarget);
+    //   delete node.__animationTarget;
+    // }
     startMatrix = getLocalTransformMatrix(node);
     // Buckshot fix attempt (disabled): normalizing partial scaleX here is a
     // heuristic that can silently change the piece state. Leaving commented out
@@ -845,7 +848,8 @@ function setupDraggable(group, onDragEnd, rotateState) {
   });
 
   hammer.on('panmove', (e) => {
-    if (!panActive) return;
+    // if (!panActive) return;
+    if (!node.__dragging) return;
     const { x, y } = getEventClientCoords(e);
     const curPt = screenToSvg(x, y, invScreenCtm);
     setLocalTransformMatrix(node, new DOMMatrix([
@@ -858,7 +862,7 @@ function setupDraggable(group, onDragEnd, rotateState) {
   });
 
   hammer.on('panend', () => {
-    panActive = false;
+    // panActive = false;
     delete node.__dragging;
     if (onDragEnd) onDragEnd(group);
   });
@@ -880,7 +884,8 @@ function setupDraggable(group, onDragEnd, rotateState) {
     didLongPress = true;
     cancelPressTimer();
     if (!rotateState) return;
-    if (node.__animationTarget || node.__dragging || ensurePieceQueue(node).running) return;
+    // if (node.__animationTarget || node.__dragging || ensurePieceQueue(node).running) return;
+    if (pieceInputLocked(node)) return;
     enqueuePieceAction(node, () => flipPiece(node, x, y));
     if (navigator.vibrate) navigator.vibrate(50);
   }
@@ -909,7 +914,8 @@ function setupDraggable(group, onDragEnd, rotateState) {
 
     // It's a tap
     if (!rotateState) return;
-    if (node.__animationTarget || node.__dragging || ensurePieceQueue(node).running) return;
+    // if (node.__animationTarget || node.__dragging || ensurePieceQueue(node).running) return;
+    if (pieceInputLocked(node)) return;
     if (e.ctrlKey || e.metaKey) {
       enqueuePieceAction(node, () => flipPiece(node, e.clientX, e.clientY));
     } else {
@@ -932,7 +938,8 @@ function setupDraggable(group, onDragEnd, rotateState) {
     cancelPressTimer();
     didLongPress = true;  // Prevent pointerup from also acting
     if (!rotateState) return;
-    if (node.__animationTarget || node.__dragging || ensurePieceQueue(node).running) return;
+    // if (node.__animationTarget || node.__dragging || ensurePieceQueue(node).running) return;
+    if (pieceInputLocked(node)) return;
     if (e.ctrlKey) {
       enqueuePieceAction(node, () => flipPiece(node, e.clientX, e.clientY));
       bringToFront(node);

@@ -60,8 +60,8 @@ test('dragging while a flip is in-progress does not leave piece squished', async
   });
 
   // LONG_PRESS_MS is 500ms; wait beyond that, then into the midpoint of the
-  // (currently slowed-down) flip animation.
-  await page.waitForTimeout(900);
+  // 150ms flip animation.
+  await page.waitForTimeout(575);
 
   // Move > 5px threshold to trigger Hammer panstart/panmove.
   await page.dispatchEvent('#corner', 'pointermove', {
@@ -85,8 +85,19 @@ test('dragging while a flip is in-progress does not leave piece squished', async
     clientY: clientY + 10,
   });
 
-  // Give RAF animations time to settle.
-  await page.waitForTimeout(1200);
+  // Wait for the flip to finish (determinant sign toggles AND magnitude recovers).
+  await page.waitForFunction(
+    ({ beforeDet }) => {
+      const tf = document.getElementById('corner').getAttribute('transform') || '';
+      const match = tf.match(/matrix\(([^)]+)\)/);
+      if (!match) return false;
+      const [a, b, c, d] = match[1].split(/[\s,]+/).map(Number);
+      const det = a * d - b * c;
+      return Math.sign(det) === -Math.sign(beforeDet) && Math.abs(det) > 0.2;
+    },
+    { beforeDet },
+    { timeout: 2000 }
+  );
 
   const after = await page.evaluate(() => {
     return document.getElementById('corner').getAttribute('transform') || '';
@@ -121,8 +132,8 @@ test('ctrl+click flip then immediate drag does not leave piece squished', async 
   await page.mouse.click(clientX, clientY, { button: 'left' });
   await page.keyboard.up('Control');
 
-  // Wait into the midpoint of the (currently slowed-down) flip animation.
-  await page.waitForTimeout(400);
+  // Wait into the midpoint of the 150ms flip animation.
+  await page.waitForTimeout(75);
 
   // Immediately start a drag while the 150ms flip animation is likely still running.
   await page.mouse.move(clientX, clientY);
@@ -130,7 +141,18 @@ test('ctrl+click flip then immediate drag does not leave piece squished', async 
   await page.mouse.move(clientX + 40, clientY + 10);
   await page.mouse.up({ button: 'left' });
 
-  await page.waitForTimeout(1200);
+  await page.waitForFunction(
+    ({ beforeDet }) => {
+      const tf = document.getElementById('corner').getAttribute('transform') || '';
+      const match = tf.match(/matrix\(([^)]+)\)/);
+      if (!match) return false;
+      const [a, b, c, d] = match[1].split(/[\s,]+/).map(Number);
+      const det = a * d - b * c;
+      return Math.sign(det) === -Math.sign(beforeDet) && Math.abs(det) > 0.2;
+    },
+    { beforeDet },
+    { timeout: 2000 }
+  );
 
   const after = await page.evaluate(() => {
     return document.getElementById('corner').getAttribute('transform') || '';
@@ -158,15 +180,23 @@ test('tap rotate then drag mid-rotation does not leave piece partially rotated',
   // Tap rotates 90° (counter-clockwise in current implementation).
   await page.mouse.click(clientX, clientY, { button: 'left' });
 
-  // Start drag at the midpoint of the (currently slowed-down) rotation animation.
-  await page.waitForTimeout(400);
+  // Start drag at the midpoint of the 150ms rotation animation.
+  await page.waitForTimeout(75);
   await page.mouse.move(clientX, clientY);
   await page.mouse.down({ button: 'left' });
   await page.mouse.move(clientX + 40, clientY + 10);
   await page.mouse.up({ button: 'left' });
 
-  // Give RAF animations time to settle.
-  await page.waitForTimeout(1200);
+  // Wait for rotation to settle to an orthonormal transform.
+  await page.waitForFunction(() => {
+    const tf = document.getElementById('corner').getAttribute('transform') || '';
+    const match = tf.match(/matrix\(([^)]+)\)/);
+    if (!match) return false;
+    const [a, b, c, d] = match[1].split(/[\s,]+/).map(Number);
+    const col1Len = Math.hypot(a, b);
+    const col2Len = Math.hypot(c, d);
+    return Math.abs(col1Len - 1) < 0.05 && Math.abs(col2Len - 1) < 0.05;
+  }, { timeout: 2000 });
 
   const after = await page.evaluate(() => {
     return document.getElementById('corner').getAttribute('transform') || '';
