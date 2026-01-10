@@ -127,7 +127,7 @@ function getRandomColor() {
 
 window.showTutorial = function () {
   Swal.fire({
-    title: "Instructions",
+    title: "Destructions",
     confirmButtonText: "Roger",
     html: `
 <div style="text-align: left;">
@@ -137,6 +137,7 @@ Clicking or tapping rotates 90 degrees.
 (Right-clicking, or of course just clicking three times, rotates the other way.)
 Control-click or long-press to flip a piece over.
 </p>
+<h1>Credits</h1>
 <p>
 Made by Bethany, Danny, and Claude.
 With original inspiration from Nicky.
