@@ -146,7 +146,8 @@ And special thanks to
 that Bee originally adapted this from.
 </p>
 <p>
-Thanks also to Christopher for 3D-printing one of these!
+Thanks also to Christopher for 3D-printing one of these.
+And Faire for painting it.
 You can also find physical versions of 
 <a href="https://www.etsy.com/listing/1223897009/similar?ref=internal_similar_listing_bot" target="blank"
 >things like this on Etsy</a>.
