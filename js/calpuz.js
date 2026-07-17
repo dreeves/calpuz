@@ -45,8 +45,11 @@ const FORCED_REGION_OPACITY = 0.2;
 
 // Type 5: NON-COVERABLE cells (no remaining placements cover these)
 const NONCOVERABLE_COLOR_1 = '#ff0000';
-const NONCOVERABLE_COLOR_2 = '#ffffff';
-const NONCOVERABLE_WIDTH = 0.16;
+// const NONCOVERABLE_COLOR_2 = '#ffffff';  // Unused (X marks are single-color)
+const NONCOVERABLE_WIDTH = 0.08;   // X stroke width as fraction of boxel
+const NONCOVERABLE_INSET = 0.18;   // X inset from cell edge as fraction of boxel
+// NOTE: NONCOVERABLE_WIDTH was 0.16 but unused; the draw call hardcoded 0.08.
+// Now the constants are wired in with the values the draw call actually used.
 const NONCOVERABLE_OPACITY = 0.44;
 
 // Tunnel visualization (nadirs + corridor arrows)
@@ -287,15 +290,21 @@ window.framePieces = function() {
 // or:
 //   dumpPieceLayout()
 
+// Maps the linear part (a,b,c,d) of a piece's transform matrix back to the
+// (rot, flip) pair that movePoly would use to reconstruct it. movePoly builds
+// rotate(rot)*scale(-1,1), so the flipped keys are R_rot*S. Verified
+// empirically: R90*S has key '0,-1,-1,0' and R270*S has key '0,1,1,0'.
+// (These two used to be swapped, which made dump->apply silently change the
+// orientation of flipped pieces at 90/270.)
 const LINEAR_TO_ROT_FLIP = new Map([
   ['1,0,0,1',   { rot: 0,   flip: false }],
   ['0,1,-1,0',  { rot: 90,  flip: false }],
   ['-1,0,0,-1', { rot: 180, flip: false }],
   ['0,-1,1,0',  { rot: 270, flip: false }],
   ['-1,0,0,1',  { rot: 0,   flip: true }],
-  ['0,1,1,0',   { rot: 90,  flip: true }],
+  ['0,-1,-1,0', { rot: 90,  flip: true }],
   ['1,0,0,-1',  { rot: 180, flip: true }],
-  ['0,-1,-1,0', { rot: 270, flip: true }]
+  ['0,1,1,0',   { rot: 270, flip: true }]
 ]);
 
 function roundNearInt(x) {
@@ -613,70 +622,77 @@ function refreshHintGridOnly() {
 
 // Check if a solution exists with current piece placements (hint feature)
 window.checkHint = function() {
-  // Get today's date cells (the cells that should remain uncovered)
-  const today = new Date();
-  const targetCells = Solver.getDateCells(today.getMonth(), today.getDate());
-
-  const prePlaced = [];  // For solver - only valid placements
-  const pieceNames = shapes.map(s => s[0]);
-  let hasOverlap = false;
-
-  const cellToPieceExact = {}; // For overlap detection + date Xs (center-point coverage)
-
-  for (const name of pieceNames) {
-    const group = svgGet(name);
-    if (!group) continue;
-    const node = group.node;
-    const coveredCellsExact = getCoveredGridCellsByPiece(node);
-
-    // Record exact covered cells for overlap detection and date Xs.
-    for (const [r, c] of coveredCellsExact) {
-      if (!VALID_CELLS[r]?.[c]) continue;
-      const key = `${r},${c}`;
-      hasOverlap = hasOverlap || (key in cellToPieceExact);
-      cellToPieceExact[key] = name;
-    }
-
-    // Only add to prePlaced if valid placement (for solver)
-    const validCoveredCellsExact = coveredCellsExact.filter(([r, c]) => VALID_CELLS[r]?.[c]);
-    if (placementIsValidAndNonOverlappingOnCalendar(node) && validCoveredCellsExact.length > 0) {
-      prePlaced.push({ name, cells: validCoveredCellsExact });
-    }
-  }
-
-  // Show the hint panel
   showHintPanel();
+  refreshHint();
 
-  // Draw the mini grid
-  const targetSet = new Set(targetCells.map(([r, c]) => `${r},${c}`));
-  const dateCoveredExact = new Set(Object.keys(cellToPieceExact).filter(k => targetSet.has(k)));
-  drawHintGrid(targetCells, dateCoveredExact);
-
-  // Check if any piece is on valid grid but not validly placed (partial/overlapping)
-  const piecesOnGrid = new Set(Object.values(cellToPieceExact));
-  const validPieces = new Set(prePlaced.map(p => p.name));
-  const allPiecesValid = [...piecesOnGrid].every(p => validPieces.has(p));
-
-  const statusEl = document.getElementById('hint-status');
-
-  // Shortcut: overlap or invalid pieces means 0 solutions, skip solver
-  if (hasOverlap || !allPiecesValid) {
-    statusEl.className = 'hint-status';
-    statusEl.textContent = splur(0, "solution");
-    return;
-  }
-
-  // Show counting status and run solver
-  statusEl.className = 'hint-status counting';
-  statusEl.textContent = 'counting solutions';
-  document.body.classList.add('counting');
-
-  setTimeout(() => {
-    const result = Solver.countSolutionsWithPlacements(shapes, targetCells, prePlaced);
-    statusEl.className = 'hint-status';
-    statusEl.textContent = splur(result.count, "solution");
-    document.body.classList.remove('counting');
-  }, 50);
+  // Previous inline implementation (safe to delete; kept per AGENTS.md rule).
+  // It duplicated refreshHint verbatim, except the panel-showing above and a
+  // 50ms (instead of 20ms) repaint delay before the synchronous count:
+  //
+  // // Get today's date cells (the cells that should remain uncovered)
+  // const today = new Date();
+  // const targetCells = Solver.getDateCells(today.getMonth(), today.getDate());
+  //
+  // const prePlaced = [];  // For solver - only valid placements
+  // const pieceNames = shapes.map(s => s[0]);
+  // let hasOverlap = false;
+  //
+  // const cellToPieceExact = {}; // For overlap detection + date Xs (center-point coverage)
+  //
+  // for (const name of pieceNames) {
+  //   const group = svgGet(name);
+  //   if (!group) continue;
+  //   const node = group.node;
+  //   const coveredCellsExact = getCoveredGridCellsByPiece(node);
+  //
+  //   // Record exact covered cells for overlap detection and date Xs.
+  //   for (const [r, c] of coveredCellsExact) {
+  //     if (!VALID_CELLS[r]?.[c]) continue;
+  //     const key = `${r},${c}`;
+  //     hasOverlap = hasOverlap || (key in cellToPieceExact);
+  //     cellToPieceExact[key] = name;
+  //   }
+  //
+  //   // Only add to prePlaced if valid placement (for solver)
+  //   const validCoveredCellsExact = coveredCellsExact.filter(([r, c]) => VALID_CELLS[r]?.[c]);
+  //   if (placementIsValidAndNonOverlappingOnCalendar(node) && validCoveredCellsExact.length > 0) {
+  //     prePlaced.push({ name, cells: validCoveredCellsExact });
+  //   }
+  // }
+  //
+  // // Show the hint panel
+  // showHintPanel();
+  //
+  // // Draw the mini grid
+  // const targetSet = new Set(targetCells.map(([r, c]) => `${r},${c}`));
+  // const dateCoveredExact = new Set(Object.keys(cellToPieceExact).filter(k => targetSet.has(k)));
+  // drawHintGrid(targetCells, dateCoveredExact);
+  //
+  // // Check if any piece is on valid grid but not validly placed (partial/overlapping)
+  // const piecesOnGrid = new Set(Object.values(cellToPieceExact));
+  // const validPieces = new Set(prePlaced.map(p => p.name));
+  // const allPiecesValid = [...piecesOnGrid].every(p => validPieces.has(p));
+  //
+  // const statusEl = document.getElementById('hint-status');
+  //
+  // // Shortcut: overlap or invalid pieces means 0 solutions, skip solver
+  // if (hasOverlap || !allPiecesValid) {
+  //   statusEl.className = 'hint-status';
+  //   statusEl.textContent = splur(0, "solution");
+  //   return;
+  // }
+  //
+  // // Show counting status and run solver
+  // statusEl.className = 'hint-status counting';
+  // statusEl.textContent = 'counting solutions';
+  // document.body.classList.add('counting');
+  //
+  // setTimeout(() => {
+  //   const result = Solver.countSolutionsWithPlacements(shapes, targetCells, prePlaced);
+  //   statusEl.className = 'hint-status';
+  //   statusEl.textContent = splur(result.count, "solution");
+  //   document.body.classList.remove('counting');
+  // }, 50);
 };
 
 // Sound mute toggle
@@ -1310,9 +1326,13 @@ async function checkPuzzleSolved() {
     uncoveredCells.every(([r, c]) =>
       todayCells.some(([tr, tc]) => tr === r && tc === c));
 
-  // Load confetti module if needed
+  // Load confetti module if needed.
+  // Vendored locally (js/vendor/confetti.module.mjs, canvas-confetti 1.9.3, ISC)
+  // because cdn.skypack.dev went unreliable and started failing to serve it.
+  // The path is relative to this script's URL (that's how dynamic import()
+  // resolves inside a classic external script), i.e. js/vendor/...
   if (!confettiModule) {
-    const module = await import('https://cdn.skypack.dev/canvas-confetti');
+    const module = await import('./vendor/confetti.module.mjs');
     confettiModule = module.default;
   }
 
@@ -1979,7 +1999,7 @@ function visualizeAllPlacements(placements, attempts, progress, deadCells = [], 
   drawCheckerboardRegions(deadGroup, forcedRegions.cells,
     FORCED_REGION_COLOR_1, FORCED_REGION_COLOR_2, FORCED_REGION_WIDTH, FORCED_REGION_OPACITY, 'prune-forced');
   drawXRegions(deadGroup, nonCoverablePruning.cells,
-    NONCOVERABLE_COLOR_1, 0.08, 0.18, NONCOVERABLE_OPACITY);
+    NONCOVERABLE_COLOR_1, NONCOVERABLE_WIDTH, NONCOVERABLE_INSET, NONCOVERABLE_OPACITY);
 
   // Tunnel visualization:
   // - Dot at every nadir

@@ -925,16 +925,20 @@ window.Solver = (function() {
       // Sort remaining pieces by count (most constrained first)
       analysis.counts.sort((a, b) => a.count - b.count);
       const orderedRemaining = analysis.counts.map(p => p.name);
-      const currentRemaining = orderedRemaining;
-      const currentPlaced = placedPieces;
-      
+
+      // NOTE: This used to alias `currentPlaced = placedPieces` and compute
+      // `forcedAtThisLevel = currentPlaced.slice(placedPieces.length)` -- which
+      // is always empty (same array), so the "undo forced placements" loop at
+      // the end of this function was a no-op. Forced placements are made and
+      // undone inside the forcedPlacements branch above, never in this frame.
+      // Removed aliases and the dead loop; behavior unchanged.
+
       // Pick the most constrained piece (first in sorted order)
       const pieceName = orderedRemaining[0];
       const piece = pieceData[pieceName];
       const totalOrientations = piece.orientations.length;
-      const depth = currentPlaced.length;  // Use currentPlaced (includes forced pieces)
-      const forcedAtThisLevel = currentPlaced.slice(placedPieces.length);  // Track forced pieces for cleanup
-      
+      const depth = placedPieces.length;
+
       // Track if any placement was ever possible
       let hadValidPlacement = false;
 
@@ -953,8 +957,13 @@ window.Solver = (function() {
         
         // Try each valid position
         for (let posIdx = 0; posIdx < totalPositions; posIdx++) {
+          // Abandon the search as soon as stop() clears `solving`. Without this,
+          // every frame already on the stack kept looping (placing, painting,
+          // and awaiting the full delay per position) long after a stop --
+          // a zombie solver that repainted pieces after e.g. the reset button.
+          if (!solving) return false;
           const [row, col] = validPositions[posIdx];
-          
+
           // Place piece
           setPiece(grid, orient.cells, row, col, 3 + depth);
           placementsByName[pieceName] = {
@@ -973,7 +982,7 @@ window.Solver = (function() {
           currentDepth = depth + 1;
           
           // Analyze regions for this placement (forced placements handled by recursion)
-          const newPlaced = [...currentPlaced, pieceName];
+          const newPlaced = [...placedPieces, pieceName];
           const rawRemaining = orderedRemaining.slice(1);
           const tryAnalysis = getEffectiveCounts(grid, rawRemaining);
           
@@ -1034,7 +1043,7 @@ window.Solver = (function() {
       // Only show failure X if this piece had ZERO valid placements
       if (!hadValidPlacement && depth > 0) {
         const allPiecesProgress = [
-          ...currentPlaced.map(name => {
+          ...placedPieces.map(name => {
             const p = placementsByName[name];
             return { name, status: p.forced ? 'forced' : 'placed',
                 orientation: p.orientationIndex + 1, totalOrientations: p.totalOrientations,
@@ -1047,7 +1056,7 @@ window.Solver = (function() {
                 positionIndex: 0, totalPositions: 0 };
           })
         ];
-        placements = currentPlaced.map(name => placementsByName[name]);
+        placements = placedPieces.map(name => placementsByName[name]);
         const emptyPruning2 = { cells: [], sizes: [] };
         const emptyTunnels2 = { nadirs: [], paths: [] };
         visualizeCallback(placements, attempts, allPiecesProgress, [], emptyPruning2, emptyPruning2, emptyPruning2, emptyPruning2, pieceName, true, orderedRemaining, [], emptyTunnels2, emptyPruning2);
@@ -1063,21 +1072,25 @@ window.Solver = (function() {
         }
       }
       
-      // Undo forced placements made at the start of this backtrack level
-      for (let i = forcedAtThisLevel.length - 1; i >= 0; i--) {
-        const forcedName = forcedAtThisLevel[i];
-        const fp = placementsByName[forcedName];
-        setPiece(grid, fp.cells, fp.row, fp.col, 1);
-        delete placementsByName[forcedName];
-      }
-      
+      // Previous no-op "undo forced placements" loop (safe to delete; kept per
+      // AGENTS.md review convention -- see NOTE above about the dead aliases):
+      // for (let i = forcedAtThisLevel.length - 1; i >= 0; i--) {
+      //   const forcedName = forcedAtThisLevel[i];
+      //   const fp = placementsByName[forcedName];
+      //   setPiece(grid, fp.cells, fp.row, fp.col, 1);
+      //   delete placementsByName[forcedName];
+      // }
+
       return false;
     }
     
     const success = await backtrack(allPieceNames, []);
+    // Exhausted means the search ran to completion. stop() clears `solving`
+    // first, so a stopped search must NOT count as exhausted (exhausted
+    // disables the speed buttons, which would wrongly lock out re-solving).
+    exhausted = solving;
     solving = false;
-    exhausted = true; // Search finished
-    
+
     return { success, attempts };
   }
   
@@ -1125,33 +1138,35 @@ window.Solver = (function() {
     }
     
     let attempts = 0;
-    
+    const placements = []; // Filled in (in reverse depth order) on success
+
     function backtrack(pieceIndex) {
       if (pieceIndex === 8) return true; // Found a solution - stop
-      
+
       const pieceName = pieceNames[pieceIndex];
       const piece = pieceData[pieceName];
-      
+
       for (const orientation of piece.orientations) {
         const validPositions = getValidPositions(grid, orientation.cells);
         for (const [row, col] of validPositions) {
           setPiece(grid, orientation.cells, row, col, 3 + pieceIndex);
           attempts++;
-          
+
           const remaining = pieceNames.slice(pieceIndex + 1);
           const { deadCells } = analyzeRegions(grid, remaining);
           if (deadCells.length === 0 && backtrack(pieceIndex + 1)) {
+            placements.push({ name: pieceName, cells: orientation.cells, row, col });
             return true;
           }
-          
+
           setPiece(grid, orientation.cells, row, col, 1);
         }
       }
       return false;
     }
-    
+
     const success = backtrack(0);
-    return { success, attempts };
+    return { success, attempts, placements };
   }
   
   // Solve once for all 366 dates, return total attempts
